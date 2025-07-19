@@ -1,5 +1,21 @@
-# Technical Toolkits
+# 前端脚手架
 
-The toolkits help developers to setup prototype quickly.
+## 功能
 
-- [spring boot 3 + jdk17 + security](https://github.com/xiayy860612/tech-toolkit/tree/tk/spring-boot-3-jdk17)
+- 用户名/密码登陆
+
+## Tech Stack
+
+- [TypeScript](https://www.typescriptlang.org/)
+- [nextjs](https://nextjs.org/)，前端全栈框架
+- [React](https://zh-hans.react.dev/)，前端框架
+- [RTK](https://redux-toolkit.js.org/)，状态管理
+- [AntD](https://ant-design.antgroup.com/index-cn), UI 库
+- [Tailwind CSS](https://tailwindcss.com/)，样式
+- [Jest](https://nextjs.org/docs/app/building-your-application/testing/jest)，单元测试
+- [Axios](https://axios-http.com/)，网络库
+- [MSW](), API mock
+
+## Reference
+
+- [CSS Flexbox Layout Guide](https://css-tricks.com/snippets/css/a-guide-to-flexbox/)
