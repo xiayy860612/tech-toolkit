@@ -1,27 +1,34 @@
-# s2u2m toolkit
+# Spring boot 3 toolkit
 
-## 后端
+## Tech Stack
 
 - Java 17
 - Spring Boot 3.x
 - Spring Security
 - Maven
 - google-java-formatter
-- 
 
-## 前端
+## Provided Features
 
-- react，前端组建框架
-- remix，前端全栈框架，提供路由，服务端渲染等功能
-- eslint/prettier，对代码规范进行检测和格式化
-- vite，构建工具
-- vitest，前端单元测试
+- Integrate Swagger
+- OAuth2 JWT bearer token authentication
+- Global Error Handler
 
-## Release
+## Local Develop
 
-- 使用[aliyun包管理](https://packages.aliyun.com/)
+1. install `sb3-jdk17-security-tk-parent` and `s2u2m-resource-service-starter`
+
+```shell
+$ mvn clean install
+```
+
+2. copy `service-example-h2` project and rename to new service name
+3. run new service and make sure no error raised
+4. start to implement new features based on it.
 
 ## Deployment
+
+
 
 ```bash
 # push artifacts to repository
