@@ -4,29 +4,33 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.s2u2m.services</groupId>
-  <artifactId>s2u2m-service-starter-parent</artifactId>
+  <groupId>com.s2u2m.tk.sb3-jdk17-security-tk</groupId>
+  <artifactId>sb3-jdk17-security-tk-parent</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
-  <repositories>
-    <repository>
-      <id>ali-mvn-mirror</id>
-      <url>https://maven.aliyun.com/nexus/content/groups/public</url>
-    </repository>
-    <repository>
-      <id>ali-pub</id>
-      <url>https://maven.aliyun.com/repository/public</url>
-    </repository>
-    <repository>
-      <id>ali-central</id>
-      <url>https://maven.aliyun.com/repository/central</url>
-    </repository>
-    <repository>
-      <id>central</id>
-      <url>https://repo1.maven.org/maven2/</url>
-    </repository>
-  </repositories>
+  <modules>
+    <module>s2u2m-resource-service-starter</module>
+  </modules>
+
+<!--  <repositories>-->
+<!--    <repository>-->
+<!--      <id>ali-mvn-mirror</id>-->
+<!--      <url>https://maven.aliyun.com/nexus/content/groups/public</url>-->
+<!--    </repository>-->
+<!--    <repository>-->
+<!--      <id>ali-pub</id>-->
+<!--      <url>https://maven.aliyun.com/repository/public</url>-->
+<!--    </repository>-->
+<!--    <repository>-->
+<!--      <id>ali-central</id>-->
+<!--      <url>https://maven.aliyun.com/repository/central</url>-->
+<!--    </repository>-->
+<!--    <repository>-->
+<!--      <id>central</id>-->
+<!--      <url>https://repo1.maven.org/maven2/</url>-->
+<!--    </repository>-->
+<!--  </repositories>-->
 
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
@@ -147,4 +151,5 @@
       </plugin>
     </plugins>
   </build>
+
 </project>
