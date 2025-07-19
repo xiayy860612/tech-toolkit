@@ -1,0 +1,20 @@
+.header {
+  display: flex;
+  align-items: center;
+}
+
+.logo {
+  justify-self: start;
+}
+
+.title {
+  color: var(--color-gray-50);
+}
+
+.menu {
+  flex-grow: 1;
+}
+
+.userInfo {
+  justify-self: end;
+}
