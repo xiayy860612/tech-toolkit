@@ -1,0 +1,24 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.logo {
+  justify-self: start;
+}
+
+.title {
+  color: var(--color-gray-50);
+  margin: 0;
+}
+
+.menu {
+  flex-grow: 1;
+  height: 100%;
+}
+
+.userInfo {
+  justify-self: end;
+}
