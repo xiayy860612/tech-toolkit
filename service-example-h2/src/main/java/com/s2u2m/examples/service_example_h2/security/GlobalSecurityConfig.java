@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -27,5 +29,10 @@ public class GlobalSecurityConfig {
     RSAKey rsaKey = new RSAKey.Builder(publicKey).privateKey(privateKey).build();
     JWKSet jwkSet = new JWKSet(rsaKey);
     return new NimbusJwtEncoder((selector, context) -> selector.select(jwkSet));
+  }
+
+  @Bean
+  public JwtDecoder jwtDecoder(@Value("${s2u2m.security.jwt.publicKey}") RSAPublicKey publicKey) {
+    return NimbusJwtDecoder.withPublicKey(publicKey).build();
   }
 }
