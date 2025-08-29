@@ -1,10 +1,7 @@
-// "use client";
-
-import "antd/dist/reset.css";
 import { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { ClientGlobalLayout } from "./global-layout";
-import "./globals.css";
+import ClientGlobalLayout from "./components/GlobalLayout";
+import "./globals.scss";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

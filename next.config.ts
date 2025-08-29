@@ -23,11 +23,28 @@ function resolveMswAlias(isServer: boolean, config: any) {
 
 const nextConfig: NextConfig = {
   /* config options here */
-  output: "export",
+  // output: "export",
   // basePath: process.env.PAGES_BASE_PATH,
   webpack: (config, context) => {
     return resolveMswAlias(context?.isServer, config);
   },
+  serverExternalPackages: [
+    // fix: Can't resolve 'oracledb'
+    "knex",
+  ],
+  images: {
+    // TODO: use own host instead in future
+    domains: ["images.unsplash.com"], // Add the external image domain
+  },
+  // rewrites used for service host in different location
+  // rewrites: async () => {
+  //   return [
+  //     {
+  //       source: "/api/:path*",
+  //       destination: `http://localhost:8080/api/:path*`,
+  //     },
+  //   ];
+  // },
 };
 
 export default nextConfig;

@@ -1,18 +1,18 @@
-import { authApi } from "@/api/auth";
 import { configureStore } from "@reduxjs/toolkit";
 import { TypedUseSelectorHook, useDispatch, useSelector } from "react-redux";
-import { userReducer } from "./user";
+import { sessionReducer } from "./session";
 
 export const store = configureStore({
   reducer: {
     // Add reducers here
-    [authApi.reducerPath]: authApi.reducer,
-    user: userReducer,
+    session: sessionReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: false,
-    }).concat(authApi.middleware),
+    }).concat([
+      // reducer middlewares
+    ]),
 });
 
 export type RootState = ReturnType<typeof store.getState>;
