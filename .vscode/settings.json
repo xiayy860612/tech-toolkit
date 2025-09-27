@@ -1,0 +1,17 @@
+{
+  "editor.wordWrapColumn": 100,
+  "editor.rulers": [100],
+  "editor.tabSize": 2,
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit",
+    "source.fixAll.eslint": "explicit"
+  },
+  // java
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.compile.nullAnalysis.mode": "automatic",
+  "[java]": {
+    "editor.defaultFormatter": "josevseb.google-java-format-for-vs-code"
+  }
+}
