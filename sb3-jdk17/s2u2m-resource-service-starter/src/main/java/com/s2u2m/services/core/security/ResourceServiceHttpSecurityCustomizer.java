@@ -14,7 +14,7 @@ public class ResourceServiceHttpSecurityCustomizer {
     http.csrf(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)
         .anonymous(AbstractHttpConfigurer::disable)
-        .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
+        .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable))
         .authorizeHttpRequests(
             registry -> {
               registry.requestMatchers(SwaggerConfig.JWT_HOST_URLS).permitAll();

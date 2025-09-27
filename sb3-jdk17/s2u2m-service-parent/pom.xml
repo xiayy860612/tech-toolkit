@@ -4,33 +4,10 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.s2u2m.tk.sb3-jdk17-security-tk</groupId>
-  <artifactId>sb3-jdk17-security-tk-parent</artifactId>
+  <groupId>com.s2u2m.tk</groupId>
+  <artifactId>s2u2m-service-parent</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
-
-  <modules>
-    <module>s2u2m-resource-service-starter</module>
-  </modules>
-
-<!--  <repositories>-->
-<!--    <repository>-->
-<!--      <id>ali-mvn-mirror</id>-->
-<!--      <url>https://maven.aliyun.com/nexus/content/groups/public</url>-->
-<!--    </repository>-->
-<!--    <repository>-->
-<!--      <id>ali-pub</id>-->
-<!--      <url>https://maven.aliyun.com/repository/public</url>-->
-<!--    </repository>-->
-<!--    <repository>-->
-<!--      <id>ali-central</id>-->
-<!--      <url>https://maven.aliyun.com/repository/central</url>-->
-<!--    </repository>-->
-<!--    <repository>-->
-<!--      <id>central</id>-->
-<!--      <url>https://repo1.maven.org/maven2/</url>-->
-<!--    </repository>-->
-<!--  </repositories>-->
 
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
@@ -43,6 +20,21 @@
     <s2u2m.mapstruct.version>1.6.3</s2u2m.mapstruct.version>
     <s2u2m.lombok-mapstruct-binding.version>0.2.0</s2u2m.lombok-mapstruct-binding.version>
   </properties>
+
+  <!-- <repositories>
+    <repository>
+      <id>github</id>
+      <url>https://maven.pkg.github.com/xiayy860612/tech-toolkit</url>
+    </repository>
+  </repositories> -->
+
+  <distributionManagement>
+    <repository>
+      <id>github</id>
+      <name>s2u2m Maven Packages</name>
+      <url>https://maven.pkg.github.com/xiayy860612/tech-toolkit</url>
+    </repository>
+  </distributionManagement>
 
   <parent>
     <!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-parent -->
