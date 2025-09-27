@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.s2u2m.tk</groupId>
+    <artifactId>s2u2m-service-parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>s2u2m-resource-service-starter</artifactId>
+  <version>1.0-SNAPSHOT</version>
+
+  <properties>
+  </properties>
+
+  <dependencies>
+    <!-- https://mvnrepository.com/artifact/com.auth0/java-jwt -->
+<!--    <dependency>-->
+<!--      <groupId>com.auth0</groupId>-->
+<!--      <artifactId>java-jwt</artifactId>-->
+<!--    </dependency>-->
+
+    <!-- Nimbus JOSE + JWT -->
+<!--    <dependency>-->
+<!--      <groupId>com.nimbusds</groupId>-->
+<!--      <artifactId>nimbus-jose-jwt</artifactId>-->
+<!--    </dependency>-->
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <!-- 生成非可执行的 JAR 包，仅包含项目编译后的类，不包含依赖包和 BOOT-INF 目录 -->
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
