@@ -37,7 +37,7 @@ public class DemoController {
   record CreateDemoRequest(@NotBlank String name) {}
 
   @PostMapping
-  @PreAuthorize("hasPermission('', 'DEMO', 'create')")
+  @PreAuthorize("hasPermission('*', 'DEMO', 'create')")
   public DemoEntity createDemo(@Valid @RequestBody CreateDemoRequest request) {
     return demoService.createDemo(request.name);
   }

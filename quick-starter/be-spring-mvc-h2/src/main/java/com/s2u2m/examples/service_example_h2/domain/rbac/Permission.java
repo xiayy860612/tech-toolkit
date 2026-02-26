@@ -38,16 +38,15 @@ public class Permission extends ImmutableEntity {
   private String resourceId;
   private String action;
 
-  public Permission(Resource resource, String resourceId, String action) {
+  public Permission(Long uid, Resource resource, String resourceId, String action) {
+    this.uid = uid;
     this.resource = resource;
     this.resourceId = StringUtils.hasLength(resourceId) ? resourceId : ALL_RESOURCES;
     this.action = action;
   }
 
-  public Permission(Resource resource, Long resourceId, String action) {
-    this.resource = resource;
-    this.resourceId = Objects.nonNull(resourceId) ? resourceId.toString() : ALL_RESOURCES;
-    this.action = action;
+  public Permission(Long uid, Resource resource, Long resourceId, String action) {
+    this(uid, resource, Objects.nonNull(resourceId) ? resourceId.toString() : ALL_RESOURCES, action);
   }
 
   public GrantedAuthority getAuthority() {

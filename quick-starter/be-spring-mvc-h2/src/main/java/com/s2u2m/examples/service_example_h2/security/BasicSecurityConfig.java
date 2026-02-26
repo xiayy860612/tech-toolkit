@@ -22,7 +22,7 @@ public class BasicSecurityConfig {
   @Bean
   @Order(10)
   public SecurityFilterChain basicFilterChain(HttpSecurity http) throws Exception {
-    http.securityMatcher("/api/auth/**")
+    http.securityMatcher("/api/auth/login")
         .csrf(AbstractHttpConfigurer::disable)
         .authorizeHttpRequests(registry -> registry.anyRequest().authenticated())
         .httpBasic(

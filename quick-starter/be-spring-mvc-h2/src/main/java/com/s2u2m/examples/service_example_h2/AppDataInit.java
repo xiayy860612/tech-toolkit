@@ -49,8 +49,8 @@ public class AppDataInit {
     demo = demoEntityRepository.save(demo);
 
     List<Permission> permissions = List.of(
-      new Permission(Resource.DEMO, "", "create"),
-      new Permission(Resource.DEMO, demo.getId(), "write"));
+      new Permission(user.getId(), Resource.DEMO, "", "create"),
+      new Permission(user.getId(), Resource.DEMO, demo.getId(), "write"));
     permissionRepository.saveAll(permissions);
   }
 }
