@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "sb3-jdk17/s2u2m-resource-service-starter/**"
+      - ".github/workflows/s2u2m-resource-service-starter.yml"
 
 permissions:
   contents: read
