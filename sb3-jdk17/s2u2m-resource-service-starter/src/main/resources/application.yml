@@ -4,8 +4,9 @@ spring:
   application.name: s2u2m-demo
   jpa:
     hibernate.ddl-auto: none
-    properties.hibernate.jdbc.time_zone: GMT+8
+    properties.hibernate.jdbc.time_zone: UTC
     show-sql: true
+  jackson.time-zone: UTC
 logging:
   level:
     root: info
@@ -16,3 +17,15 @@ s2u2m:
   security:
     jwt:
       publicKey: classpath:jwt-rsa-key.pub
+  operation-log:
+    # 敏感字段列表（可选，默认为空）
+    sensitive-fields:
+      - password
+      - pwd
+      - secret
+      - token
+      - key
+      - apiKey
+      - accessToken
+    # 脱敏掩码（可选，默认为 ******）
+    mask: "******"
