@@ -2,4 +2,7 @@
 
 target/
 
+logs/*
+*.log
+
 test.sql

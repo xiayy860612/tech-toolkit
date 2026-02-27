@@ -20,7 +20,7 @@
     <dependency>
       <groupId>com.s2u2m.tk</groupId>
       <artifactId>s2u2m-resource-service-starter</artifactId>
-      <version>1.0-SNAPSHOT</version>
+      <version>1.0.1-SNAPSHOT</version>
     </dependency>
 
     <dependency>

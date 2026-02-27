@@ -17,3 +17,15 @@ s2u2m:
   security:
     jwt:
       publicKey: classpath:jwt-rsa-key.pub
+  operation-log:
+    # 敏感字段列表（可选，默认为空）
+    sensitive-fields:
+      - password
+      - pwd
+      - secret
+      - token
+      - key
+      - apiKey
+      - accessToken
+    # 脱敏掩码（可选，默认为 ******）
+    mask: "******"

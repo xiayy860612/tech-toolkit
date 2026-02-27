@@ -7,11 +7,7 @@ spring:
     properties.hibernate.jdbc.time_zone: UTC
   jackson.time-zone: UTC
 logging:
-  level:
-    root: info
-    org.springframework: info
-    org.springframework.security: info
-    com.s2u2m.services: info
+  # 日志配置由 logback-spring.xml 处理，支持 traceId 追踪
 s2u2m:
   security:
     jwt:
