@@ -1,7 +1,7 @@
 package com.s2u2m.services.core.log;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -215,7 +215,7 @@ public class OperationLogAspect {
 
     try {
       return objectMapper.writeValueAsString(args);
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       return "{序列化失败: " + e.getMessage() + "}";
     }
   }
@@ -226,7 +226,7 @@ public class OperationLogAspect {
   private String serializeResult(Object result) {
     try {
       return objectMapper.writeValueAsString(result);
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       return "{序列化失败: " + e.getMessage() + "}";
     }
   }

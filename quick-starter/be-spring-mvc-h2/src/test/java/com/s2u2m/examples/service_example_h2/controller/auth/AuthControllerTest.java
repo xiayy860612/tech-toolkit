@@ -1,23 +1,26 @@
 package com.s2u2m.examples.service_example_h2.controller.auth;
 
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.s2u2m.examples.service_example_h2.BaseControllerTest;
-import com.s2u2m.examples.service_example_h2.domain.user.InnerUser;
-import com.s2u2m.examples.service_example_h2.domain.user.UserRepository;
-import com.s2u2m.examples.service_example_h2.utils.AuthUtils;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-@WebMvcTest(AuthController.class)
+import com.s2u2m.examples.service_example_h2.BaseControllerTest;
+import com.s2u2m.examples.service_example_h2.domain.user.InnerUser;
+import com.s2u2m.examples.service_example_h2.domain.user.UserRepository;
+import com.s2u2m.examples.service_example_h2.utils.AuthUtils;
+
+@WebMvcTest(value = AuthController.class)
 class AuthControllerTest extends BaseControllerTest {
 
   @MockitoBean
@@ -35,7 +38,7 @@ class AuthControllerTest extends BaseControllerTest {
     user.setAvatar("avatar");
     when(userRepository.getReferenceById(any())).thenReturn(user);
 
-    mvc.perform(post("/api/auth/basic/login").contentType(MediaType.APPLICATION_JSON))
+    mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON))
       .andExpect(status().isOk());
   }
 
