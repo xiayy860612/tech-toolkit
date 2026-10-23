@@ -2,6 +2,7 @@ package com.s2u2m.uam.domain.port;
 
 import com.s2u2m.uam.domain.model.PageResult;
 import com.s2u2m.uam.domain.model.User;
+import com.s2u2m.uam.domain.model.UserStatus;
 import com.s2u2m.uam.domain.model.UserWithAccountCount;
 import java.util.Collection;
 import java.util.Map;
@@ -17,6 +18,15 @@ public interface UserRepository {
 
   /** 全部用户数（含已停用）。 */
   long count();
+
+  /** 状态为 {@code ACTIVE} 的用户数（「最后一个正常用户」校验用，须在 {@link UserStatusLock} 之内读取）。 */
+  long countActive();
+
+  /**
+   * 把用户置为 {@code status}，同时把 {@code app_user.updated_at} 设为 {@code now()}；本来就是该状态或用户不存在时什么都不改，返回
+   * {@code false}。
+   */
+  boolean updateStatus(UUID id, UserStatus status);
 
   /**
    * 分页列出用户（含已停用）并带上每个用户的账号总数，按创建时间倒序、主键升序，保证分页稳定。

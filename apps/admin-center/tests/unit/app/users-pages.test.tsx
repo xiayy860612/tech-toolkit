@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { redirect } from "next/navigation";
 import UserDetailPage from "@/app/(shell)/users/[userId]/page";
 import UsersPage from "@/app/(shell)/users/page";
+import { getOperator } from "@/lib/session/get-session";
 import { getUser, listUsers } from "@/lib/uam/client";
 import { UamError } from "@/lib/uam/errors";
 import { makeAccount, makeDetail, makeSummary, USER_IDS } from "../../support/users-fixtures";
@@ -12,6 +13,9 @@ jest.mock("next/navigation", () => ({
   }),
 }));
 jest.mock("@/lib/uam/client", () => ({ listUsers: jest.fn(), getUser: jest.fn() }));
+jest.mock("@/lib/session/get-session", () => ({ getOperator: jest.fn() }));
+jest.mock("@/app/(shell)/users/[userId]/actions", () => ({ disableUser: jest.fn(), enableUser: jest.fn() }));
+const OPERATOR = { userId: USER_IDS.zhang, accountId: "a", sessionRef: "r" };
 
 type Param = string | string[] | undefined;
 const listProps = (search: { q?: Param; page?: Param } = {}) => ({ searchParams: Promise.resolve(search) });
@@ -111,6 +115,26 @@ describe("/users 列表页", () => {
 });
 
 describe("/users/[userId] 详情页", () => {
+  beforeEach(() => jest.mocked(getOperator).mockResolvedValue(OPERATOR));
+
+  it("目标用户就是当前登录的用户：「停用用户」入口禁用并说明原因", async () => {
+    jest.mocked(getUser).mockResolvedValue(makeDetail({ id: USER_IDS.zhang }));
+    render(await UserDetailPage(detailProps(USER_IDS.zhang)));
+    expect(screen.getByRole("button", { name: "停用用户" })).toBeDisabled();
+    expect(screen.getByText("不能停用当前登录的用户。")).toBeVisible();
+  });
+
+  it("目标是其他用户，或无法取得操作人：入口可用（服务端仍会拒绝停用自己）", async () => {
+    jest.mocked(getUser).mockResolvedValue(makeDetail());
+    const other = render(await UserDetailPage(detailProps(USER_IDS.li)));
+    expect(screen.getByRole("button", { name: "停用用户" })).toBeEnabled();
+    other.unmount();
+
+    jest.mocked(getOperator).mockResolvedValue(null);
+    render(await UserDetailPage(detailProps(USER_IDS.li)));
+    expect(screen.getByRole("button", { name: "停用用户" })).toBeEnabled();
+  });
+
   it("渲染详情；面包屑「用户管理 / 用户名」", async () => {
     jest.mocked(getUser).mockResolvedValue(makeDetail());
     render(await UserDetailPage(detailProps(USER_IDS.li)));

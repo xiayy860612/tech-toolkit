@@ -217,3 +217,26 @@ export async function createUser(request: CreateUserRequest, operator: Operator,
   });
   return data;
 }
+
+/**
+ * 停用用户（`POST /v1/users/{userId}/disable`，幂等）：其全部账号不能登录、全部会话立即结束。
+ * 写操作：带操作人请求头。失败抛 `UamError`：409 `cannot_disable_self` / `cannot_disable_last_active_user`、404 `user_not_found` 等。
+ */
+export async function disableUser(userId: string, operator: Operator): Promise<UserDetail> {
+  const { data } = await uamRequest<UserDetail>({
+    method: "POST",
+    path: `/v1/users/${encodeURIComponent(userId)}/disable`,
+    operator,
+  });
+  return data;
+}
+
+/** 启用用户（`POST /v1/users/{userId}/enable`，幂等）：恢复其账号的登录能力，不恢复已结束的会话。写操作：带操作人请求头。 */
+export async function enableUser(userId: string, operator: Operator): Promise<UserDetail> {
+  const { data } = await uamRequest<UserDetail>({
+    method: "POST",
+    path: `/v1/users/${encodeURIComponent(userId)}/enable`,
+    operator,
+  });
+  return data;
+}

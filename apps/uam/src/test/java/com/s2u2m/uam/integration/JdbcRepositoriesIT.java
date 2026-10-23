@@ -14,13 +14,21 @@ import com.s2u2m.uam.domain.model.User;
 import com.s2u2m.uam.domain.model.UserStatus;
 import com.s2u2m.uam.domain.port.AccountRepository;
 import com.s2u2m.uam.domain.port.CredentialRepository;
+import com.s2u2m.uam.domain.port.TransactionRunner;
 import com.s2u2m.uam.domain.port.UserRepository;
+import com.s2u2m.uam.domain.port.UserStatusLock;
 import com.s2u2m.uam.support.IntegrationTestBase;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -30,6 +38,8 @@ class JdbcRepositoriesIT extends IntegrationTestBase {
   @Autowired UserRepository users;
   @Autowired AccountRepository accounts;
   @Autowired CredentialRepository credentials;
+  @Autowired UserStatusLock statusLock;
+  @Autowired TransactionRunner transactions;
 
   private static Instant micros() {
     return Instant.now().truncatedTo(ChronoUnit.MICROS);
@@ -134,5 +144,87 @@ class JdbcRepositoriesIT extends IntegrationTestBase {
             account.id());
     assertThat(second).isAfter(first);
     assertThat(credentials.findPasswordHash(UUID.randomUUID())).isEmpty();
+  }
+
+  @Test
+  void countActiveCountsOnlyActiveUsers() {
+    insertUser("甲");
+    User b = insertUser("乙");
+    insertUser("丙");
+    users.updateStatus(b.id(), UserStatus.DISABLED);
+
+    assertThat(users.countActive()).isEqualTo(2);
+    assertThat(users.count()).isEqualTo(3);
+  }
+
+  @Test
+  void updateStatusChangesTheStatusAndMovesUpdatedAtOnlyOnARealChange()
+      throws InterruptedException {
+    User user = insertUser("张三");
+    OffsetDateTime inserted = updatedAt(user);
+    Thread.sleep(20);
+
+    assertThat(users.updateStatus(user.id(), UserStatus.DISABLED)).isTrue();
+    OffsetDateTime disabledAt = updatedAt(user);
+    assertThat(users.findById(user.id()).orElseThrow().status()).isEqualTo(UserStatus.DISABLED);
+    assertThat(disabledAt).isAfter(inserted);
+
+    Thread.sleep(20);
+    assertThat(users.updateStatus(user.id(), UserStatus.DISABLED)).as("已经是目标状态").isFalse();
+    assertThat(updatedAt(user)).isEqualTo(disabledAt);
+
+    Thread.sleep(20);
+    assertThat(users.updateStatus(user.id(), UserStatus.ACTIVE)).isTrue();
+    assertThat(updatedAt(user)).isAfter(disabledAt);
+    assertThat(users.updateStatus(UUID.randomUUID(), UserStatus.DISABLED)).isFalse();
+  }
+
+  private OffsetDateTime updatedAt(User user) {
+    return jdbc.queryForObject(
+        "SELECT updated_at FROM app_user WHERE id = ?", OffsetDateTime.class, user.id());
+  }
+
+  @Test
+  void theStatusLockSerialisesTransactionsUntilCommit() throws Exception {
+    CountDownLatch holding = new CountDownLatch(1);
+    AtomicLong releasedAt = new AtomicLong();
+    AtomicLong secondAcquiredAt = new AtomicLong();
+    ExecutorService pool = Executors.newFixedThreadPool(2);
+    Future<?> first =
+        pool.submit(
+            () ->
+                transactions.inTransaction(
+                    () -> {
+                      statusLock.lockStatusChanges();
+                      holding.countDown();
+                      sleep(400);
+                      releasedAt.set(System.nanoTime());
+                      return null;
+                    }));
+    holding.await();
+    Future<?> second =
+        pool.submit(
+            () ->
+                transactions.inTransaction(
+                    () -> {
+                      statusLock.lockStatusChanges();
+                      secondAcquiredAt.set(System.nanoTime());
+                      return null;
+                    }));
+    first.get(10, TimeUnit.SECONDS);
+    second.get(10, TimeUnit.SECONDS);
+    pool.shutdown();
+
+    assertThat(secondAcquiredAt.get())
+        .as("第二个事务要等第一个提交后才拿到锁")
+        .isGreaterThanOrEqualTo(releasedAt.get());
+  }
+
+  private static void sleep(long millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
   }
 }

@@ -5,6 +5,7 @@ import com.s2u2m.uam.domain.model.User;
 import com.s2u2m.uam.domain.model.UserStatus;
 import com.s2u2m.uam.domain.model.UserWithAccountCount;
 import com.s2u2m.uam.domain.port.UserRepository;
+import com.s2u2m.uam.domain.port.UserStatusLock;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
@@ -18,9 +19,12 @@ import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
-/** 用户仓储（显式 SQL）。{@code updated_at} 没有数据库默认值，插入时显式取 {@code now()}。 */
+/**
+ * 用户仓储（显式 SQL）与用户状态变更锁。{@code updated_at} 没有数据库默认值，插入与状态更新时显式取 {@code now()}；状态变更锁是 PostgreSQL
+ * 的事务级咨询锁 （{@code pg_advisory_xact_lock}），随事务结束释放。
+ */
 @Repository
-public class JdbcUserRepository implements UserRepository {
+public class JdbcUserRepository implements UserRepository, UserStatusLock {
 
   /**
    * 搜索命中的用户标识：用户名命中 ∪ 账号名命中。两侧各自是可用 {@code pg_trgm} GIN 索引的 {@code ILIKE '%q%'}，用 {@code UNION} 而不是
@@ -36,6 +40,9 @@ public class JdbcUserRepository implements UserRepository {
           + " FROM app_user u";
   private static final String ORDER_AND_PAGE =
       " ORDER BY u.created_at DESC, u.id LIMIT :limit OFFSET :offset";
+
+  /** 状态变更锁的键（全局唯一的一把锁；取值任意，只要不与同库其它咨询锁冲突）。 */
+  static final long STATUS_LOCK_KEY = 0x55414D5F53544154L;
 
   private final JdbcClient jdbc;
 
@@ -81,6 +88,29 @@ public class JdbcUserRepository implements UserRepository {
   @Override
   public long count() {
     return jdbc.sql("SELECT count(*) FROM app_user").query(Long.class).single();
+  }
+
+  @Override
+  public long countActive() {
+    return jdbc.sql("SELECT count(*) FROM app_user WHERE status = 'ACTIVE'")
+        .query(Long.class)
+        .single();
+  }
+
+  @Override
+  public boolean updateStatus(UUID id, UserStatus status) {
+    return jdbc.sql(
+                "UPDATE app_user SET status = :status, updated_at = now()"
+                    + " WHERE id = :id AND status <> :status")
+            .param("id", id)
+            .param("status", status.name())
+            .update()
+        > 0;
+  }
+
+  @Override
+  public void lockStatusChanges() {
+    jdbc.sql("SELECT pg_advisory_xact_lock(:key)").param("key", STATUS_LOCK_KEY).query(rs -> {});
   }
 
   @Override

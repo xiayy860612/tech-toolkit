@@ -10,6 +10,7 @@ import com.s2u2m.uam.domain.model.PageResult;
 import com.s2u2m.uam.domain.model.Session;
 import com.s2u2m.uam.domain.model.SessionRef;
 import com.s2u2m.uam.domain.model.User;
+import com.s2u2m.uam.domain.model.UserStatus;
 import com.s2u2m.uam.domain.model.UserWithAccountCount;
 import com.s2u2m.uam.domain.model.WriteOperationEvent;
 import com.s2u2m.uam.domain.port.AccountRepository;
@@ -21,6 +22,7 @@ import com.s2u2m.uam.domain.port.PasswordHasher;
 import com.s2u2m.uam.domain.port.SessionStore;
 import com.s2u2m.uam.domain.port.TransactionRunner;
 import com.s2u2m.uam.domain.port.UserRepository;
+import com.s2u2m.uam.domain.port.UserStatusLock;
 import com.s2u2m.uam.domain.port.WriteOperationLog;
 import java.time.Duration;
 import java.time.Instant;
@@ -33,6 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
@@ -60,8 +63,11 @@ public final class Fakes {
   }
 
   /** 内存用户仓储。 */
-  public static final class FakeUsers implements UserRepository {
+  public static class FakeUsers implements UserRepository {
     public final Map<UUID, User> byId = new LinkedHashMap<>();
+
+    /** 真正发生了状态变更的次数。 */
+    public int statusUpdates;
 
     @Override
     public Optional<User> findById(UUID id) {
@@ -76,6 +82,22 @@ public final class Fakes {
     @Override
     public long count() {
       return byId.size();
+    }
+
+    @Override
+    public long countActive() {
+      return byId.values().stream().filter(User::isActive).count();
+    }
+
+    @Override
+    public boolean updateStatus(UUID id, UserStatus status) {
+      User user = byId.get(id);
+      if (user == null || user.status() == status) {
+        return false;
+      }
+      byId.put(id, new User(user.id(), user.name(), status, user.createdAt()));
+      statusUpdates++;
+      return true;
     }
 
     /** {@link #findNames} 的调用次数与最近一次的参数。 */
@@ -169,6 +191,9 @@ public final class Fakes {
     private final FakeCredentials credentials;
     public int transactions;
 
+    /** 当前是否在事务里（用来断言某些动作发生在提交之后）。 */
+    public boolean active;
+
     public FakeTransactionRunner(
         FakeUsers users, FakeAccounts accounts, FakeCredentials credentials) {
       this.users = users;
@@ -179,6 +204,7 @@ public final class Fakes {
     @Override
     public <T> T inTransaction(Supplier<T> work) {
       transactions++;
+      active = true;
       var usersBefore = new LinkedHashMap<>(users.byId);
       var accountsBefore = new LinkedHashMap<>(accounts.byId);
       var credentialsBefore = new HashMap<>(credentials.hashes);
@@ -192,6 +218,8 @@ public final class Fakes {
         credentials.hashes.clear();
         credentials.hashes.putAll(credentialsBefore);
         throw e;
+      } finally {
+        active = false;
       }
     }
   }
@@ -231,6 +259,9 @@ public final class Fakes {
     public final Map<String, Session> byHash = new LinkedHashMap<>();
     public final List<SessionRef> terminated = new ArrayList<>();
     public final List<Session> touched = new ArrayList<>();
+
+    /** 每次 {@link #terminateAllForUser} 传入的账号标识。 */
+    public final List<List<UUID>> terminatedForUsers = new ArrayList<>();
 
     /** {@link #listOnline} 要返回的（已聚合、已排序的）在线用户，以及最近一次传入的当前时刻。 */
     public List<OnlineUserSummary> online = List.of();
@@ -278,9 +309,32 @@ public final class Fakes {
     }
 
     @Override
+    public int terminateAllForUser(Collection<UUID> accountIds) {
+      terminatedForUsers.add(List.copyOf(accountIds));
+      int before = byHash.size();
+      byHash.values().removeIf(s -> accountIds.contains(s.accountId()));
+      return before - byHash.size();
+    }
+
+    @Override
     public boolean terminate(SessionRef ref) {
       terminated.add(ref);
       return byHash.values().removeIf(s -> s.ref().equals(ref));
+    }
+  }
+
+  /** 假的状态锁：记录每次取锁时是否在事务里。 */
+  public static final class FakeUserStatusLock implements UserStatusLock {
+    public final List<Boolean> acquiredInsideTransaction = new ArrayList<>();
+    private final BooleanSupplier inTransaction;
+
+    public FakeUserStatusLock(BooleanSupplier inTransaction) {
+      this.inTransaction = inTransaction;
+    }
+
+    @Override
+    public void lockStatusChanges() {
+      acquiredInsideTransaction.add(inTransaction.getAsBoolean());
     }
   }
 

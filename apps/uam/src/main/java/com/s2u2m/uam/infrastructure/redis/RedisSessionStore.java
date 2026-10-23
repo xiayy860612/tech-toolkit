@@ -30,6 +30,8 @@ import org.springframework.stereotype.Component;
  * sha}）、{@code uam:online}（ZSET，成员 {@code {userId}|{ref}}，分数为到期 epoch 秒）。 登录、续期、终止各用一个 Lua
  * 脚本原子完成；三个会话键的 TTL 都取「空闲剩余」与「绝对剩余」的较小值（即会话的有效到期）。
  *
+ * <p>停用用户时 {@link #terminateAllForUser} 经账号指针一次清掉其全部会话，并 {@code WAIT 1}。
+ *
  * <p>HASH 里除设计表中的字段外，还快照了 {@code userName}、{@code loginName}、{@code kind}、{@code expiresAt}，使校验只读
  * Redis。
  */
@@ -43,16 +45,23 @@ public class RedisSessionStore implements SessionStore {
   private static final String REF = "uam:sref:";
   private static final String ONLINE = "uam:online";
 
+  /** 撤销后等待副本确认的最长时间（research R7）。 */
+  private static final Duration REPLICA_WAIT = Duration.ofMillis(200);
+
   private final StringRedisTemplate redis;
   private final Clock clock;
+  private final ReplicaWait replicaWait;
   private final DefaultRedisScript<String> loginScript = script("login.lua", String.class);
   private final DefaultRedisScript<Long> touchScript = script("touch.lua", Long.class);
   private final DefaultRedisScript<Long> terminateScript = script("terminate.lua", Long.class);
+  private final DefaultRedisScript<Long> terminateAllScript =
+      script("terminate-all.lua", Long.class);
   private final DefaultRedisScript<List> onlineScript = script("online.lua", List.class);
 
-  public RedisSessionStore(StringRedisTemplate redis, Clock clock) {
+  public RedisSessionStore(StringRedisTemplate redis, Clock clock, ReplicaWait replicaWait) {
     this.redis = redis;
     this.clock = clock;
+    this.replicaWait = replicaWait;
   }
 
   private static <T> DefaultRedisScript<T> script(String name, Class<T> resultType) {
@@ -169,6 +178,18 @@ public class RedisSessionStore implements SessionStore {
   public boolean terminate(SessionRef ref) {
     Long result = redis.execute(terminateScript, List.of(REF + ref, ONLINE), ref.toString());
     return result != null && result == 1;
+  }
+
+  @Override
+  public int terminateAllForUser(Collection<UUID> accountIds) {
+    if (accountIds.isEmpty()) {
+      return 0;
+    }
+    Long terminated =
+        redis.execute(
+            terminateAllScript, List.of(ONLINE), accountIds.stream().map(UUID::toString).toArray());
+    replicaWait.await(REPLICA_WAIT);
+    return terminated == null ? 0 : terminated.intValue();
   }
 
   private long ttlMillis(Session session) {

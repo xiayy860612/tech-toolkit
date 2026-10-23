@@ -15,6 +15,7 @@ jest.mock("next/navigation", () => ({
 }));
 jest.mock("@/lib/uam/client", () => ({ listOnlineUsers: jest.fn(), listUserSessions: jest.fn(), getUser: jest.fn() }));
 jest.mock("@/lib/session/get-session", () => ({ getOperator: jest.fn() }));
+jest.mock("@/app/(shell)/users/[userId]/actions", () => ({ disableUser: jest.fn(), enableUser: jest.fn() }));
 
 const operator = { userId: USER_IDS.zhang, accountId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", sessionRef: SESSION_REFS.one };
 

@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { headers } from "next/headers";
-import { createUser, getUser, listOnlineUsers, listUserSessions, listUsers, uamRequest, verifySession } from "@/lib/uam/client";
+import { createUser, disableUser, enableUser, getUser, listOnlineUsers, listUserSessions, listUsers, uamRequest, verifySession } from "@/lib/uam/client";
 import { UamError, uamErrorMessage, fieldReasonMessage } from "@/lib/uam/errors";
 import {
   createUamStub,
@@ -397,5 +397,42 @@ describe("createUser", () => {
     const error = await createUser(input, operator, KEY).catch((e: UamError) => e);
     expect(error).toMatchObject({ code: "validation_failed", fieldErrors: [{ field: "password", reason: "too_weak" }] });
     expect(JSON.stringify(error)).not.toContain(input.password);
+  });
+});
+
+describe("disableUser / enableUser（T122）", () => {
+  const id = FIXTURE_IDS.userId;
+
+  it.each([
+    ["disableUser", disableUser, "disable", "DISABLED"],
+    ["enableUser", enableUser, "enable", "ACTIVE"],
+  ] as const)("%s：POST /v1/users/{id}/%s，带服务密钥与操作人请求头，没有请求体；返回用户详情", async (operationId, call, suffix, status) => {
+    stub.respond(operationId, { status: 200, body: { ...userBody, status } });
+    const user = await call(id, operator);
+    expect(user.status).toBe(status);
+    const [sent] = stub.calls;
+    expect(sent.method).toBe("POST");
+    expect(sent.path).toBe(`/v1/users/${id}/${suffix}`);
+    expect(sent.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(sent.headers.get("x-operator-user-id")).toBe(operator.userId);
+    expect(sent.headers.get("x-operator-account-id")).toBe(operator.accountId);
+    expect(sent.headers.get("x-operator-session-ref")).toBe(operator.sessionRef);
+    expect(sent.body).toBeUndefined();
+  });
+
+  it("409 与 404 抛出带问题码的 UamError", async () => {
+    stub.respond("disableUser", { status: 409, body: problemBody(409, "cannot_disable_last_active_user") });
+    await expect(disableUser(id, operator)).rejects.toMatchObject({ kind: "problem", code: "cannot_disable_last_active_user", status: 409 });
+    stub.respond("enableUser", { status: 404, body: problemBody(404, "user_not_found") });
+    await expect(enableUser(id, operator)).rejects.toMatchObject({ kind: "problem", code: "user_not_found" });
+  });
+
+  it("userId 里的特殊字符不能改变请求路径", async () => {
+    const spy = jest.spyOn(global, "fetch").mockResolvedValue(new Response(JSON.stringify(problemBody(404, "user_not_found")), { status: 404 }));
+    await disableUser("../x?y=1", operator).catch(() => undefined);
+    await enableUser("../x?y=1", operator).catch(() => undefined);
+    expect(String(spy.mock.calls[0][0])).toContain("/v1/users/..%2Fx%3Fy%3D1/disable");
+    expect(String(spy.mock.calls[1][0])).toContain("/v1/users/..%2Fx%3Fy%3D1/enable");
+    spy.mockRestore();
   });
 });

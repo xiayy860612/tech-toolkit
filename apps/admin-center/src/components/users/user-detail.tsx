@@ -1,18 +1,21 @@
 import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { UserDetail as UserDetailData } from "@/lib/uam/client";
 import { AccountList } from "./account-list";
 import { FormattedTime } from "./formatted-time";
 import { StateCard } from "./state-card";
+import { StatusActions } from "./status-actions";
 import { StatusBadge } from "./status-badge";
 
 /**
- * 用户详情：基本信息 + 全部账号。停用 / 启用入口属于后续用户故事，这里没有。
+ * 用户详情：基本信息 + 全部账号 + 状态管理（停用 / 启用）。
  * `created`：刚新建成功后跳转而来，显示一次性提示「用户已创建」。
+ * `isSelf`：该用户就是当前登录运维人员所属的用户（标注「你」，且不能停用，FR-025）。
  */
-export function UserDetail({ user, created = false }: { user: UserDetailData; created?: boolean }) {
+export function UserDetail({ user, created = false, isSelf = false }: { user: UserDetailData; created?: boolean; isSelf?: boolean }) {
   return (
     <div className="grid gap-4">
       {created && (
@@ -22,7 +25,10 @@ export function UserDetail({ user, created = false }: { user: UserDetailData; cr
       )}
       <header>
         <h1 className="mb-1 text-2xl font-bold break-all">{user.name}</h1>
-        <StatusBadge status={user.status} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={user.status} />
+          {isSelf && <Badge variant="secondary">你</Badge>}
+        </div>
       </header>
 
       {user.status === "DISABLED" && (
@@ -54,6 +60,10 @@ export function UserDetail({ user, created = false }: { user: UserDetailData; cr
       </Card>
 
       <AccountList accounts={user.accounts} />
+
+      {(user.status === "ACTIVE" || user.status === "DISABLED") && (
+        <StatusActions userId={user.id} userName={user.name} status={user.status} isSelf={isSelf} />
+      )}
     </div>
   );
 }

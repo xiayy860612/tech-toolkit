@@ -14,11 +14,13 @@ import com.s2u2m.uam.domain.model.User;
 import com.s2u2m.uam.domain.model.UserStatus;
 import com.s2u2m.uam.domain.policy.SessionPolicy;
 import com.s2u2m.uam.infrastructure.redis.RedisSessionStore;
+import com.s2u2m.uam.infrastructure.redis.ReplicaWait;
 import com.s2u2m.uam.support.Fakes.FakeClock;
 import com.s2u2m.uam.support.IntegrationTestBase;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -40,7 +42,7 @@ class RedisSessionStoreIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    store = new RedisSessionStore(redis, clock);
+    store = new RedisSessionStore(redis, clock, new ReplicaWait(redis));
     user = new User(UUID.randomUUID(), "张三", UserStatus.ACTIVE, clock.now());
     account =
         new Account(
@@ -261,5 +263,55 @@ class RedisSessionStoreIT extends IntegrationTestBase {
 
     assertThat(redis.opsForValue().get(accountKey)).isEqualTo("later-session-hash");
     assertThat(redis.hasKey("uam:sref:" + old.ref())).isFalse();
+  }
+
+  private Account secondAccount(User owner, String loginName) {
+    return new Account(
+        UUID.randomUUID(),
+        owner.id(),
+        AccountKind.PASSWORD,
+        LoginName.of(loginName),
+        AccountStatus.ACTIVE,
+        clock.now());
+  }
+
+  @Test
+  void terminateAllForUserClearsEveryIndexOfEveryAccountAndLeavesOthersAlone() {
+    Account second = secondAccount(user, "ZhangSan2");
+    Account noSession = secondAccount(user, "ZhangSan3");
+    SessionToken t1 = SessionToken.generate();
+    SessionToken t2 = SessionToken.generate();
+    Session s1 = newSession(policy);
+    Session s2 = Session.start(SessionRef.random(), user, second, clock.now(), policy);
+    store.create(s1, t1.hash());
+    store.create(s2, t2.hash());
+    User other = new User(UUID.randomUUID(), "李四", UserStatus.ACTIVE, clock.now());
+    Account otherAccount = secondAccount(other, "LiSi");
+    Session otherSession =
+        Session.start(SessionRef.random(), other, otherAccount, clock.now(), policy);
+    SessionToken otherToken = SessionToken.generate();
+    store.create(otherSession, otherToken.hash());
+
+    int terminated = store.terminateAllForUser(List.of(account.id(), second.id(), noSession.id()));
+
+    assertThat(terminated).isEqualTo(2);
+    assertThat(store.find(t1.hash())).isEmpty();
+    assertThat(store.find(t2.hash())).isEmpty();
+    assertThat(store.find(otherToken.hash())).isPresent();
+    assertThat(redis.keys("uam:*"))
+        .containsExactlyInAnyOrder(
+            "uam:sess:" + otherToken.hash(),
+            "uam:sref:" + otherSession.ref(),
+            "uam:acct:" + otherAccount.id() + ":sess",
+            "uam:online");
+    assertThat(redis.opsForZSet().range("uam:online", 0, -1))
+        .containsExactly(other.id() + "|" + otherSession.ref());
+  }
+
+  @Test
+  void terminateAllForUserIsANoOpWithoutSessions() {
+    assertThat(store.terminateAllForUser(List.of(account.id()))).isZero();
+    assertThat(store.terminateAllForUser(List.of())).isZero();
+    assertThat(redis.keys("uam:*")).isEmpty();
   }
 }

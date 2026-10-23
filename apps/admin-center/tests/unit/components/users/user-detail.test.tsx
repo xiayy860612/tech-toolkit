@@ -2,6 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import { UserDetail, UserNotFound } from "@/components/users/user-detail";
 import { makeAccount, makeDetail, USER_IDS } from "../../../support/users-fixtures";
 
+jest.mock("@/app/(shell)/users/[userId]/actions", () => ({ disableUser: jest.fn(), enableUser: jest.fn() }));
+
 describe("UserDetail", () => {
   it("h1 是用户名；基本信息：用户名、状态、创建时间、用户标识（缩写，不显示完整 UUID）", () => {
     const { container } = render(<UserDetail user={makeDetail()} />);
@@ -52,11 +54,33 @@ describe("UserDetail", () => {
     expect(screen.getByRole("status")).toHaveTextContent("用户已创建");
   });
 
-  it("本期不出现范围外或属于后续用户故事的入口（编辑 / 删除 / 停用 / 启用）", () => {
+  it("本期不出现范围外的入口（编辑 / 删除）", () => {
     render(<UserDetail user={makeDetail()} />);
-    for (const name of [/编辑/, /删除/, /停用用户/, /启用用户/]) {
+    for (const name of [/编辑/, /删除/]) {
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
     }
+  });
+
+  it("「状态管理」区块：正常用户有「停用用户」入口、已停用用户有「启用用户」入口", () => {
+    const active = render(<UserDetail user={makeDetail()} />);
+    expect(screen.getByRole("heading", { level: 2, name: "状态管理" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "停用用户" })).toBeEnabled();
+    active.unmount();
+
+    render(<UserDetail user={makeDetail({ status: "DISABLED" })} />);
+    expect(screen.getByRole("button", { name: "启用用户" })).toBeEnabled();
+  });
+
+  it("isSelf：标注「你」，「停用用户」入口禁用并说明原因", () => {
+    render(<UserDetail user={makeDetail()} isSelf />);
+    expect(screen.getByRole("heading", { level: 1 }).closest("header")).toHaveTextContent("你");
+    expect(screen.getByRole("button", { name: "停用用户" })).toBeDisabled();
+    expect(screen.getByText("不能停用当前登录的用户。")).toBeVisible();
+  });
+
+  it("不是自己：不标注「你」，入口可用", () => {
+    render(<UserDetail user={makeDetail()} />);
+    expect(screen.getByRole("heading", { level: 1 }).closest("header")).not.toHaveTextContent("你");
   });
 });
 

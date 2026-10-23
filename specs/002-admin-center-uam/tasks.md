@@ -236,25 +236,25 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T108 [P] [US5] 单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/domain/SelfProtectionRuleTest.java`：不能停用操作人自己所属的用户（`cannot_disable_self`）；不能停用最后一个 `ACTIVE` 用户（`cannot_disable_last_active_user`）
-- [ ] T109 [P] [US5] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/DisableEnableUserUseCaseTest.java`：停用幂等、启用幂等；停用「提交后」才终止会话；写日志（`user.disable` / `user.enable`）
-- [ ] T110 [P] [US5] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/DisableUserIT.java`：停用后其全部账号的会话结束、登录被拒（统一提示）、从在线列表消失；启用不恢复会话；账号自身状态不变；`app_user.updated_at` 随状态变更前进
-- [ ] T111 [P] [US5] 并发测试 `apps/uam/src/test/java/com/s2u2m/uam/concurrency/ConcurrentDisableIT.java`：两个运维人员同时停用对方、或并发停用最后两个正常用户，始终至少留一个 `ACTIVE` 用户（`pg_advisory_xact_lock` 串行化）
-- [ ] T112 [P] [US5] 竞态测试 `apps/uam/src/test/java/com/s2u2m/uam/concurrency/DisableVsLoginRaceIT.java`：停用与登录两种交错顺序，都不会留下已停用用户的有效会话（登录写入会话后复查用户状态）
-- [ ] T113 [P] [US5] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/UserStatusContractIT.java`：`POST /v1/users/{userId}/disable`、`/enable` 的 200 / 400 / 404 / 409
-- [ ] T114 [P] [US5] 组件与动作测试 `apps/admin-center/tests/unit/components/users/status-actions.test.tsx`、`apps/admin-center/tests/unit/app/user-status-actions.test.ts`：停用 / 启用需二次确认（说明后果）；停用自己、最后一个正常用户时入口禁用并说明原因；UAM 不可用时提示「操作未生效」，不显示成功
-- [ ] T115 [P] [US5] E2E `apps/admin-center/tests/e2e/us5-disable.spec.ts`（S6）：断言停用后该用户全部会话在任一实例的下一次请求都被视为未登录、登录被拒（SC-005）
+- [X] T108 [P] [US5] 单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/domain/SelfProtectionRuleTest.java`：不能停用操作人自己所属的用户（`cannot_disable_self`）；不能停用最后一个 `ACTIVE` 用户（`cannot_disable_last_active_user`）
+- [X] T109 [P] [US5] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/DisableEnableUserUseCaseTest.java`：停用幂等、启用幂等；停用「提交后」才终止会话；写日志（`user.disable` / `user.enable`）
+- [X] T110 [P] [US5] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/DisableUserIT.java`：停用后其全部账号的会话结束、登录被拒（统一提示）、从在线列表消失；启用不恢复会话；账号自身状态不变；`app_user.updated_at` 随状态变更前进
+- [X] T111 [P] [US5] 并发测试 `apps/uam/src/test/java/com/s2u2m/uam/concurrency/ConcurrentDisableIT.java`：两个运维人员同时停用对方、或并发停用最后两个正常用户，始终至少留一个 `ACTIVE` 用户（`pg_advisory_xact_lock` 串行化）
+- [X] T112 [P] [US5] 竞态测试 `apps/uam/src/test/java/com/s2u2m/uam/concurrency/DisableVsLoginRaceIT.java`：停用与登录两种交错顺序，都不会留下已停用用户的有效会话（登录写入会话后复查用户状态）
+- [X] T113 [P] [US5] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/UserStatusContractIT.java`：`POST /v1/users/{userId}/disable`、`/enable` 的 200 / 400 / 404 / 409
+- [X] T114 [P] [US5] 组件与动作测试 `apps/admin-center/tests/unit/components/users/status-actions.test.tsx`、`apps/admin-center/tests/unit/app/user-status-actions.test.ts`：停用 / 启用需二次确认（说明后果）；停用自己、最后一个正常用户时入口禁用并说明原因；UAM 不可用时提示「操作未生效」，不显示成功 （偏差：「最后一个正常用户」无法由客户端预知，UserDetail 不含活跃用户数，界面改为尝试后展示 UAM 的 409 `cannot_disable_last_active_user` 文案；若要预先禁用入口，需在 openapi 增加 `activeUserCount` 之类字段，待用户确认）
+- [X] T115 [P] [US5] E2E `apps/admin-center/tests/e2e/us5-disable.spec.ts`（S6）：断言停用后该用户全部会话在任一实例的下一次请求都被视为未登录、登录被拒（SC-005）
 
 ### Implementation for User Story 5
 
-- [ ] T116 [US5] `apps/uam/src/main/java/com/s2u2m/uam/domain/policy/SelfProtectionRule.java`；使 T108 通过
-- [ ] T117 [US5] `apps/uam/src/main/java/com/s2u2m/uam/domain/port/UserStatusLock.java`、`UserRepository` 增加状态更新与 `countActive`，`JdbcUserRepository` 用 `pg_advisory_xact_lock` 实现锁；状态更新同时把 `app_user.updated_at` 设为 `now()`
-- [ ] T118 [US5] 在 `SessionStore` 与 `RedisSessionStore` 增加 `terminateAllForUser`（经该用户全部账号，用 Lua 同时清 `sess` / `sref` / `acct` 指针 / `online`，撤销后 `WAIT 1`）
-- [ ] T119 [US5] `apps/uam/src/main/java/com/s2u2m/uam/application/{DisableUserUseCase,EnableUserUseCase}.java`（事务内取锁并校验，**提交后**再终止会话；写日志）；使 T109 ~ T111 通过
-- [ ] T120 [US5] 修改 `apps/uam/src/main/java/com/s2u2m/uam/application/LoginUseCase.java`：写入会话后再读一次用户状态，若已 `DISABLED` 则终止刚建的会话并拒绝；使 T112 通过
-- [ ] T121 [US5] 在 `UsersController.java` 增加 `POST /v1/users/{userId}/disable` 与 `/enable`；使 T113 通过
-- [ ] T122 [US5] Admin Center：`apps/admin-center/src/lib/uam/client.ts` 增加 `disableUser`、`enableUser`；`apps/admin-center/src/app/(shell)/users/[userId]/actions.ts`；`apps/admin-center/src/components/users/status-actions.tsx`（`alert-dialog` 确认）；使 T114 通过
-- [ ] T123 [US5] 验证：T108 ~ T115 通过（`apps/admin-center/tests/e2e/us5-disable.spec.ts`）；跑 quickstart S6
+- [X] T116 [US5] `apps/uam/src/main/java/com/s2u2m/uam/domain/policy/SelfProtectionRule.java`；使 T108 通过
+- [X] T117 [US5] `apps/uam/src/main/java/com/s2u2m/uam/domain/port/UserStatusLock.java`、`UserRepository` 增加状态更新与 `countActive`，`JdbcUserRepository` 用 `pg_advisory_xact_lock` 实现锁；状态更新同时把 `app_user.updated_at` 设为 `now()`
+- [X] T118 [US5] 在 `SessionStore` 与 `RedisSessionStore` 增加 `terminateAllForUser`（经该用户全部账号，用 Lua 同时清 `sess` / `sref` / `acct` 指针 / `online`，撤销后 `WAIT 1`）
+- [X] T119 [US5] `apps/uam/src/main/java/com/s2u2m/uam/application/{DisableUserUseCase,EnableUserUseCase}.java`（事务内取锁并校验，**提交后**再终止会话；写日志）；使 T109 ~ T111 通过
+- [X] T120 [US5] 修改 `apps/uam/src/main/java/com/s2u2m/uam/application/LoginUseCase.java`：写入会话后再读一次用户状态，若已 `DISABLED` 则终止刚建的会话并拒绝；使 T112 通过
+- [X] T121 [US5] 在 `UsersController.java` 增加 `POST /v1/users/{userId}/disable` 与 `/enable`；使 T113 通过
+- [X] T122 [US5] Admin Center：`apps/admin-center/src/lib/uam/client.ts` 增加 `disableUser`、`enableUser`；`apps/admin-center/src/app/(shell)/users/[userId]/actions.ts`；`apps/admin-center/src/components/users/status-actions.tsx`（`alert-dialog` 确认）；使 T114 通过
+- [X] T123 [US5] 验证：T108 ~ T115 通过（`apps/admin-center/tests/e2e/us5-disable.spec.ts`）；跑 quickstart S6
 
 **Checkpoint**: US5 可独立验证。
 
