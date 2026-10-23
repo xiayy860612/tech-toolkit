@@ -363,8 +363,8 @@ class DisableVsLoginRaceIT extends IntegrationTestBase {
     }
 
     @Override
-    public boolean terminate(SessionRef ref) {
-      return delegate.terminate(ref);
+    public boolean terminateByRef(SessionRef ref) {
+      return delegate.terminateByRef(ref);
     }
 
     @Override

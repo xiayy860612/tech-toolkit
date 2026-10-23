@@ -71,6 +71,15 @@ public final class ApiClient {
     return send(builder.build());
   }
 
+  public Response delete(String path, Map<String, String> headers) {
+    HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path)).DELETE();
+    if (serviceKey != null) {
+      builder.header("Authorization", "Bearer " + serviceKey);
+    }
+    headers.forEach(builder::header);
+    return send(builder.build());
+  }
+
   public Response login(String accountName, String password, String clientIp) {
     return postJson(
         "/v1/auth/login",

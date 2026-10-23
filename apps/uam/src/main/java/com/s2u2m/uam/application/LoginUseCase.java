@@ -101,7 +101,7 @@ public class LoginUseCase {
     // 写入会话之后再读一次用户状态：并发停用也不会留下有效会话
     boolean stillActive = users.findById(owner.get().id()).map(User::isActive).orElse(false);
     if (!stillActive) {
-      sessions.terminate(session.ref());
+      sessions.terminateByRef(session.ref());
       return reject(subject);
     }
 

@@ -1,4 +1,4 @@
-import { parsePage, parseUserId, parseUsersQuery } from "@/lib/validation/users-query";
+import { parsePage, parseSessionRef, parseUserId, parseUsersQuery } from "@/lib/validation/users-query";
 
 describe("parseUsersQuery", () => {
   it("缺省：q 为空、page 为 1", () => {
@@ -55,5 +55,14 @@ describe("parsePage", () => {
     expect(parsePage("7")).toBe(7);
     expect(parsePage(["4", "5"])).toBe(4);
     expect(parsePage([])).toBe(1);
+  });
+});
+
+describe("parseSessionRef", () => {
+  it("合法的 UUID 原样返回；其余（含想改请求路径的）返回 null", () => {
+    expect(parseSessionRef("5d0c8f3a-1b2c-4d3e-8f4a-0123456789ab")).toBe("5d0c8f3a-1b2c-4d3e-8f4a-0123456789ab");
+    for (const value of ["", "not-a-uuid", "../users", "5d0c8f3a-1b2c-4d3e-8f4a-0123456789ab/x"]) {
+      expect(parseSessionRef(value)).toBeNull();
+    }
   });
 });

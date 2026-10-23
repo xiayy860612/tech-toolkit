@@ -20,8 +20,11 @@ public interface SessionStore {
   /** 续期：把会话更新为 {@code touched}；会话已不存在则返回空，且不重建。 */
   Optional<Session> touch(String tokenHash, Session touched);
 
-  /** 按会话引用终止；会话本来就不存在返回 {@code false}。 */
-  boolean terminate(SessionRef ref);
+  /**
+   * 按会话引用终止（强制下线、登录后复查回滚）：一次清理 {@code sess} / {@code sref} / {@code acct} 指针（仍指向它时）/ {@code
+   * online}，随后 {@code WAIT 1}。只动这一条会话；会话本来就不存在返回 {@code false}。
+   */
+  boolean terminateByRef(SessionRef ref);
 
   /**
    * 终止这些账号当前的会话（用户停用时传入其全部账号）：一次清理 {@code sess} / {@code sref} / {@code acct} 指针 / {@code online}，

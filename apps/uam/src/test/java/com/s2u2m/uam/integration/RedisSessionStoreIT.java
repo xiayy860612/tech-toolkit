@@ -245,11 +245,11 @@ class RedisSessionStoreIT extends IntegrationTestBase {
     SessionToken token = SessionToken.generate();
     store.create(session, token.hash());
 
-    assertThat(store.terminate(session.ref())).isTrue();
+    assertThat(store.terminateByRef(session.ref())).isTrue();
 
     assertThat(redis.keys("uam:*")).isEmpty();
     assertThat(store.find(token.hash())).isEmpty();
-    assertThat(store.terminate(session.ref())).as("重复终止").isFalse();
+    assertThat(store.terminateByRef(session.ref())).as("重复终止").isFalse();
   }
 
   @Test
@@ -259,7 +259,7 @@ class RedisSessionStoreIT extends IntegrationTestBase {
     String accountKey = "uam:acct:" + account.id() + ":sess";
     redis.opsForValue().set(accountKey, "later-session-hash");
 
-    assertThat(store.terminate(old.ref())).isTrue();
+    assertThat(store.terminateByRef(old.ref())).isTrue();
 
     assertThat(redis.opsForValue().get(accountKey)).isEqualTo("later-session-hash");
     assertThat(redis.hasKey("uam:sref:" + old.ref())).isFalse();

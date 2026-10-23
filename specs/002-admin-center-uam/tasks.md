@@ -268,19 +268,19 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Tests for User Story 6 ⚠️
 
-- [ ] T124 [P] [US6] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/TerminateSessionUseCaseTest.java`：目标等于 `X-Operator-Session-Ref` → `cannot_terminate_own_session`；目标不存在 → `session_not_found`；成功与被拒都写日志（`session.terminate`）
-- [ ] T125 [P] [US6] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/TerminateSessionIT.java`：只终止目标会话，同用户其他会话、账号与用户状态不变；下线后可再次登录
-- [ ] T126 [P] [US6] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/SessionTerminateContractIT.java`：`DELETE /v1/sessions/{sessionRef}` 的 204 / 400 / 404 / 409
-- [ ] T127 [P] [US6] 组件与动作测试 `apps/admin-center/tests/unit/components/sessions/terminate-dialog.test.tsx`、`apps/admin-center/tests/unit/app/terminate-actions.test.ts`：二次确认；自己的当前会话入口禁用并提示改用「退出登录」；`session_not_found` 提示「该会话已结束」并刷新；被下线者登录页提示「你的会话已被管理员强制下线」
-- [ ] T128 [P] [US6] E2E `apps/admin-center/tests/e2e/us6-terminate.spec.ts`（S8）：断言从在线用户列表出发不超过 4 次点击 / 触控（含确认）完成强制下线，同用户其他会话不受影响（SC-006）
+- [X] T124 [P] [US6] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/TerminateSessionUseCaseTest.java`：目标等于 `X-Operator-Session-Ref` → `cannot_terminate_own_session`；目标不存在 → `session_not_found`；成功与被拒都写日志（`session.terminate`）
+- [X] T125 [P] [US6] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/TerminateSessionIT.java`：只终止目标会话，同用户其他会话、账号与用户状态不变；下线后可再次登录
+- [X] T126 [P] [US6] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/SessionTerminateContractIT.java`：`DELETE /v1/sessions/{sessionRef}` 的 204 / 400 / 404 / 409
+- [X] T127 [P] [US6] 组件与动作测试 `apps/admin-center/tests/unit/components/sessions/terminate-dialog.test.tsx`、`apps/admin-center/tests/unit/app/terminate-actions.test.ts`：二次确认；自己的当前会话入口禁用并提示改用「退出登录」；`session_not_found` 提示「该会话已结束」并刷新；被下线者登录页提示「你的会话已被管理员强制下线」 （偏差：UAM verify 的 401 不区分「被管理员强制下线」与到期 / 退出 / 被取代，登录页只能显示通用的「会话已结束」；若要显示「你的会话已被管理员强制下线」，需在 openapi 给 `session_invalid` 增加可选 `reason`，UAM 在 terminate.lua 写短期 tombstone，待用户确认）
+- [X] T128 [P] [US6] E2E `apps/admin-center/tests/e2e/us6-terminate.spec.ts`（S8）：断言从在线用户列表出发不超过 4 次点击 / 触控（含确认）完成强制下线，同用户其他会话不受影响（SC-006）
 
 ### Implementation for User Story 6
 
-- [ ] T129 [US6] 在 `SessionStore` 与 `RedisSessionStore` 增加 `terminateByRef`（`uam:sref:{ref}` → 哈希 → Lua `apps/uam/src/main/resources/redis/terminate.lua`，`WAIT 1`）
-- [ ] T130 [US6] `apps/uam/src/main/java/com/s2u2m/uam/application/TerminateSessionUseCase.java`（`SelfProtectionRule`；写日志）；使 T124、T125 通过
-- [ ] T131 [US6] 在 `SessionsController.java` 增加 `DELETE /v1/sessions/{sessionRef}`；使 T126 通过
-- [ ] T132 [US6] Admin Center：`client.ts` 增加 `terminateSession`；`apps/admin-center/src/app/(shell)/sessions/[userId]/actions.ts`；`apps/admin-center/src/components/sessions/terminate-dialog.tsx`；登录页对「被强制下线」「会话已结束」的提示；使 T127 通过
-- [ ] T133 [US6] 验证：T124 ~ T128 通过（`apps/admin-center/tests/e2e/us6-terminate.spec.ts`）；跑 quickstart S8
+- [X] T129 [US6] 在 `SessionStore` 与 `RedisSessionStore` 增加 `terminateByRef`（`uam:sref:{ref}` → 哈希 → Lua `apps/uam/src/main/resources/redis/terminate.lua`，`WAIT 1`）
+- [X] T130 [US6] `apps/uam/src/main/java/com/s2u2m/uam/application/TerminateSessionUseCase.java`（`SelfProtectionRule`；写日志）；使 T124、T125 通过
+- [X] T131 [US6] 在 `SessionsController.java` 增加 `DELETE /v1/sessions/{sessionRef}`；使 T126 通过
+- [X] T132 [US6] Admin Center：`client.ts` 增加 `terminateSession`；`apps/admin-center/src/app/(shell)/sessions/[userId]/actions.ts`；`apps/admin-center/src/components/sessions/terminate-dialog.tsx`；登录页对「被强制下线」「会话已结束」的提示；使 T127 通过
+- [X] T133 [US6] 验证：T124 ~ T128 通过（`apps/admin-center/tests/e2e/us6-terminate.spec.ts`）；跑 quickstart S8
 
 **Checkpoint**: US6 可独立验证。
 

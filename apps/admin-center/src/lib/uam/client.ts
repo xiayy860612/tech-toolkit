@@ -240,3 +240,12 @@ export async function enableUser(userId: string, operator: Operator): Promise<Us
   });
   return data;
 }
+
+/**
+ * 强制下线指定会话（`DELETE /v1/sessions/{sessionRef}`）：只终止该会话，不影响该用户的其他会话，也不停用账号或用户。
+ * 写操作：带操作人请求头。失败抛 `UamError`：409 `cannot_terminate_own_session`（目标是操作人自己的当前会话）、
+ * 404 `session_not_found`（会话不存在或已结束）等。
+ */
+export async function terminateSession(sessionRef: string, operator: Operator): Promise<void> {
+  await uamRequest({ method: "DELETE", path: `/v1/sessions/${encodeURIComponent(sessionRef)}`, operator });
+}

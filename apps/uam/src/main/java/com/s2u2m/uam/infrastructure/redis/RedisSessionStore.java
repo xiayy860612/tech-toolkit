@@ -30,7 +30,8 @@ import org.springframework.stereotype.Component;
  * sha}）、{@code uam:online}（ZSET，成员 {@code {userId}|{ref}}，分数为到期 epoch 秒）。 登录、续期、终止各用一个 Lua
  * 脚本原子完成；三个会话键的 TTL 都取「空闲剩余」与「绝对剩余」的较小值（即会话的有效到期）。
  *
- * <p>停用用户时 {@link #terminateAllForUser} 经账号指针一次清掉其全部会话，并 {@code WAIT 1}。
+ * <p>停用用户时 {@link #terminateAllForUser} 经账号指针一次清掉其全部会话；强制下线时 {@link #terminateByRef} 只清掉指定引用的那一条；
+ * 二者之后都 {@code WAIT 1}。
  *
  * <p>HASH 里除设计表中的字段外，还快照了 {@code userName}、{@code loginName}、{@code kind}、{@code expiresAt}，使校验只读
  * Redis。
@@ -175,8 +176,9 @@ public class RedisSessionStore implements SessionStore {
   }
 
   @Override
-  public boolean terminate(SessionRef ref) {
+  public boolean terminateByRef(SessionRef ref) {
     Long result = redis.execute(terminateScript, List.of(REF + ref, ONLINE), ref.toString());
+    replicaWait.await(REPLICA_WAIT);
     return result != null && result == 1;
   }
 

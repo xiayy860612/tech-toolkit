@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.s2u2m.uam.domain.DomainException;
 import com.s2u2m.uam.domain.ErrorCode;
+import com.s2u2m.uam.domain.model.SessionRef;
 import com.s2u2m.uam.domain.model.User;
 import com.s2u2m.uam.domain.model.UserStatus;
 import com.s2u2m.uam.domain.policy.SelfProtectionRule;
@@ -79,6 +80,26 @@ class SelfProtectionRuleTest {
   @Test
   void aMissingOperatorUserIsNotSelf() {
     assertThatCode(() -> SelfProtectionRule.checkDisable(user(UserStatus.ACTIVE), null, 2))
+        .doesNotThrowAnyException();
+  }
+
+  // ---------------------------------------------------------------- 强制下线（FR-030）
+
+  @Test
+  void anOperatorCannotTerminateTheirOwnCurrentSession() {
+    SessionRef own = SessionRef.random();
+
+    assertThatThrownBy(() -> SelfProtectionRule.checkTerminate(own, own.value()))
+        .isInstanceOfSatisfying(
+            DomainException.class,
+            e -> assertThat(e.errorCode()).isEqualTo(ErrorCode.CANNOT_TERMINATE_OWN_SESSION));
+  }
+
+  @Test
+  void anotherSessionOrAMissingOperatorSessionMayBeTerminated() {
+    assertThatCode(() -> SelfProtectionRule.checkTerminate(SessionRef.random(), UUID.randomUUID()))
+        .doesNotThrowAnyException();
+    assertThatCode(() -> SelfProtectionRule.checkTerminate(SessionRef.random(), null))
         .doesNotThrowAnyException();
   }
 }

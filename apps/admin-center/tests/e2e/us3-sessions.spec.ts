@@ -208,8 +208,8 @@ test.describe("S7：用户的会话详情", () => {
     await expect(sessionCards(alpha.page).filter({ has: alpha.page.getByText(multi.accounts[0], { exact: true }) })).toContainText("当前会话");
     await expect(sessionCards(alpha.page).filter({ has: alpha.page.getByText(multi.accounts[1], { exact: true }) })).not.toContainText("当前会话");
 
-    // 本期没有「强制下线」入口（US6）
-    await expect(page.getByRole("button", { name: "强制下线" })).toHaveCount(0);
+    // 自己的当前会话不能被自己强制下线（US6）：入口禁用
+    await expect(page.getByRole("button", { name: "强制下线" }).first()).toBeDisabled();
   });
 
   test("会话结束后刷新即消失：同一账号再次登录顶掉旧会话，旧引用不再显示、另一个账号的会话不受影响", async ({ page, browser, baseURL }) => {

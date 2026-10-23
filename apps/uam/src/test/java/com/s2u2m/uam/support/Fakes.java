@@ -317,7 +317,7 @@ public final class Fakes {
     }
 
     @Override
-    public boolean terminate(SessionRef ref) {
+    public boolean terminateByRef(SessionRef ref) {
       terminated.add(ref);
       return byHash.values().removeIf(s -> s.ref().equals(ref));
     }

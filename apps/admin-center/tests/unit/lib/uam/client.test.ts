@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { headers } from "next/headers";
-import { createUser, disableUser, enableUser, getUser, listOnlineUsers, listUserSessions, listUsers, uamRequest, verifySession } from "@/lib/uam/client";
+import { createUser, disableUser, enableUser, getUser, listOnlineUsers, listUserSessions, listUsers, terminateSession, uamRequest, verifySession } from "@/lib/uam/client";
 import { UamError, uamErrorMessage, fieldReasonMessage } from "@/lib/uam/errors";
 import {
   createUamStub,
@@ -433,6 +433,37 @@ describe("disableUser / enableUser（T122）", () => {
     await enableUser("../x?y=1", operator).catch(() => undefined);
     expect(String(spy.mock.calls[0][0])).toContain("/v1/users/..%2Fx%3Fy%3D1/disable");
     expect(String(spy.mock.calls[1][0])).toContain("/v1/users/..%2Fx%3Fy%3D1/enable");
+    spy.mockRestore();
+  });
+});
+
+describe("terminateSession（T132）", () => {
+  const ref = "5d0c8f3a-1b2c-4d3e-8f4a-0123456789ab";
+
+  it("DELETE /v1/sessions/{ref}：带服务密钥与操作人请求头，没有请求体；204 无返回值", async () => {
+    stub.respond("terminateSession", { status: 204 });
+    await expect(terminateSession(ref, operator)).resolves.toBeUndefined();
+    const [sent] = stub.calls;
+    expect(sent.method).toBe("DELETE");
+    expect(sent.path).toBe(`/v1/sessions/${ref}`);
+    expect(sent.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(sent.headers.get("x-operator-user-id")).toBe(operator.userId);
+    expect(sent.headers.get("x-operator-account-id")).toBe(operator.accountId);
+    expect(sent.headers.get("x-operator-session-ref")).toBe(operator.sessionRef);
+    expect(sent.body).toBeUndefined();
+  });
+
+  it("409 与 404 抛出带问题码的 UamError", async () => {
+    stub.respond("terminateSession", { status: 409, body: problemBody(409, "cannot_terminate_own_session") });
+    await expect(terminateSession(ref, operator)).rejects.toMatchObject({ kind: "problem", code: "cannot_terminate_own_session", status: 409 });
+    stub.respond("terminateSession", { status: 404, body: problemBody(404, "session_not_found") });
+    await expect(terminateSession(ref, operator)).rejects.toMatchObject({ kind: "problem", code: "session_not_found", status: 404 });
+  });
+
+  it("会话引用里的特殊字符不能改变请求路径", async () => {
+    const spy = jest.spyOn(global, "fetch").mockResolvedValue(new Response(JSON.stringify(problemBody(404, "session_not_found")), { status: 404 }));
+    await terminateSession("../x?y=1", operator).catch(() => undefined);
+    expect(String(spy.mock.calls[0][0])).toContain("/v1/sessions/..%2Fx%3Fy%3D1");
     spy.mockRestore();
   });
 });

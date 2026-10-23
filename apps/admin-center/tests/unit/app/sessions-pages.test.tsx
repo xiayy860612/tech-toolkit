@@ -16,6 +16,7 @@ jest.mock("next/navigation", () => ({
 jest.mock("@/lib/uam/client", () => ({ listOnlineUsers: jest.fn(), listUserSessions: jest.fn(), getUser: jest.fn() }));
 jest.mock("@/lib/session/get-session", () => ({ getOperator: jest.fn() }));
 jest.mock("@/app/(shell)/users/[userId]/actions", () => ({ disableUser: jest.fn(), enableUser: jest.fn() }));
+jest.mock("@/app/(shell)/sessions/[userId]/actions", () => ({ terminateSession: jest.fn() }));
 
 const operator = { userId: USER_IDS.zhang, accountId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", sessionRef: SESSION_REFS.one };
 
@@ -117,6 +118,7 @@ describe("/sessions/[userId] 用户会话页", () => {
     expect(within(crumbs).getByText("李四")).toHaveAttribute("aria-current", "page");
     expect(within(screen.getByRole("list", { name: "会话列表" })).getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getAllByText("当前会话")).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "强制下线" })).toHaveLength(2);
   });
 
   it("用户没有会话：空态与返回在线用户", async () => {

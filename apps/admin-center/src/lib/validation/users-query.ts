@@ -46,3 +46,8 @@ export function parseUserId(raw: string): string | null {
   const result = userIdSchema.safeParse(raw);
   return result.success ? result.data : null;
 }
+
+/** 会话引用（UAM 契约里是 UUID）：格式不对则返回 null，不请求 UAM。 */
+export function parseSessionRef(raw: string): string | null {
+  return parseUserId(raw);
+}

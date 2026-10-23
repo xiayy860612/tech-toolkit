@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SessionList } from "@/components/sessions/session-list";
+import { TerminateFeedback } from "@/components/sessions/terminate-dialog";
 import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import { UamReadError } from "@/components/users/uam-read-error";
 import { UserNotFound } from "@/components/users/user-detail";
@@ -46,7 +47,9 @@ export default async function UserSessionsPage({ params }: { params: Promise<{ u
         <h1 className="text-2xl font-bold break-all">{`${user.name} 的会话`}</h1>
         <p className="text-muted-foreground">每个会话对应该用户的一个账号。</p>
       </div>
-      <SessionList sessions={sessions} />
+      <TerminateFeedback>
+        <SessionList userId={userId} sessions={sessions} />
+      </TerminateFeedback>
     </>
   );
 }
