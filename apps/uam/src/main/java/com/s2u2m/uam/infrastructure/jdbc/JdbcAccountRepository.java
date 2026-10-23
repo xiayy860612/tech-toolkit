@@ -11,6 +11,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
@@ -43,6 +44,16 @@ public class JdbcAccountRepository implements AccountRepository {
         .param("norm", name.normalized())
         .query(Boolean.class)
         .single();
+  }
+
+  @Override
+  public List<Account> findByUserId(UUID userId) {
+    return jdbc.sql(
+            "SELECT id, user_id, kind, login_name, status, created_at FROM account"
+                + " WHERE user_id = :userId ORDER BY created_at, id")
+        .param("userId", userId)
+        .query(JdbcAccountRepository::map)
+        .list();
   }
 
   @Override

@@ -58,6 +58,19 @@ public final class ApiClient {
     return send(builder.build());
   }
 
+  public Response get(String pathAndQuery) {
+    return get(pathAndQuery, Map.of());
+  }
+
+  public Response get(String pathAndQuery, Map<String, String> headers) {
+    HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + pathAndQuery)).GET();
+    if (serviceKey != null) {
+      builder.header("Authorization", "Bearer " + serviceKey);
+    }
+    headers.forEach(builder::header);
+    return send(builder.build());
+  }
+
   public Response login(String accountName, String password, String clientIp) {
     return postJson(
         "/v1/auth/login",

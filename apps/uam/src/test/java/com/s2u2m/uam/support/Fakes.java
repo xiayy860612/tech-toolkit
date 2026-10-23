@@ -5,9 +5,11 @@ import com.s2u2m.uam.domain.ErrorCode;
 import com.s2u2m.uam.domain.model.Account;
 import com.s2u2m.uam.domain.model.Credential;
 import com.s2u2m.uam.domain.model.LoginName;
+import com.s2u2m.uam.domain.model.PageResult;
 import com.s2u2m.uam.domain.model.Session;
 import com.s2u2m.uam.domain.model.SessionRef;
 import com.s2u2m.uam.domain.model.User;
+import com.s2u2m.uam.domain.model.UserWithAccountCount;
 import com.s2u2m.uam.domain.port.AccountRepository;
 import com.s2u2m.uam.domain.port.Clock;
 import com.s2u2m.uam.domain.port.CredentialRepository;
@@ -69,6 +71,21 @@ public final class Fakes {
     public long count() {
       return byId.size();
     }
+
+    /** 最近一次 {@link #search} 的参数，以及它要返回的结果。 */
+    public String lastQuery = "<never called>";
+
+    public int lastPage;
+    public int lastSize;
+    public PageResult<UserWithAccountCount> searchResult = new PageResult<>(List.of(), 0);
+
+    @Override
+    public PageResult<UserWithAccountCount> search(String query, int page, int size) {
+      lastQuery = query;
+      lastPage = page;
+      lastSize = size;
+      return searchResult;
+    }
   }
 
   /** 内存账号仓储；按规范化账号名唯一。 */
@@ -85,6 +102,11 @@ public final class Fakes {
     @Override
     public boolean existsByLoginName(LoginName name) {
       return findByLoginName(name).isPresent();
+    }
+
+    @Override
+    public List<Account> findByUserId(UUID userId) {
+      return byId.values().stream().filter(a -> a.userId().equals(userId)).toList();
     }
 
     @Override

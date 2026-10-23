@@ -38,3 +38,25 @@ export function uamCli(args: string[], stdin?: string): string {
   ];
   return execFileSync("docker", compose, { input: stdin, encoding: "utf8" });
 }
+
+/**
+ * 在栈里的 PostgreSQL 执行 SQL（只用于造 UAM 接口还没提供的数据，如无账号的用户、已停用的用户，以及读取实际账号数）。
+ * SQL 经标准输入传入；`-At` 输出无表头、无对齐的纯文本，按行返回。
+ */
+export function psql(sql: string): string[] {
+  const args = [
+    "compose",
+    "-f",
+    path.join(root, "infra/local/docker-compose.stack.yml"),
+    "--env-file",
+    path.join(root, "infra/local/e2e.env"),
+    "exec",
+    "-T",
+    "postgres",
+    "sh",
+    "-c",
+    'psql -v ON_ERROR_STOP=1 -At -U "$POSTGRES_USER" -d "$POSTGRES_DB"',
+  ];
+  const out = execFileSync("docker", args, { input: sql, encoding: "utf8" });
+  return out.split("\n").filter((line) => line.length > 0);
+}

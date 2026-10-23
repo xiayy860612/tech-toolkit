@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { headers } from "next/headers";
-import { uamRequest, verifySession } from "@/lib/uam/client";
+import { getUser, listUsers, uamRequest, verifySession } from "@/lib/uam/client";
 import { UamError, uamErrorMessage, fieldReasonMessage } from "@/lib/uam/errors";
 import {
   createUamStub,
@@ -198,6 +198,62 @@ describe("错误归类", () => {
     global.fetch = jest.fn(async () => new Response("<html>oops</html>", { status: 200 })) as never;
     await expect(read()).rejects.toMatchObject({ kind: "unavailable" });
     global.fetch = original;
+  });
+});
+
+describe("listUsers / getUser（读用户，T081）", () => {
+  const summary = { id: FIXTURE_IDS.userId, name: "张三", status: "ACTIVE", accountCount: 2, createdAt: "2026-10-01T08:30:00Z" };
+
+  it("listUsers：把搜索词映射为 UAM 的 query、页码为 page；返回 UAM 的分页数据", async () => {
+    const body = { items: [summary], page: 2, size: 20, total: 21 };
+    stub.respond("listUsers", { status: 200, body });
+    await expect(listUsers({ query: "Li", page: 2 })).resolves.toEqual(body);
+    expect(stub.calls[0].path).toBe("/v1/users");
+    expect(stub.calls[0].query.get("query")).toBe("Li");
+    expect(stub.calls[0].query.get("page")).toBe("2");
+    expect(stub.calls[0].query.has("size")).toBe(false);
+  });
+
+  it("listUsers：无参数 / 空搜索词时不带查询参数；带服务密钥，不带 X-Operator-*", async () => {
+    stub.respond("listUsers", { status: 200, body: { items: [], page: 1, size: 20, total: 0 } });
+    await listUsers();
+    await listUsers({ query: "" });
+    for (const call of stub.calls) {
+      expect([...call.query.keys()]).toEqual([]);
+      expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+      expect(call.headers.get("x-operator-user-id")).toBeNull();
+    }
+  });
+
+  it("listUsers：size 可指定", async () => {
+    stub.respond("listUsers", { status: 200, body: { items: [], page: 1, size: 50, total: 0 } });
+    await listUsers({ size: 50 });
+    expect(stub.calls[0].query.get("size")).toBe("50");
+  });
+
+  it("listUsers：UAM 不可用 → UamError(unavailable)", async () => {
+    stub.respond("listUsers", { networkError: true });
+    await expect(listUsers()).rejects.toMatchObject({ kind: "unavailable" });
+  });
+
+  it("getUser：取详情（含全部账号），路径参数做编码", async () => {
+    const body = { ...summary, accounts: [{ id: FIXTURE_IDS.accountId, loginName: "zhangsan", kind: "PASSWORD", status: "ACTIVE", createdAt: "2026-10-01T08:30:00Z" }] };
+    delete (body as Record<string, unknown>).accountCount;
+    stub.respond("getUser", { status: 200, body });
+    await expect(getUser(FIXTURE_IDS.userId)).resolves.toEqual(body);
+    expect(stub.calls[0].path).toBe(`/v1/users/${FIXTURE_IDS.userId}`);
+  });
+
+  it("getUser：404 user_not_found → UamError(problem, user_not_found)", async () => {
+    stub.respond("getUser", { status: 404, body: problemBody(404, "user_not_found") });
+    await expect(getUser(FIXTURE_IDS.userId)).rejects.toMatchObject({ kind: "problem", status: 404, code: "user_not_found" });
+  });
+
+  it("getUser：userId 里的特殊字符不能改变请求路径", async () => {
+    const spy = jest.spyOn(global, "fetch").mockResolvedValue(new Response(JSON.stringify(problemBody(404, "user_not_found")), { status: 404 }));
+    await getUser("../sessions?x=1").catch(() => undefined);
+    expect(String(spy.mock.calls[0][0])).toContain("/v1/users/..%2Fsessions%3Fx%3D1");
+    spy.mockRestore();
   });
 });
 

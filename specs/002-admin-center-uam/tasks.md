@@ -138,7 +138,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T068 [US1] 登录页与表单 `apps/admin-center/src/app/(auth)/login/page.tsx`、`apps/admin-center/src/components/auth/login-form.tsx`；使 T054 通过
 - [X] T069 [US1] 登录动作 `apps/admin-center/src/app/(auth)/login/actions.ts`（经 `client-ip.ts` 取 `clientIp`；成功写 cookie 并按白名单跳转）；使 T053 通过
 - [X] T070 [US1] 受保护路由：`apps/admin-center/src/app/(shell)/layout.tsx` 对 `anonymous` 重定向 `/login?next=<原路径>`，已登录访问 `/login` 重定向 `/users`；`apps/admin-center/src/app/(shell)/page.tsx` 重定向 `/users`
-- [ ] T071 [US1] 验证：T045 ~ T055 全部通过（`apps/admin-center/tests/e2e/us1-login.spec.ts` 与 UAM 的 `mvn verify`）；按 [quickstart.md](./quickstart.md) 跑 S1 ~ S3 （进展：UAM `mvn verify` 与 Admin Center 单元已通过，E2E 在 w1440 上 9/13 通过；其余 4 项依赖 US2 的 `/users` 页面与外壳，Phase 4 完成后补跑并勾选）
+- [X] T071 [US1] 验证：T045 ~ T055 全部通过（`apps/admin-center/tests/e2e/us1-login.spec.ts` 与 UAM 的 `mvn verify`）；按 [quickstart.md](./quickstart.md) 跑 S1 ~ S3
 
 **Checkpoint**: US1 可独立运行与验证（MVP 的第一块）。
 
@@ -152,22 +152,22 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T072 [P] [US2] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/ListUsersIT.java`：默认每页 20、上限 100；按用户名或账号名搜索，大小写不敏感、包含匹配，去首尾空白后为空视为不搜索；`total` 与页码正确；`accountCount` 正确；用 `EXPLAIN` 断言搜索走 `pg_trgm` GIN 索引
-- [ ] T073 [P] [US2] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/GetUserIT.java`：多账号用户列出全部账号（账号标识、账号种类、状态、创建时间），无遗漏、不混入他人账号；无账号用户 `accounts` 为空数组；不存在 → 404 `user_not_found`；响应不含密码、哈希、凭据
-- [ ] T074 [P] [US2] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/UsersReadContractIT.java`：`GET /v1/users`、`GET /v1/users/{userId}` 按 OpenAPI 校验
-- [ ] T075 [P] [US2] 组件测试 `apps/admin-center/tests/unit/components/users/{user-list,user-search-box}.test.tsx`：列「用户名、状态、关联账号数、创建时间」；状态徽标；搜索；分页；空态「还没有用户」与无结果态；手机宽度变卡片
-- [ ] T076 [P] [US2] 组件测试 `apps/admin-center/tests/unit/components/users/{user-detail,account-list}.test.tsx`：基本信息与账号表；无账号空态「该用户暂无关联账号」；已停用用户提示；「用户不存在」
-- [ ] T077 [P] [US2] E2E `apps/admin-center/tests/e2e/us2-users.spec.ts`（S4）：列表、搜索（大小写任意）、翻页、多账号详情、无账号详情、不存在的用户；断言从任一页面到用户详情不超过 2 次点击 / 触控（SC-002），详情里的账号数与 UAM 实际一致（SC-003）
+- [X] T072 [P] [US2] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/ListUsersIT.java`：默认每页 20、上限 100；按用户名或账号名搜索，大小写不敏感、包含匹配，去首尾空白后为空视为不搜索；`total` 与页码正确；`accountCount` 正确；用 `EXPLAIN` 断言搜索走 `pg_trgm` GIN 索引
+- [X] T073 [P] [US2] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/GetUserIT.java`：多账号用户列出全部账号（账号标识、账号种类、状态、创建时间），无遗漏、不混入他人账号；无账号用户 `accounts` 为空数组；不存在 → 404 `user_not_found`；响应不含密码、哈希、凭据
+- [X] T074 [P] [US2] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/UsersReadContractIT.java`：`GET /v1/users`、`GET /v1/users/{userId}` 按 OpenAPI 校验
+- [X] T075 [P] [US2] 组件测试 `apps/admin-center/tests/unit/components/users/{user-list,user-search-box}.test.tsx`：列「用户名、状态、关联账号数、创建时间」；状态徽标；搜索；分页；空态「还没有用户」与无结果态；手机宽度变卡片
+- [X] T076 [P] [US2] 组件测试 `apps/admin-center/tests/unit/components/users/{user-detail,account-list}.test.tsx`：基本信息与账号表；无账号空态「该用户暂无关联账号」；已停用用户提示；「用户不存在」
+- [X] T077 [P] [US2] E2E `apps/admin-center/tests/e2e/us2-users.spec.ts`（S4）：列表、搜索（大小写任意）、翻页、多账号详情、无账号详情、不存在的用户；断言从任一页面到用户详情不超过 2 次点击 / 触控（SC-002），详情里的账号数与 UAM 实际一致（SC-003）
 
 ### Implementation for User Story 2
 
-- [ ] T078 [US2] 在 `apps/uam/src/main/java/com/s2u2m/uam/domain/port/UserRepository.java` 与 `apps/uam/src/main/java/com/s2u2m/uam/infrastructure/jdbc/JdbcUserRepository.java` 增加分页与搜索（`ILIKE '%q%'` 匹配 `app_user.name` 与 `account.login_name_norm`；`accountCount` 用 `account(user_id)` 索引聚合；`limit/offset`）
-- [ ] T079 [US2] 用例与 DTO `apps/uam/src/main/java/com/s2u2m/uam/application/{ListUsersUseCase,GetUserUseCase}.java`、`apps/uam/src/main/java/com/s2u2m/uam/api/dto/{UserSummary,UserPage,UserDetail,AccountView}.java`；使 T072、T073 通过
-- [ ] T080 [US2] `apps/uam/src/main/java/com/s2u2m/uam/api/UsersController.java`：`GET /v1/users`、`GET /v1/users/{userId}`；使 T074 通过
-- [ ] T081 [US2] 在 `apps/admin-center/src/lib/uam/client.ts` 增加 `listUsers`、`getUser`
-- [ ] T082 [US2] 用户列表页 `apps/admin-center/src/app/(shell)/users/page.tsx` 与 `apps/admin-center/src/components/users/{user-list,user-search-box}.tsx`；使 T075 通过
-- [ ] T083 [US2] 用户详情页 `apps/admin-center/src/app/(shell)/users/[userId]/page.tsx` 与 `apps/admin-center/src/components/users/{user-detail,account-list}.tsx`；使 T076 通过
-- [ ] T084 [US2] 验证：T072 ~ T077 全部通过（`apps/admin-center/tests/e2e/us2-users.spec.ts` 与 UAM 的 `*IT`）；跑 quickstart S4
+- [X] T078 [US2] 在 `apps/uam/src/main/java/com/s2u2m/uam/domain/port/UserRepository.java` 与 `apps/uam/src/main/java/com/s2u2m/uam/infrastructure/jdbc/JdbcUserRepository.java` 增加分页与搜索（`ILIKE '%q%'` 匹配 `app_user.name` 与 `account.login_name_norm`；`accountCount` 用 `account(user_id)` 索引聚合；`limit/offset`）
+- [X] T079 [US2] 用例与 DTO `apps/uam/src/main/java/com/s2u2m/uam/application/{ListUsersUseCase,GetUserUseCase}.java`、`apps/uam/src/main/java/com/s2u2m/uam/api/dto/{UserSummary,UserPage,UserDetail,AccountView}.java`；使 T072、T073 通过
+- [X] T080 [US2] `apps/uam/src/main/java/com/s2u2m/uam/api/UsersController.java`：`GET /v1/users`、`GET /v1/users/{userId}`；使 T074 通过
+- [X] T081 [US2] 在 `apps/admin-center/src/lib/uam/client.ts` 增加 `listUsers`、`getUser`
+- [X] T082 [US2] 用户列表页 `apps/admin-center/src/app/(shell)/users/page.tsx` 与 `apps/admin-center/src/components/users/{user-list,user-search-box}.tsx`；使 T075 通过
+- [X] T083 [US2] 用户详情页 `apps/admin-center/src/app/(shell)/users/[userId]/page.tsx` 与 `apps/admin-center/src/components/users/{user-detail,account-list}.tsx`；使 T076 通过
+- [X] T084 [US2] 验证：T072 ~ T077 全部通过（`apps/admin-center/tests/e2e/us2-users.spec.ts` 与 UAM 的 `*IT`）；跑 quickstart S4
 
 **Checkpoint**: US1 与 US2 都可独立工作。
 

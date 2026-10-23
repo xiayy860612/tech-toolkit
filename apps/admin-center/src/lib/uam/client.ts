@@ -7,6 +7,10 @@ import type { components } from "./types.generated";
 export type VerifyResponse = components["schemas"]["VerifyResponse"];
 export type LoginRequest = components["schemas"]["LoginRequest"];
 export type LoginResponse = components["schemas"]["LoginResponse"];
+export type UserSummary = components["schemas"]["UserSummary"];
+export type UserPage = components["schemas"]["UserPage"];
+export type UserDetail = components["schemas"]["UserDetail"];
+export type Account = components["schemas"]["Account"];
 
 /** 操作人上下文：作为 X-Operator-* 请求头传给 UAM（写操作必带）。 */
 export interface Operator {
@@ -140,5 +144,30 @@ export async function verifySession(sessionId: string): Promise<VerifyResponse> 
  */
 export async function login(request: LoginRequest): Promise<LoginResponse> {
   const { data } = await uamRequest<LoginResponse>({ method: "POST", path: "/v1/auth/login", body: request });
+  return data;
+}
+
+export interface ListUsersParams {
+  /** 按用户名或账号名搜索；空串视为不搜索。 */
+  query?: string;
+  /** 页码，从 1 开始；缺省由 UAM 取 1。 */
+  page?: number;
+  /** 每页条数；缺省由 UAM 取 20。 */
+  size?: number;
+}
+
+/** 分页列出用户，含搜索（`GET /v1/users`）。读操作：不带操作人请求头。 */
+export async function listUsers({ query, page, size }: ListUsersParams = {}): Promise<UserPage> {
+  const { data } = await uamRequest<UserPage>({
+    method: "GET",
+    path: "/v1/users",
+    query: { query: query || undefined, page, size },
+  });
+  return data;
+}
+
+/** 用户详情及其关联的全部账号（`GET /v1/users/{userId}`）；不存在时抛 `UamError`（problem `user_not_found`）。 */
+export async function getUser(userId: string): Promise<UserDetail> {
+  const { data } = await uamRequest<UserDetail>({ method: "GET", path: `/v1/users/${encodeURIComponent(userId)}` });
   return data;
 }
