@@ -1,0 +1,612 @@
+openapi: 3.1.0
+info:
+  title: UAM API
+  version: 0.1.0
+  summary: User Account Management — RESTful 领域服务（访问不基于会话）
+  description: |
+    UAM 是用户、账号、会话的唯一权威，是通用的 RESTful 领域服务。**对 UAM 的访问不基于用户会话**：
+    不使用 cookie、会话标识或 JWT 等任何用户凭据来识别或授权客户端。UAM 只识别**调用它的服务**：
+    每个接口都要带**静态服务密钥**（`Authorization: Bearer <服务密钥>`），缺失、无效或已撤销返回 401 `client_unauthenticated`。
+
+    - `/v1/auth/*`：登录、校验会话、退出。会话标识只作为这里的输入出现。
+    - 资源接口 `/v1/users`、`/v1/online-users`、`/v1/sessions`、`/v1/accounts/{accountId}/password`：路径按资源命名，不带客户端名。
+      客户端（Admin Center）把**操作人**作为请求头传入：`X-Operator-User-Id`、`X-Operator-Account-Id`、`X-Operator-Session-Ref`。
+      UAM 信任**已通过服务密钥校验、且被授予「可代用户断言操作人与来源地址」权限**的客户端传来的操作人，
+      只用于自我保护规则（不能停用自己、不能强制下线自己的会话、标注 `current`）和写操作日志；它不是认证，也不用于授权。
+      写操作必须带操作人请求头，缺失返回 400 `operator_required`；读操作可选。
+
+    每个客户端有独立的名称、至多两把同时有效的密钥（用于不停机轮换）和权限。未被授予断言权限的客户端调用登录、校验会话、退出、
+    修改密码与所有写接口返回 403 `client_forbidden`，只读查询可用。
+
+    UAM 只在内网访问，且只对客户端开放（网络边界与服务密钥是两层保护）。`clientIp` 与操作人都由被授权的客户端提供。
+    会话标识（`sessionId`）是机密，只在 `login` 的响应和 `verify` / `logout` 的请求里出现；
+    页面与其他接口只使用非机密的会话引用（`sessionRef`）。
+    本文件是特性 `002-admin-center-uam` 的契约；实现的第一个任务把它迁到仓库根 `contracts/uam/openapi.yaml`。
+servers:
+  - url: https://uam.internal.example
+    description: 内网 / VPN 内，示例地址
+security:
+  - serviceKey: []
+tags:
+  - name: auth
+    description: 登录、校验会话、退出（本期无客户端凭据）
+  - name: users
+    description: 用户查询与管理
+  - name: sessions
+    description: 在线用户与会话
+  - name: accounts
+    description: 账号操作（修改密码）
+
+paths:
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: 用账号名与密码登录
+      description: |
+        成功则签发新会话：同一账号已有的旧会话立即失效（账号与会话一一对应）。
+        账号不存在、密码错误、账号已停用、所属用户已停用，一律返回同样的 `invalid_credentials`，且耗时无差别。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "403": { $ref: "#/components/responses/ClientForbidden" }
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401":
+          description: "`invalid_credentials`（账号名或密码错误），或 `client_unauthenticated`（服务密钥缺失 / 无效）"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "429": { $ref: "#/components/responses/Throttled" }
+
+  /v1/auth/sessions/verify:
+    post:
+      tags: [auth]
+      operationId: verifySession
+      summary: 校验会话标识并取得会话数据
+      description: |
+        会话标识只作为本调用的输入。有效则按需续期（距上次写入超过 60 秒才写）并返回会话数据。
+        会话无效、过期、被取代或被终止，一律 401 `session_invalid`。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyRequest" }
+      responses:
+        "403": { $ref: "#/components/responses/ClientForbidden" }
+        "200":
+          description: 会话有效
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerifyResponse" }
+        "401":
+          description: "`session_invalid`（会话无效、过期、被取代或被终止），或 `client_unauthenticated`（服务密钥缺失 / 无效）"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /v1/auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: 终止会话（幂等）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyRequest" }
+      responses:
+        "403": { $ref: "#/components/responses/ClientForbidden" }
+        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
+        "204": { description: 会话已终止（或本来就不存在） }
+
+  /v1/users:
+    get:
+      tags: [users]
+      operationId: listUsers
+      summary: 分页列出所有用户（含搜索）
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - name: query
+          in: query
+          description: 按用户名或账号名搜索，大小写不敏感、包含匹配；去首尾空白后为空则视为不搜索
+          schema: { type: string, maxLength: 64 }
+      responses:
+        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
+        "200":
+          description: 用户分页
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPage" }
+    post:
+      tags: [users]
+      operationId: createUser
+      summary: 创建用户及其一个「账号名 / 密码」账号
+      description: |
+        单个事务创建用户（状态 `ACTIVE`）、账号与凭据。`Idempotency-Key` 相同的重放（10 分钟内）返回原结果。
+        写操作：必须带操作人请求头（`X-Operator-*`）。
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/OperatorUserId"
+        - $ref: "#/components/parameters/OperatorAccountId"
+        - $ref: "#/components/parameters/OperatorSessionRef"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateUserRequest" }
+      responses:
+        "403": { $ref: "#/components/responses/ClientForbidden" }
+        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
+        "400": { $ref: "#/components/responses/OperatorRequired" }
+        "201":
+          description: 已创建
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserDetail" }
+        "409":
+          description: 账号名已被使用（`account_name_taken`）
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+
+  /v1/users/{userId}:
+    get:
+      tags: [users]
+      operationId: getUser
+      summary: 用户详情及其关联的全部账号
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
+        "200":
+          description: 用户详情
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/users/{userId}/disable:
+    post:
+      tags: [users]
+      operationId: disableUser
+      summary: 停用用户（幂等）
+      description: |
+        停用后该用户所有账号不能登录，且其全部会话立即结束。
+        不能停用操作人（请求头 `X-Operator-User-Id`）所属的用户（`cannot_disable_self`），不能停用最后一个正常用户（`cannot_disable_last_active_user`）。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - $ref: "#/components/parameters/OperatorUserId"
+        - $ref: "#/components/parameters/OperatorAccountId"
+        - $ref: "#/components/parameters/OperatorSessionRef"
+      responses:
+        "403": { $ref: "#/components/responses/ClientForbidden" }
+        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
+        "400": { $ref: "#/components/responses/OperatorRequired" }
+        "200":
+          description: 已停用（或本来就是已停用）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: 规则不允许（`cannot_disable_self` / `cannot_disable_last_active_user`）
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /v1/users/{userId}/enable:
+    post:
+      tags: [users]
+      operationId: enableUser
+      summary: 启用用户（幂等）
+      description: 恢复其账号的登录能力；不恢复此前已结束的会话。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - $ref: "#/components/parameters/OperatorUserId"
+        - $ref: "#/components/parameters/OperatorAccountId"
+        - $ref: "#/components/parameters/OperatorSessionRef"
+      responses:
+        "403": { $ref: "#/components/responses/ClientForbidden" }
+        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
+        "400": { $ref: "#/components/responses/OperatorRequired" }
+        "200":
+          description: 已启用（或本来就是正常）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/online-users:
+    get:
+      tags: [sessions]
+      operationId: listOnlineUsers
+      summary: 分页列出当前在线用户（至少有一个有效会话）
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
+        "200":
+          description: 在线用户分页，按最近活动时间倒序
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OnlineUserPage" }
+
+  /v1/users/{userId}/sessions:
+    get:
+      tags: [sessions]
+      operationId: listUserSessions
+      summary: 某用户当前的全部有效会话
+      description: 每条会话对应其一个账号；`current` 标明是否为操作人自己正在使用的会话（请求头 `X-Operator-Session-Ref` 可选，缺省则全为 false）。不含会话标识。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: X-Operator-Session-Ref
+          in: header
+          required: false
+          description: 操作人自己的会话引用；提供则用它标注 `current`
+          schema: { type: string, format: uuid }
+      responses:
+        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
+        "200":
+          description: 会话列表（可能为空）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Session" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/sessions/{sessionRef}:
+    delete:
+      tags: [sessions]
+      operationId: terminateSession
+      summary: 强制下线指定会话
+      description: |
+        只终止该会话，不影响该用户的其他会话，也不停用账号或用户。
+        不能终止操作人（请求头 `X-Operator-Session-Ref`）自己正在使用的会话（`cannot_terminate_own_session`）；会话已结束返回 404 `session_not_found`。
+      parameters:
+        - name: sessionRef
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/OperatorUserId"
+        - $ref: "#/components/parameters/OperatorAccountId"
+        - $ref: "#/components/parameters/OperatorSessionRef"
+      responses:
+        "403": { $ref: "#/components/responses/ClientForbidden" }
+        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
+        "400": { $ref: "#/components/responses/OperatorRequired" }
+        "204": { description: 会话已终止 }
+        "404":
+          description: 会话不存在或已结束（`session_not_found`）
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "409":
+          description: 不能终止自己正在使用的会话（`cannot_terminate_own_session`）
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /v1/accounts/{accountId}/password:
+    post:
+      tags: [accounts]
+      operationId: changeOwnPassword
+      summary: 修改账号的密码（自助，需当前密码）
+      description: |
+        只修改路径里的账号；该用户的其他账号不受影响；当前会话保持有效。
+        UAM 不依赖用户凭据，以「当前密码正确」保护本操作；Admin Center 传入操作人自己的账号。
+        当前密码连续错误按来源地址限制（口径同登录）。
+      parameters:
+        - $ref: "#/components/parameters/AccountId"
+        - $ref: "#/components/parameters/OperatorUserId"
+        - $ref: "#/components/parameters/OperatorAccountId"
+        - $ref: "#/components/parameters/OperatorSessionRef"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
+      responses:
+        "403": { $ref: "#/components/responses/ClientForbidden" }
+        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
+        "400": { $ref: "#/components/responses/OperatorRequired" }
+        "204": { description: 密码已修改 }
+        "422":
+          description: 校验失败（`current_password_incorrect` / `weak_password` / `same_as_current`）
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "429": { $ref: "#/components/responses/Throttled" }
+
+components:
+  securitySchemes:
+    serviceKey:
+      type: http
+      scheme: bearer
+      description: 静态服务密钥（32 字节随机数，带 `uamk_` 前缀）。每个客户端独立；UAM 配置里只存 SHA-256 哈希，至多两把同时有效以便不停机轮换。
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: 页码，从 1 开始
+      schema: { type: integer, minimum: 1, default: 1 }
+    Size:
+      name: size
+      in: query
+      description: 每页条数，默认 20，上限 100
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 由 Admin Center 为每次表单渲染生成的随机键；10 分钟内同键重放返回原结果
+      schema: { type: string, minLength: 16, maxLength: 64 }
+
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OperatorUserId:
+      name: X-Operator-User-Id
+      in: header
+      required: true
+      description: 发起操作的运维人员的用户标识。由客户端填写，UAM 信任它，只用于自我保护规则与写操作日志
+      schema: { type: string, format: uuid }
+    OperatorAccountId:
+      name: X-Operator-Account-Id
+      in: header
+      required: true
+      description: 发起操作的运维人员当前使用的账号标识。由客户端填写，UAM 信任它
+      schema: { type: string, format: uuid }
+    OperatorSessionRef:
+      name: X-Operator-Session-Ref
+      in: header
+      required: true
+      description: 发起操作的运维人员当前会话的引用（非机密）。由客户端填写，UAM 信任它
+      schema: { type: string, format: uuid }
+
+  responses:
+    ClientUnauthenticated:
+      description: 服务密钥缺失、无效或已撤销（`client_unauthenticated`）；响应不透露是哪一部分不对
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    ClientForbidden:
+      description: 客户端未被授予「可代用户断言操作人与来源地址」权限（`client_forbidden`）
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    OperatorRequired:
+      description: 缺少操作人请求头（`operator_required`）
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    NotFound:
+      description: 用户不存在（`user_not_found`）
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    ValidationFailed:
+      description: 字段校验失败，`errors` 逐字段给出原因
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Throttled:
+      description: 该来源被暂时拒绝（`throttled`），`Retry-After` 为剩余秒数
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details。`code` 是稳定的机器可读原因，界面据此显示文案；任何响应都不含密码、哈希、会话标识。
+      required: [type, title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        code:
+          type: string
+          examples: [invalid_credentials, session_invalid, client_unauthenticated, client_forbidden, operator_required, throttled, account_name_taken, validation_failed,
+                     cannot_disable_self, cannot_disable_last_active_user, cannot_terminate_own_session,
+                     session_not_found, user_not_found, current_password_incorrect, weak_password, same_as_current]
+        detail: { type: string }
+        errors:
+          type: array
+          description: 仅 `validation_failed` 等字段级错误
+          items:
+            type: object
+            required: [field, reason]
+            properties:
+              field: { type: string, examples: [userName, accountName, password, currentPassword, newPassword] }
+              reason: { type: string, examples: [required, too_long, invalid_chars, too_short, too_weak, taken] }
+
+    LoginRequest:
+      type: object
+      required: [accountName, password, clientIp]
+      properties:
+        accountName: { type: string, minLength: 1, maxLength: 64 }
+        password: { type: string, minLength: 1, maxLength: 256, writeOnly: true }
+        clientIp:
+          type: string
+          description: 由 Admin Center 从可信代理头取得的终端来源地址；只有被授予断言权限的客户端可提交，UAM 信任它
+
+    LoginResponse:
+      type: object
+      required: [sessionId, maxAgeSeconds, user, account, sessionRef, expiresAt]
+      properties:
+        sessionId:
+          type: string
+          description: 机密的会话标识，只给 Admin Center 写入 cookie；浏览器之外不得再传播
+        maxAgeSeconds:
+          type: integer
+          description: 剩余绝对寿命（秒），用作 cookie 的 Max-Age
+        user: { $ref: "#/components/schemas/SessionUser" }
+        account: { $ref: "#/components/schemas/SessionAccount" }
+        sessionRef: { type: string, format: uuid }
+        expiresAt: { type: string, format: date-time }
+
+    VerifyRequest:
+      type: object
+      required: [sessionId]
+      properties:
+        sessionId: { type: string, minLength: 1, maxLength: 128, writeOnly: true }
+
+    VerifyResponse:
+      type: object
+      required: [user, account, sessionRef, expiresAt]
+      properties:
+        user: { $ref: "#/components/schemas/SessionUser" }
+        account: { $ref: "#/components/schemas/SessionAccount" }
+        sessionRef: { type: string, format: uuid }
+        expiresAt: { type: string, format: date-time }
+
+    SessionUser:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+
+    SessionAccount:
+      type: object
+      required: [id, loginName, kind]
+      properties:
+        id: { type: string, format: uuid }
+        loginName: { type: string }
+        kind: { $ref: "#/components/schemas/AccountKind" }
+
+    AccountKind:
+      type: string
+      enum: [PASSWORD]
+      description: 账号种类；本期仅「账号名 / 密码」，日后扩展
+
+    UserStatus:
+      type: string
+      enum: [ACTIVE, DISABLED]
+
+    AccountStatus:
+      type: string
+      enum: [ACTIVE, DISABLED, DELETED]
+      description: DELETED 为预留，本期没有接口会写入
+
+    UserSummary:
+      type: object
+      required: [id, name, status, accountCount, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { $ref: "#/components/schemas/UserStatus" }
+        accountCount: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+
+    UserPage:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/UserSummary" }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer, description: 满足条件的用户总数 }
+
+    Account:
+      type: object
+      required: [id, loginName, kind, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        loginName: { type: string }
+        kind: { $ref: "#/components/schemas/AccountKind" }
+        status: { $ref: "#/components/schemas/AccountStatus" }
+        createdAt: { type: string, format: date-time }
+
+    UserDetail:
+      type: object
+      required: [id, name, status, createdAt, accounts]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { $ref: "#/components/schemas/UserStatus" }
+        createdAt: { type: string, format: date-time }
+        accounts:
+          type: array
+          description: 该用户关联的全部账号；无账号时为空数组。不含任何凭据。
+          items: { $ref: "#/components/schemas/Account" }
+
+    CreateUserRequest:
+      type: object
+      required: [userName, accountName, password]
+      properties:
+        userName: { type: string, description: 去首尾空白后 1–64 字符 }
+        accountName: { type: string, description: 3–32 个字母、数字或 `_` `.` `-`；大小写不敏感，全局唯一 }
+        password: { type: string, writeOnly: true, description: 满足密码强度策略（默认至少 10 位且含字母与数字） }
+
+    OnlineUser:
+      type: object
+      required: [userId, userName, sessionCount, lastActiveAt]
+      properties:
+        userId: { type: string, format: uuid }
+        userName: { type: string }
+        sessionCount: { type: integer, minimum: 1 }
+        lastActiveAt: { type: string, format: date-time }
+
+    OnlineUserPage:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OnlineUser" }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
+
+    Session:
+      type: object
+      required: [sessionRef, accountId, accountName, accountKind, loginAt, lastActiveAt, expiresAt, current]
+      properties:
+        sessionRef: { type: string, format: uuid, description: 非机密的会话引用 }
+        accountId: { type: string, format: uuid }
+        accountName: { type: string }
+        accountKind: { $ref: "#/components/schemas/AccountKind" }
+        loginAt: { type: string, format: date-time }
+        lastActiveAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        current:
+          type: boolean
+          description: 是否为操作人自己正在使用的会话；此条不可被强制下线
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword, clientIp]
+      properties:
+        currentPassword: { type: string, writeOnly: true }
+        newPassword: { type: string, writeOnly: true }
+        clientIp: { type: string, description: 同登录 }

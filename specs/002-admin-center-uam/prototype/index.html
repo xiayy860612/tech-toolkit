@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Center 原型查看器</title>
+  <style>
+    :root { --bg:#e9edf3; --bar:#ffffff; --text:#1a1f29; --muted:#566074; --border:#d3d9e3; --primary:#2253cf; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --bar:#1a2029; --text:#e7ebf2; --muted:#9aa5b8; --border:#2f3846; --primary:#6b93ff; } }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; min-height:100vh; display:flex; flex-direction:column; }
+    .bar { background:var(--bar); border-bottom:1px solid var(--border); padding:10px 16px; display:flex; flex-wrap:wrap; gap:10px 20px; align-items:center; }
+    .bar h1 { font-size:15px; margin:0; }
+    .group { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+    .group > span { color:var(--muted); }
+    button, select, a.open { min-height:36px; padding:0 12px; border:1px solid var(--border); background:var(--bar); color:var(--text); border-radius:8px; font:inherit; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; }
+    button[aria-pressed="true"] { background:var(--primary); border-color:var(--primary); color:#fff; }
+    :focus-visible { outline:3px solid var(--primary); outline-offset:2px; }
+    .info { padding:8px 16px; color:var(--muted); font-size:13px; }
+    .stage { flex:1; display:flex; justify-content:center; align-items:flex-start; padding:8px 16px 32px; overflow:auto; }
+    .scaler { flex:none; }
+    .frame-wrap { background:#fff; border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 32px rgba(16,24,40,.16); overflow:hidden; transform-origin:top left; }
+    iframe { display:block; border:0; width:100%; height:100%; background:#fff; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <h1>Admin Center 界面设计原型</h1>
+    <div class="group" role="group" aria-label="视口"><span>视口</span>
+      <button data-vp="1280" aria-pressed="true">桌面 1280</button>
+      <button data-vp="820" aria-pressed="false">平板 820</button>
+      <button data-vp="390" aria-pressed="false">手机 390</button>
+      <button data-vp="320" aria-pressed="false">最窄 320</button>
+    </div>
+    <div class="group"><label for="scn">场景</label>
+      <select id="scn">
+        <option value="normal">正常（可操作：新建 / 停用 / 强制下线 / 改密）</option>
+        <option value="empty">空数据（无用户 / 无在线用户）</option>
+        <option value="uam-down">UAM 暂不可用</option>
+        <option value="session-ended">会话已结束（登录页提示）</option>
+        <option value="force-logged-out">被强制下线（登录页提示）</option>
+        <option value="session-gone">强制下线时会话已自行结束</option>
+        <option value="last-active-user">不能停用最后一个正常用户（李四）</option>
+      </select>
+      <button id="reset">重置数据</button>
+      <a class="open" id="open" target="_blank" rel="noopener">新标签页打开</a>
+    </div>
+  </div>
+  <div class="info" id="info"></div>
+  <div class="stage" id="stage"><div class="scaler" id="scaler"><div class="frame-wrap" id="wrap"><iframe id="fr" title="Admin Center 原型"></iframe></div></div></div>
+  <script>
+    (function () {
+      var fr = document.getElementById('fr'), wrap = document.getElementById('wrap'), scn = document.getElementById('scn');
+      var info = document.getElementById('info'), open = document.getElementById('open');
+      var vp = 1280;
+      function url() { return 'app.html?scenario=' + encodeURIComponent(scn.value); }
+      function size() {
+        // 按真实 CSS 宽度渲染（断点按 vp 生效），再整体缩放以适应窗口，所以三种视口的布局是真实的
+        var avail = document.getElementById('stage').clientWidth - 32;
+        var k = Math.min(1, avail / vp);
+        var h = vp >= 1024 ? 760 : 820;
+        wrap.style.width = vp + 'px';
+        wrap.style.height = h + 'px';
+        wrap.style.transform = 'scale(' + k + ')';
+        var sc = document.getElementById('scaler');
+        sc.style.width = Math.round(vp * k) + 'px';
+        sc.style.height = Math.round(h * k) + 'px';
+        info.textContent = '当前视口 ' + vp + ' px' + (k < 1 ? '（窗口较窄，已缩放到 ' + Math.round(k * 100) + '% 显示，布局仍按 ' + vp + ' px 渲染）' : '') +
+          ' · 场景 ' + scn.options[scn.selectedIndex].text + ' · 界面内的数据都是假数据，刷新或「重置数据」即还原。';
+      }
+      function load() { fr.src = url(); open.href = url(); size(); }
+      document.querySelectorAll('[data-vp]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          vp = parseInt(b.getAttribute('data-vp'), 10);
+          document.querySelectorAll('[data-vp]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+          size();
+        });
+      });
+      scn.addEventListener('change', load);
+      document.getElementById('reset').addEventListener('click', load);
+      window.addEventListener('resize', size);
+      load();
+    })();
+  </script>
+</body>
+</html>

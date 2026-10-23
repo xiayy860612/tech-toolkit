@@ -1,0 +1,18 @@
+@startuml domain-state-user
+title User 状态
+hide empty description
+
+state "正常（ACTIVE）" as Active
+state "已停用（DISABLED）" as Disabled
+
+[*] --> Active : 新建（连同一个账号名 / 密码账号）
+Active --> Disabled : 停用\n[不是操作人自己]\n[不是最后一个正常用户]\n提交后终止其全部会话
+Disabled --> Active : 启用\n不恢复已结束的会话
+Active --> Active : 重复启用（幂等）
+Disabled --> Disabled : 重复停用（幂等）
+
+note right of Disabled
+  停用期间，其名下所有账号都不能登录。
+  账号能否登录 = 账号为 ACTIVE 且所属用户为 ACTIVE。
+end note
+@enduml

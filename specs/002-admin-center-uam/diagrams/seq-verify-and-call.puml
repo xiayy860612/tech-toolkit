@@ -1,0 +1,22 @@
+@startuml seq-verify-and-call
+title 每个请求：校验会话并调用 UAM
+autonumber
+
+participant "浏览器" as B
+participant "Admin Center\n（UAM 的客户端）" as AC
+participant "UAM" as U
+
+B -> AC : GET /sessions（cookie: session id）
+AC -> U : POST /v1/auth/sessions/verify {sessionId}\nAuthorization: Bearer 服务密钥
+U --> AC : 200 {user, account, sessionRef, expiresAt}
+AC -> U : GET /v1/online-users\nAuthorization: Bearer 服务密钥
+U -> U : 识别客户端：校验服务密钥\n不使用用户凭据
+U --> AC : 200 在线用户分页
+AC --> B : 渲染页面（会话数据不出 Admin Center）
+
+note over AC, U
+  verify 返回 401 session_invalid → anonymous（清 cookie，回登录页）
+  超时 / 5xx / 401 client_unauthenticated / 403 client_forbidden
+  → unverified（保留 cookie，提示服务暂不可用）
+end note
+@enduml

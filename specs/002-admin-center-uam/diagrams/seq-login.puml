@@ -1,0 +1,20 @@
+@startuml seq-login
+title 登录
+autonumber
+
+actor "运维人员" as O
+participant "浏览器" as B
+participant "Admin Center\n（UAM 的客户端）" as AC
+participant "UAM" as U
+database "Redis" as R
+
+O -> B : 提交账号名与密码
+B -> AC : POST /login（Server Action，同源校验）
+AC -> U : POST /v1/auth/login {accountName, password, clientIp}\nAuthorization: Bearer 服务密钥
+U -> U : 识别客户端 admin-center\n校验服务密钥与断言权限
+U -> U : 校验凭据：先做哈希比对，再判账号与用户状态
+U -> R : Lua：写新会话，顶掉同账号旧会话
+U -> U : 复查用户状态（已停用则终止刚建的会话并拒绝）
+U --> AC : 200 {sessionId, maxAgeSeconds, user, account, sessionRef, expiresAt}
+AC --> B : Set-Cookie: __Host-asid=sessionId\n（HttpOnly; Secure; SameSite=Strict）\n303 → next 或 /users
+@enduml
