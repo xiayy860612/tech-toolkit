@@ -25,4 +25,19 @@ const config: Config = {
   coverageThreshold: { global: { lines: 90 } },
 };
 
-export default createJestConfig(config);
+// next/jest 总是把 /node_modules/ 整体排除在转换之外；msw 依赖链里有纯 ESM 包（rettime、until-async 等），
+// 在 CommonJS 的 Jest 里必须转换，所以在 next/jest 生成配置之后再覆盖 transformIgnorePatterns。
+const ESM_PACKAGES = ["msw", "@mswjs", "@open-draft", "rettime", "until-async", "headers-polyfill", "outvariant", "strict-event-emitter"];
+
+const jestConfig = async () => {
+  const resolved = await createJestConfig(config)();
+  return {
+    ...resolved,
+    transformIgnorePatterns: [
+      `/node_modules/(?!(${ESM_PACKAGES.join("|")})/)`,
+      "^.+\\.module\\.(css|sass|scss)$",
+    ],
+  };
+};
+
+export default jestConfig;

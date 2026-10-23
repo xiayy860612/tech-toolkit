@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: uam
+  # 数据库与 Redis 连接只经环境变量注入（SPRING_DATASOURCE_*、SPRING_DATA_REDIS_*），禁止入库
+  flyway:
+    enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  mvc:
+    problemdetails:
+      enabled: false # 错误体由 ProblemAdvice 统一输出
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          # 就绪依赖 PostgreSQL 与 Redis
+          include: readinessState,db,redis
+  metrics:
+    tags:
+      application: uam
+
+uam:
+  # 客户端清单，JSON：[{"id","keyHashes":["sha256:<hex>"],"permissions":[...]}]，读自环境变量 UAM_CLIENTS
+  clients: ${UAM_CLIENTS}
+  session:
+    idle: 30m
+    absolute: 12h
+    touch-interval: 60s
+  login:
+    throttle:
+      max-failures: 5
+      block: 15m
+  password:
+    min-length: 10

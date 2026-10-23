@@ -1,0 +1,61 @@
+# 完整 E2E 栈：PostgreSQL、Redis、UAM、Admin Center。
+# 用法见 infra/local/scripts/bootstrap.sh；配置来自 infra/local/e2e.env（仅限本地 E2E）。
+# UAM 的端口不映射到宿主机：只有 Admin Center 能在栈内网络里访问它（spec 假设：UAM 只在内网可达）。
+name: uam-e2e
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  uam:
+    build:
+      context: ../..
+      dockerfile: apps/uam/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      UAM_CLIENTS: ${UAM_CLIENTS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  admin-center:
+    build:
+      context: ../..
+      dockerfile: apps/admin-center/Dockerfile
+    environment:
+      UAM_BASE_URL: http://uam:8080
+      UAM_SERVICE_KEY: ${UAM_SERVICE_KEY}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      uam:
+        condition: service_healthy
