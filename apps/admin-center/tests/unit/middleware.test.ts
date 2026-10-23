@@ -41,6 +41,20 @@ describe("middleware：安全响应头与 CSP nonce", () => {
     expect(res.headers.get("content-security-policy")).toContain(`'nonce-${nonce}'`);
   });
 
+  it("把请求的路径（含查询）作为 x-next-path 转给渲染层，去掉 Next 内部的 _rsc 参数", () => {
+    const overridden = (res: Response) => res.headers.get("x-middleware-override-headers")!;
+    const plain = run("http://localhost:3000/users/abc?q=zhang&page=2");
+    expect(overridden(plain)).toContain("x-next-path");
+    expect(plain.headers.get("x-middleware-request-x-next-path")).toBe("/users/abc?q=zhang&page=2");
+    const rsc = run("http://localhost:3000/users?_rsc=abc12");
+    expect(rsc.headers.get("x-middleware-request-x-next-path")).toBe("/users");
+  });
+
+  it("客户端自带的 x-next-path 不被采信", () => {
+    const res = middleware(new NextRequest("http://localhost:3000/users", { headers: { "x-next-path": "//evil.example" } }));
+    expect(res.headers.get("x-middleware-request-x-next-path")).toBe("/users");
+  });
+
   it("开发环境允许 unsafe-eval（React 开发模式需要）", () => {
     const original = process.env.NODE_ENV;
     Object.assign(process.env, { NODE_ENV: "development" });

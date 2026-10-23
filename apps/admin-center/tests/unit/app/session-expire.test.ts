@@ -1,6 +1,7 @@
 /**
  * @jest-environment node
  */
+import { NextRequest } from "next/server";
 import { GET } from "@/app/session/expire/route";
 import { getSession } from "@/lib/session/get-session";
 
@@ -18,10 +19,12 @@ afterEach(() => {
   jest.resetAllMocks();
 });
 
+const call = (search = "") => GET(new NextRequest(`http://localhost:3000/session/expire${search}`));
+
 describe("GET /session/expire", () => {
   it("重新 verify 仍无效：清除 cookie，303 到 /login 并带「会话已结束」原因", async () => {
     jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: true });
-    const res = await GET();
+    const res = await call();
     expect(res.status).toBe(303);
     // 相对地址：容器内 request.url 的主机可能是 0.0.0.0，不能拿它拼绝对地址
     const location = new URL(res.headers.get("location")!, "http://x");
@@ -39,7 +42,7 @@ describe("GET /session/expire", () => {
 
   it("本来就没有 cookie：直接去 /login，不带「会话已结束」", async () => {
     jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: false });
-    const res = await GET();
+    const res = await call();
     expect(res.status).toBe(303);
     const location = new URL(res.headers.get("location")!, "http://x");
     expect(location.pathname).toBe("/login");
@@ -48,7 +51,7 @@ describe("GET /session/expire", () => {
 
   it("unverified（UAM 不可用）：不清 cookie，回到受保护页面看到「服务暂不可用」", async () => {
     jest.mocked(getSession).mockResolvedValue({ status: "unverified" });
-    const res = await GET();
+    const res = await call();
     expect(res.status).toBe(303);
     expect(res.headers.get("set-cookie")).toBeNull();
     expect(new URL(res.headers.get("location")!, "http://x").pathname).toBe("/users");
@@ -59,15 +62,44 @@ describe("GET /session/expire", () => {
       status: "authenticated",
       session: {} as never,
     });
-    const res = await GET();
+    const res = await call();
     expect(res.status).toBe(303);
     expect(res.headers.get("set-cookie")).toBeNull();
     expect(new URL(res.headers.get("location")!, "http://x").pathname).toBe("/users");
   });
 
+  it("带 next：失效后去 /login?reason=session_ended&next=<原路径>", async () => {
+    jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: true });
+    const res = await call(`?next=${encodeURIComponent("/users/abc?x=1")}`);
+    const location = new URL(res.headers.get("location")!, "http://x");
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("reason")).toBe("session_ended");
+    expect(location.searchParams.get("next")).toBe("/users/abc?x=1");
+  });
+
+  it("没有 cookie 且带 next：/login?next=<原路径>", async () => {
+    jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: false });
+    const res = await call(`?next=${encodeURIComponent("/sessions")}`);
+    const location = new URL(res.headers.get("location")!, "http://x");
+    expect(location.searchParams.get("next")).toBe("/sessions");
+    expect(location.searchParams.has("reason")).toBe(false);
+  });
+
+  it("next 不是安全的站内路径：忽略，不带 next", async () => {
+    jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: true });
+    const res = await call(`?next=${encodeURIComponent("//evil.example")}`);
+    expect(new URL(res.headers.get("location")!, "http://x").searchParams.has("next")).toBe(false);
+  });
+
+  it("会话仍有效 / UAM 不可用：回到 next 指向的页面（安全时），否则 /users", async () => {
+    jest.mocked(getSession).mockResolvedValue({ status: "unverified" });
+    const res = await call(`?next=${encodeURIComponent("/sessions")}`);
+    expect(new URL(res.headers.get("location")!, "http://x").pathname).toBe("/sessions");
+  });
+
   it("响应不可缓存", async () => {
     jest.mocked(getSession).mockResolvedValue({ status: "unverified" });
-    const res = await GET();
+    const res = await call();
     expect(res.headers.get("cache-control")).toBe("no-store");
   });
 });

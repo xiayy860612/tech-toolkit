@@ -1,12 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import AuthLayout from "@/app/(auth)/layout";
 import ShellLayout from "@/app/(shell)/layout";
 import RootLayout from "@/app/layout";
 import { getSession } from "@/lib/session/get-session";
 
-jest.mock("next/headers", () => ({ cookies: jest.fn() }));
+jest.mock("next/headers", () => ({ cookies: jest.fn(), headers: jest.fn() }));
 jest.mock("next/navigation", () => ({
   usePathname: () => "/users",
   redirect: jest.fn((to: string) => {
@@ -21,9 +21,14 @@ function sidebarCookie(value?: string) {
   } as never);
 }
 
+function requestPath(path?: string) {
+  jest.mocked(headers).mockResolvedValue(new Headers(path ? { "x-next-path": path } : {}) as never);
+}
+
 beforeEach(() => {
   window.innerWidth = 1280;
   sidebarCookie();
+  requestPath("/users");
 });
 afterEach(() => jest.clearAllMocks());
 
@@ -67,14 +72,31 @@ describe("(shell)/layout：读会话三态", () => {
     expect(screen.getByRole("status")).toHaveTextContent("服务暂不可用");
   });
 
-  it("anonymous 且带过 cookie：经 /session/expire 清掉失效 cookie", async () => {
+  it("anonymous 且带过 cookie：经 /session/expire 清掉失效 cookie，并带上原路径", async () => {
     jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: true });
-    await expect(ShellLayout({ children: null })).rejects.toThrow("NEXT_REDIRECT:/session/expire");
+    requestPath("/users/abc?x=1");
+    await expect(ShellLayout({ children: null })).rejects.toThrow(
+      `NEXT_REDIRECT:/session/expire?next=${encodeURIComponent("/users/abc?x=1")}`,
+    );
   });
 
-  it("anonymous 没有 cookie：直接去 /login", async () => {
+  it("anonymous 没有 cookie：去 /login?next=<原路径>", async () => {
     jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: false });
-    await expect(ShellLayout({ children: null })).rejects.toThrow("NEXT_REDIRECT:/login");
+    requestPath("/sessions");
+    await expect(ShellLayout({ children: null })).rejects.toThrow(
+      `NEXT_REDIRECT:/login?next=${encodeURIComponent("/sessions")}`,
+    );
+  });
+
+  it("原路径缺失或不安全：不带 next（登录后进入 /users）", async () => {
+    jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: false });
+    requestPath();
+    await expect(ShellLayout({ children: null })).rejects.toThrow(/^NEXT_REDIRECT:\/login$/);
+    requestPath("//evil.example");
+    await expect(ShellLayout({ children: null })).rejects.toThrow(/^NEXT_REDIRECT:\/login$/);
+    jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: true });
+    requestPath("//evil.example");
+    await expect(ShellLayout({ children: null })).rejects.toThrow(/^NEXT_REDIRECT:\/session\/expire$/);
   });
 });
 

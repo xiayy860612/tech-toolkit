@@ -3,6 +3,7 @@ package com.s2u2m.uam.infrastructure.config;
 import com.s2u2m.uam.infrastructure.redis.ReplicaWait;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
@@ -10,6 +11,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  * WAIT 1 <短超时>} 辅助方法见 {@link ReplicaWait}。
  */
 @Configuration(proxyBeanMethods = false)
+@Profile("!cli")
 public class RedisConfig {
 
   @Bean

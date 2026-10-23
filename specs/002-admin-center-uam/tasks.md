@@ -109,36 +109,36 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Tests for User Story 1 ⚠️（先写，确认失败）
 
-- [ ] T045 [P] [US1] 领域策略单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/domain/{AccountNameRulesTest,PasswordPolicyTest,SessionPolicyTest,LoginThrottlePolicyTest}.java`：账号名 3–32 个字母、数字或 `_` `.` `-`，大小写不敏感；密码默认至少 10 位且同时含字母与数字（可配置）；会话空闲 30 分钟、绝对 12 小时，Redis TTL 取两者剩余的较小值；登录失败同一「账号 + 来源地址」连续 5 次后拒绝该来源 15 分钟，不锁账号
-- [ ] T046 [P] [US1] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/LoginUseCaseTest.java`（用假端口）：账号不存在、密码错误、账号已停用、所属用户已停用，一律 `invalid_credentials`，且都先做一次哈希比对；成功则签发新会话并顶掉同账号旧会话；写入会话后复查用户状态（已停用则终止刚建的会话并拒绝）；达到限制阈值后即使凭据正确也 429
-- [ ] T047 [P] [US1] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/VerifySessionUseCaseTest.java`：有效会话返回会话数据（用户标识与名称、账号标识与账号名与种类、会话引用、到期时间）；无效、过期、被取代 → `session_invalid`；距上次写入超过 60 秒才续期
-- [ ] T048 [P] [US1] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/RedisSessionStoreIT.java`：登录脚本原子完成「读旧 → 删旧 → 写新 → 更新索引」；`uam:sess:{sha}` 里只有 `SHA-256(会话标识)`，没有明文；`uam:acct:{accountId}:sess`、`uam:sref:{ref}`、`uam:online` 同步更新；TTL 取「空闲剩余」与「绝对剩余」的较小值；续期只在超过 60 秒后写
-- [ ] T049 [P] [US1] 并发测试 `apps/uam/src/test/java/com/s2u2m/uam/concurrency/ConcurrentLoginIT.java`：同一账号 N 个并发登录，最终**恰好一个**有效会话
-- [ ] T050 [P] [US1] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/AuthContractIT.java`：`POST /v1/auth/login` 与 `POST /v1/auth/sessions/verify` 的请求与响应按 `contracts/uam/openapi.yaml` 校验；失败限制：同一账号与来源连错 5 次后，正确密码也得 429 + `Retry-After`，其他来源仍可登录
-- [ ] T051 [P] [US1] 时序测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/LoginTimingIT.java`：账号不存在与密码错误的响应耗时无可区分差别（伪哈希路径）
-- [ ] T052 [P] [US1] CLI 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/cli/{InitAdminCommandTest,AddAccountCommandTest}.java`：`init-admin` 仅在没有任何用户时创建首个用户与账号，幂等，密码只经标准输入，按密码强度与账号名规则校验，日志写标准错误；`add-account` 给已有用户（`--user-id` 或 `--account-name-of`）加第二个「账号名 / 密码」账号，账号名重复被拒；另新增 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/AccountProvisioningServiceTest.java`：单事务创建用户 + 账号 + 凭据（任一步失败不留半成品）；用户名去首尾空白后 1–64 字符；账号名 3–32 个字母、数字或 `_` `.` `-`，大小写不敏感且全局唯一；密码满足强度策略；可只给已有用户追加账号
-- [ ] T053 [P] [US1] 单元测试 `apps/admin-center/tests/unit/app/login-actions.test.ts`：空账号名或密码 → 必填提示且**不调用 UAM**；`invalid_credentials` → 「账号名或密码错误」；`throttled` → 提示稍后再试并带 `Retry-After`；成功写 cookie 并跳转；同源校验；`next` 只接受以单个 `/` 开头的站内路径（拒绝 `//`、带协议、含反斜杠），否则进入 `/users`
-- [ ] T054 [P] [US1] 组件测试 `apps/admin-center/tests/unit/components/auth/login-form.test.tsx`：字段错误、统一失败提示、不回填密码、`autocomplete` 为 `username` / `current-password`
-- [ ] T055 [P] [US1] E2E `apps/admin-center/tests/e2e/us1-login.spec.ts`：S1（账号 A、B 登录识别为同一用户）、S2（统一失败提示、限流）、S3（同账号第二个浏览器登录顶掉第一个）、未登录访问深链接登录后回到原页、站外 `next` 被忽略、已登录访问 `/login` 重定向到 `/users`；并记录从打开登录页到看到用户列表的耗时（SC-001：95% ≤ 30 秒含输入）
+- [X] T045 [P] [US1] 领域策略单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/domain/{AccountNameRulesTest,PasswordPolicyTest,SessionPolicyTest,LoginThrottlePolicyTest}.java`：账号名 3–32 个字母、数字或 `_` `.` `-`，大小写不敏感；密码默认至少 10 位且同时含字母与数字（可配置）；会话空闲 30 分钟、绝对 12 小时，Redis TTL 取两者剩余的较小值；登录失败同一「账号 + 来源地址」连续 5 次后拒绝该来源 15 分钟，不锁账号
+- [X] T046 [P] [US1] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/LoginUseCaseTest.java`（用假端口）：账号不存在、密码错误、账号已停用、所属用户已停用，一律 `invalid_credentials`，且都先做一次哈希比对；成功则签发新会话并顶掉同账号旧会话；写入会话后复查用户状态（已停用则终止刚建的会话并拒绝）；达到限制阈值后即使凭据正确也 429
+- [X] T047 [P] [US1] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/VerifySessionUseCaseTest.java`：有效会话返回会话数据（用户标识与名称、账号标识与账号名与种类、会话引用、到期时间）；无效、过期、被取代 → `session_invalid`；距上次写入超过 60 秒才续期
+- [X] T048 [P] [US1] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/RedisSessionStoreIT.java`：登录脚本原子完成「读旧 → 删旧 → 写新 → 更新索引」；`uam:sess:{sha}` 里只有 `SHA-256(会话标识)`，没有明文；`uam:acct:{accountId}:sess`、`uam:sref:{ref}`、`uam:online` 同步更新；TTL 取「空闲剩余」与「绝对剩余」的较小值；续期只在超过 60 秒后写
+- [X] T049 [P] [US1] 并发测试 `apps/uam/src/test/java/com/s2u2m/uam/concurrency/ConcurrentLoginIT.java`：同一账号 N 个并发登录，最终**恰好一个**有效会话
+- [X] T050 [P] [US1] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/AuthContractIT.java`：`POST /v1/auth/login` 与 `POST /v1/auth/sessions/verify` 的请求与响应按 `contracts/uam/openapi.yaml` 校验；失败限制：同一账号与来源连错 5 次后，正确密码也得 429 + `Retry-After`，其他来源仍可登录
+- [X] T051 [P] [US1] 时序测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/LoginTimingIT.java`：账号不存在与密码错误的响应耗时无可区分差别（伪哈希路径）
+- [X] T052 [P] [US1] CLI 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/cli/{InitAdminCommandTest,AddAccountCommandTest}.java`：`init-admin` 仅在没有任何用户时创建首个用户与账号，幂等，密码只经标准输入，按密码强度与账号名规则校验，日志写标准错误；`add-account` 给已有用户（`--user-id` 或 `--account-name-of`）加第二个「账号名 / 密码」账号，账号名重复被拒；另新增 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/AccountProvisioningServiceTest.java`：单事务创建用户 + 账号 + 凭据（任一步失败不留半成品）；用户名去首尾空白后 1–64 字符；账号名 3–32 个字母、数字或 `_` `.` `-`，大小写不敏感且全局唯一；密码满足强度策略；可只给已有用户追加账号
+- [X] T053 [P] [US1] 单元测试 `apps/admin-center/tests/unit/app/login-actions.test.ts`：空账号名或密码 → 必填提示且**不调用 UAM**；`invalid_credentials` → 「账号名或密码错误」；`throttled` → 提示稍后再试并带 `Retry-After`；成功写 cookie 并跳转；同源校验；`next` 只接受以单个 `/` 开头的站内路径（拒绝 `//`、带协议、含反斜杠），否则进入 `/users`
+- [X] T054 [P] [US1] 组件测试 `apps/admin-center/tests/unit/components/auth/login-form.test.tsx`：字段错误、统一失败提示、不回填密码、`autocomplete` 为 `username` / `current-password`
+- [X] T055 [P] [US1] E2E `apps/admin-center/tests/e2e/us1-login.spec.ts`：S1（账号 A、B 登录识别为同一用户）、S2（统一失败提示、限流）、S3（同账号第二个浏览器登录顶掉第一个）、未登录访问深链接登录后回到原页、站外 `next` 被忽略、已登录访问 `/login` 重定向到 `/users`；并记录从打开登录页到看到用户列表的耗时（SC-001：95% ≤ 30 秒含输入）
 
 ### Implementation for User Story 1
 
-- [ ] T056 [P] [US1] 值对象与枚举 `apps/uam/src/main/java/com/s2u2m/uam/domain/model/{UserStatus,AccountStatus,AccountKind,LoginName,SessionRef}.java`（`LoginName`：`raw` 与 `normalized`（`lower(login_name)`））
-- [ ] T057 [P] [US1] 实体 `apps/uam/src/main/java/com/s2u2m/uam/domain/model/{User,Account,Credential,Session}.java`（`Account.canLogin(user)` = 账号 `ACTIVE` 且所属用户 `ACTIVE`；`Session.isActive(now)`）
-- [ ] T058 [P] [US1] 策略 `apps/uam/src/main/java/com/s2u2m/uam/domain/policy/{AccountNameRules,PasswordPolicy,SessionPolicy,LoginThrottlePolicy}.java`；使 T045 通过
-- [ ] T059 [US1] 端口 `apps/uam/src/main/java/com/s2u2m/uam/domain/port/{UserRepository,AccountRepository,CredentialRepository,SessionStore,LoginThrottle,PasswordHasher}.java`
-- [ ] T060 [US1] JDBC 仓储 `apps/uam/src/main/java/com/s2u2m/uam/infrastructure/jdbc/{JdbcUserRepository,JdbcAccountRepository,JdbcCredentialRepository}.java`（显式 SQL；`login_name_norm = lower(login_name)`；插入时显式设置 `app_user.updated_at`、`credential.updated_at`，取 `now()`）
-- [ ] T061 [P] [US1] `apps/uam/src/main/java/com/s2u2m/uam/infrastructure/security/Argon2PasswordHasher.java`（`DelegatingPasswordEncoder` 默认 Argon2id，参数落后时登录成功后自动升级；伪哈希比对用的固定哈希）
-- [ ] T062 [US1] `apps/uam/src/main/java/com/s2u2m/uam/infrastructure/redis/RedisSessionStore.java` 与 Lua 脚本 `apps/uam/src/main/resources/redis/{login,touch}.lua`；键 `uam:sess:{sha}`、`uam:acct:{accountId}:sess`、`uam:sref:{ref}`、`uam:online`（成员 `{userId}|{ref}`，分数为空闲到期 epoch 秒，取空闲与绝对到期较小者）；使 T048、T049 通过
-- [ ] T063 [US1] `apps/uam/src/main/java/com/s2u2m/uam/infrastructure/redis/RedisGuards.java` 的登录限流部分：键 `uam:throttle:login:{sha256(规范化账号名|来源地址)}`，5 次后锁该来源 15 分钟，`Retry-After` 取剩余 TTL
-- [ ] T064 [US1] 用例与 DTO：`apps/uam/src/main/java/com/s2u2m/uam/application/{LoginUseCase,VerifySessionUseCase}.java`、`apps/uam/src/main/java/com/s2u2m/uam/api/dto/{LoginRequest,LoginResponse,VerifyRequest,VerifyResponse}.java`；另新增 `apps/uam/src/main/java/com/s2u2m/uam/application/AccountProvisioningService.java`（`createUserWithAccount`、`addAccount`；部署期命令与 US4 的 `CreateUserUseCase` 共用）；使 T046、T047、T051 与 T052 中的服务测试通过
-- [ ] T065 [US1] `apps/uam/src/main/java/com/s2u2m/uam/api/AuthController.java`：`POST /v1/auth/login`、`POST /v1/auth/sessions/verify`；使 T050 通过
-- [ ] T066 [US1] 部署期命令 `apps/uam/src/main/java/com/s2u2m/uam/cli/{InitAdminCommand,AddAccountCommand}.java`（`cli` profile：不启动 Web、不连 Redis、先跑 Flyway、日志写标准错误；创建逻辑一律调用 `AccountProvisioningService`，不自带；并给 `infra/local/scripts/bootstrap.sh` 增加 `init-admin` 步骤建首个用户，`apps/admin-center/tests/e2e/support/fixtures.ts` 的造数与登录辅助依赖它）；使 T052 通过
-- [ ] T067 [P] [US1] `apps/admin-center/src/lib/validation/login.ts`（zod）与 `apps/admin-center/src/lib/session/next-path.ts`（`next` 白名单）
-- [ ] T068 [US1] 登录页与表单 `apps/admin-center/src/app/(auth)/login/page.tsx`、`apps/admin-center/src/components/auth/login-form.tsx`；使 T054 通过
-- [ ] T069 [US1] 登录动作 `apps/admin-center/src/app/(auth)/login/actions.ts`（经 `client-ip.ts` 取 `clientIp`；成功写 cookie 并按白名单跳转）；使 T053 通过
-- [ ] T070 [US1] 受保护路由：`apps/admin-center/src/app/(shell)/layout.tsx` 对 `anonymous` 重定向 `/login?next=<原路径>`，已登录访问 `/login` 重定向 `/users`；`apps/admin-center/src/app/(shell)/page.tsx` 重定向 `/users`
-- [ ] T071 [US1] 验证：T045 ~ T055 全部通过（`apps/admin-center/tests/e2e/us1-login.spec.ts` 与 UAM 的 `mvn verify`）；按 [quickstart.md](./quickstart.md) 跑 S1 ~ S3
+- [X] T056 [P] [US1] 值对象与枚举 `apps/uam/src/main/java/com/s2u2m/uam/domain/model/{UserStatus,AccountStatus,AccountKind,LoginName,SessionRef}.java`（`LoginName`：`raw` 与 `normalized`（`lower(login_name)`））
+- [X] T057 [P] [US1] 实体 `apps/uam/src/main/java/com/s2u2m/uam/domain/model/{User,Account,Credential,Session}.java`（`Account.canLogin(user)` = 账号 `ACTIVE` 且所属用户 `ACTIVE`；`Session.isActive(now)`）
+- [X] T058 [P] [US1] 策略 `apps/uam/src/main/java/com/s2u2m/uam/domain/policy/{AccountNameRules,PasswordPolicy,SessionPolicy,LoginThrottlePolicy}.java`；使 T045 通过
+- [X] T059 [US1] 端口 `apps/uam/src/main/java/com/s2u2m/uam/domain/port/{UserRepository,AccountRepository,CredentialRepository,SessionStore,LoginThrottle,PasswordHasher}.java`
+- [X] T060 [US1] JDBC 仓储 `apps/uam/src/main/java/com/s2u2m/uam/infrastructure/jdbc/{JdbcUserRepository,JdbcAccountRepository,JdbcCredentialRepository}.java`（显式 SQL；`login_name_norm = lower(login_name)`；插入时显式设置 `app_user.updated_at`、`credential.updated_at`，取 `now()`）
+- [X] T061 [P] [US1] `apps/uam/src/main/java/com/s2u2m/uam/infrastructure/security/Argon2PasswordHasher.java`（`DelegatingPasswordEncoder` 默认 Argon2id，参数落后时登录成功后自动升级；伪哈希比对用的固定哈希）
+- [X] T062 [US1] `apps/uam/src/main/java/com/s2u2m/uam/infrastructure/redis/RedisSessionStore.java` 与 Lua 脚本 `apps/uam/src/main/resources/redis/{login,touch}.lua`；键 `uam:sess:{sha}`、`uam:acct:{accountId}:sess`、`uam:sref:{ref}`、`uam:online`（成员 `{userId}|{ref}`，分数为空闲到期 epoch 秒，取空闲与绝对到期较小者）；使 T048、T049 通过
+- [X] T063 [US1] `apps/uam/src/main/java/com/s2u2m/uam/infrastructure/redis/RedisGuards.java` 的登录限流部分：键 `uam:throttle:login:{sha256(规范化账号名|来源地址)}`，5 次后锁该来源 15 分钟，`Retry-After` 取剩余 TTL
+- [X] T064 [US1] 用例与 DTO：`apps/uam/src/main/java/com/s2u2m/uam/application/{LoginUseCase,VerifySessionUseCase}.java`、`apps/uam/src/main/java/com/s2u2m/uam/api/dto/{LoginRequest,LoginResponse,VerifyRequest,VerifyResponse}.java`；另新增 `apps/uam/src/main/java/com/s2u2m/uam/application/AccountProvisioningService.java`（`createUserWithAccount`、`addAccount`；部署期命令与 US4 的 `CreateUserUseCase` 共用）；使 T046、T047、T051 与 T052 中的服务测试通过
+- [X] T065 [US1] `apps/uam/src/main/java/com/s2u2m/uam/api/AuthController.java`：`POST /v1/auth/login`、`POST /v1/auth/sessions/verify`；使 T050 通过
+- [X] T066 [US1] 部署期命令 `apps/uam/src/main/java/com/s2u2m/uam/cli/{InitAdminCommand,AddAccountCommand}.java`（`cli` profile：不启动 Web、不连 Redis、先跑 Flyway、日志写标准错误；创建逻辑一律调用 `AccountProvisioningService`，不自带；并给 `infra/local/scripts/bootstrap.sh` 增加 `init-admin` 步骤建首个用户，`apps/admin-center/tests/e2e/support/fixtures.ts` 的造数与登录辅助依赖它）；使 T052 通过
+- [X] T067 [P] [US1] `apps/admin-center/src/lib/validation/login.ts`（zod）与 `apps/admin-center/src/lib/session/next-path.ts`（`next` 白名单）
+- [X] T068 [US1] 登录页与表单 `apps/admin-center/src/app/(auth)/login/page.tsx`、`apps/admin-center/src/components/auth/login-form.tsx`；使 T054 通过
+- [X] T069 [US1] 登录动作 `apps/admin-center/src/app/(auth)/login/actions.ts`（经 `client-ip.ts` 取 `clientIp`；成功写 cookie 并按白名单跳转）；使 T053 通过
+- [X] T070 [US1] 受保护路由：`apps/admin-center/src/app/(shell)/layout.tsx` 对 `anonymous` 重定向 `/login?next=<原路径>`，已登录访问 `/login` 重定向 `/users`；`apps/admin-center/src/app/(shell)/page.tsx` 重定向 `/users`
+- [ ] T071 [US1] 验证：T045 ~ T055 全部通过（`apps/admin-center/tests/e2e/us1-login.spec.ts` 与 UAM 的 `mvn verify`）；按 [quickstart.md](./quickstart.md) 跑 S1 ~ S3 （进展：UAM `mvn verify` 与 Admin Center 单元已通过，E2E 在 w1440 上 9/13 通过；其余 4 项依赖 US2 的 `/users` 页面与外壳，Phase 4 完成后补跑并勾选）
 
 **Checkpoint**: US1 可独立运行与验证（MVP 的第一块）。
 

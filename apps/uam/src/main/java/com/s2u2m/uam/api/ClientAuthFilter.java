@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Optional;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
@@ -24,6 +25,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 双密钥轮换与拒绝日志在 US12。仅存活 / 就绪探针 {@code /actuator/health/**} 免校验（编排器需要，且只暴露 UP / DOWN）。
  */
 @Component
+@Profile("!cli")
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class ClientAuthFilter extends OncePerRequestFilter {
 

@@ -5,6 +5,8 @@ import { UamError, type FieldError } from "./errors";
 import type { components } from "./types.generated";
 
 export type VerifyResponse = components["schemas"]["VerifyResponse"];
+export type LoginRequest = components["schemas"]["LoginRequest"];
+export type LoginResponse = components["schemas"]["LoginResponse"];
 
 /** 操作人上下文：作为 X-Operator-* 请求头传给 UAM（写操作必带）。 */
 export interface Operator {
@@ -129,5 +131,14 @@ export async function verifySession(sessionId: string): Promise<VerifyResponse> 
     path: "/v1/auth/sessions/verify",
     body: { sessionId },
   });
+  return data;
+}
+
+/**
+ * 账号名 / 密码登录（`POST /v1/auth/login`）。`clientIp` 是终端来源地址（登录失败限制的来源维度），
+ * 由调用方从可信代理头取得。响应里的 `sessionId` 只用来写 cookie，不得进入日志或浏览器端组件。
+ */
+export async function login(request: LoginRequest): Promise<LoginResponse> {
+  const { data } = await uamRequest<LoginResponse>({ method: "POST", path: "/v1/auth/login", body: request });
   return data;
 }

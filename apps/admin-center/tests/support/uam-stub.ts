@@ -292,6 +292,16 @@ export function verifyResponseBody(overrides: Json = {}) {
   };
 }
 
+/** `login` 成功响应（会话标识只在这里出现，给 Admin Center 写 cookie）。 */
+export function loginResponseBody(overrides: Json = {}) {
+  return {
+    sessionId: "stub-session-id-not-a-secret",
+    maxAgeSeconds: 43200,
+    ...verifyResponseBody(),
+    ...overrides,
+  };
+}
+
 export function problemBody(status: number, code: string, extra: Json = {}) {
   return { type: "about:blank", title: code, status, code, ...extra };
 }
