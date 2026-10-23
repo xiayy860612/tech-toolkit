@@ -32,18 +32,18 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 **Purpose**: 两个应用的项目骨架、契约迁移、CI 与本地依赖
 
-- [ ] T001 创建 UAM Maven 工程 `apps/uam/pom.xml`（Spring Boot 4.0.x 父工程，Java 21；依赖：`spring-boot-starter-web`、`-validation`、`-jdbc`、`-actuator`、`-data-redis`（Lettuce）、`spring-security-crypto`、`org.bouncycastle:bcprov-jdk18on`、`flyway-core` 与 `flyway-database-postgresql`（社区版）、`postgresql`、Micrometer；测试依赖：`spring-boot-starter-test`、Testcontainers（`junit-jupiter`、`postgresql`）、`archunit-junit5`、OpenAPI 请求校验库；插件：JaCoCo 行覆盖率 ≥ 0.90，排除 `**/UamApplication.class`、`**/config/*Config.class`、`**/generated/**`；Spotless + google-java-format）与启动类 `apps/uam/src/main/java/com/s2u2m/uam/UamApplication.java`
-- [ ] T002 [P] 编写 `apps/uam/AGENTS.md` 与 `apps/uam/CLAUDE.md`（内容 `@AGENTS.md`）：技术栈与目录、命令（lint=`mvn -f apps/uam/pom.xml spotless:check`、typecheck=`-DskipTests compile`、test、`verify` 含覆盖率门禁）、覆盖率口径（行覆盖率 ≥ 90%，排除路径同 T001）、环境变量表（`UAM_CLIENTS`、会话与限流默认值）
-- [ ] T003 [P] 初始化 Admin Center 工程 `apps/admin-center/`：`package.json`（脚本 `dev`、`lint`、`typecheck`、`test`、`test:cov`（`coverageThreshold` 行覆盖率 90，排除 `src/components/ui/**`、`**/*.generated.ts`、`src/**/*.d.ts`）、`build`、`e2e`、`gen:api`）、`tsconfig.json`、`next.config.ts`、`eslint.config.mjs`、`jest.config.ts`、`jest.setup.ts`、`playwright.config.ts`（每个视口宽度 320 / 375 / 768 / 1024 / 1440 / 2560 一个 project）、`components.json`、`.env.example`（仅占位值）；Next.js 15、React 19、TypeScript 5、Tailwind CSS 4、zod、msw
-- [ ] T004 [P] 编写 `apps/admin-center/AGENTS.md` 与 `apps/admin-center/CLAUDE.md`：技术栈与目录、命令、覆盖率口径与排除路径、环境变量表（`UAM_BASE_URL`、`UAM_SERVICE_KEY`、`UAM_TIMEOUT_MS`、`SESSION_COOKIE_NAME`、`TRUSTED_PROXY_HOPS`）、「`src/lib` 下的服务端模块一律 `import "server-only"`」
-- [ ] T005 把 `specs/002-admin-center-uam/contracts/uam/openapi.yaml` 迁到 `contracts/uam/openapi.yaml`（`git mv`，作为唯一权威），在原位置留 `specs/002-admin-center-uam/contracts/uam/README.md` 指向新位置，并修正 `plan.md`、`research.md`、`quickstart.md`、`contracts/web-routes.md`、`prototype/README.md`、本文件中的链接
-- [ ] T006 [P] 更新仓库根 `.gitignore`：忽略 `apps/uam/target/`、`apps/admin-center/{node_modules,.next,coverage,playwright-report,test-results}/`、`.env*`（保留 `.env.example`）
-- [ ] T007 [P] 创建 CI `.github/workflows/uam.yml`：JDK 21，`spotless:check`、`compile`、`mvn verify`（Testcontainers + JaCoCo 行覆盖率 ≥ 90% 门禁）
-- [ ] T008 [P] 创建 CI `.github/workflows/admin-center.yml`：`npm ci`、`lint`、`typecheck`、`test:cov`（≥ 90%）、`build`
-- [ ] T009 [P] 创建本地依赖编排 `infra/local/docker-compose.yml`（PostgreSQL 16；Redis 7，开启 AOF `everysec`）与 `infra/local/.env.example`；UAM 的端口**不映射到宿主机**
-- [ ] T010 [P] 在 `apps/admin-center/src/components/ui/` 加入用到的 shadcn/ui 组件：`button`、`input`、`label`、`card`、`alert`、`avatar`、`badge`、`table`、`alert-dialog`、`dialog`、`dropdown-menu`、`sidebar`、`sheet`、`breadcrumb`、`tooltip`、`separator`
-- [ ] T011 [P] 实现 `apps/admin-center` 的 `gen:api` 脚本：由 `contracts/uam/openapi.yaml` 生成 `apps/admin-center/src/lib/uam/types.generated.ts`（提交生成结果）
-- [ ] T012 [P] 编写 `apps/uam/Dockerfile`（JDK 21 运行时，可执行 jar）、`apps/admin-center/Dockerfile`（Node LTS，Next.js standalone 输出）以及各自的 `.dockerignore`
+- [X] T001 创建 UAM Maven 工程 `apps/uam/pom.xml`（Spring Boot 4.0.x 父工程，Java 21；依赖：`spring-boot-starter-web`、`-validation`、`-jdbc`、`-actuator`、`-data-redis`（Lettuce）、`spring-security-crypto`、`org.bouncycastle:bcprov-jdk18on`、`flyway-core` 与 `flyway-database-postgresql`（社区版）、`postgresql`、Micrometer；测试依赖：`spring-boot-starter-test`、Testcontainers（`junit-jupiter`、`postgresql`）、`archunit-junit5`、OpenAPI 请求校验库；插件：JaCoCo 行覆盖率 ≥ 0.90，排除 `**/UamApplication.class`、`**/config/*Config.class`、`**/generated/**`；Spotless + google-java-format）与启动类 `apps/uam/src/main/java/com/s2u2m/uam/UamApplication.java`
+- [X] T002 [P] 编写 `apps/uam/AGENTS.md` 与 `apps/uam/CLAUDE.md`（内容 `@AGENTS.md`）：技术栈与目录、命令（lint=`mvn -f apps/uam/pom.xml spotless:check`、typecheck=`-DskipTests compile`、test、`verify` 含覆盖率门禁）、覆盖率口径（行覆盖率 ≥ 90%，排除路径同 T001）、环境变量表（`UAM_CLIENTS`、会话与限流默认值）
+- [X] T003 [P] 初始化 Admin Center 工程 `apps/admin-center/`：`package.json`（脚本 `dev`、`lint`、`typecheck`、`test`、`test:cov`（`coverageThreshold` 行覆盖率 90，排除 `src/components/ui/**`、`**/*.generated.ts`、`src/**/*.d.ts`）、`build`、`e2e`、`gen:api`）、`tsconfig.json`、`next.config.ts`、`eslint.config.mjs`、`jest.config.ts`、`jest.setup.ts`、`playwright.config.ts`（每个视口宽度 320 / 375 / 768 / 1024 / 1440 / 2560 一个 project）、`components.json`、`.env.example`（仅占位值）；Next.js 15、React 19、TypeScript 5、Tailwind CSS 4、zod、msw
+- [X] T004 [P] 编写 `apps/admin-center/AGENTS.md` 与 `apps/admin-center/CLAUDE.md`：技术栈与目录、命令、覆盖率口径与排除路径、环境变量表（`UAM_BASE_URL`、`UAM_SERVICE_KEY`、`UAM_TIMEOUT_MS`、`SESSION_COOKIE_NAME`、`TRUSTED_PROXY_HOPS`）、「`src/lib` 下的服务端模块一律 `import "server-only"`」
+- [X] T005 把 `specs/002-admin-center-uam/contracts/uam/openapi.yaml` 迁到 `contracts/uam/openapi.yaml`（`git mv`，作为唯一权威），在原位置留 `specs/002-admin-center-uam/contracts/uam/README.md` 指向新位置，并修正 `plan.md`、`research.md`、`quickstart.md`、`contracts/web-routes.md`、`prototype/README.md`、本文件中的链接
+- [X] T006 [P] 更新仓库根 `.gitignore`：忽略 `apps/uam/target/`、`apps/admin-center/{node_modules,.next,coverage,playwright-report,test-results}/`、`.env*`（保留 `.env.example`）
+- [X] T007 [P] 创建 CI `.github/workflows/uam.yml`：JDK 21，`spotless:check`、`compile`、`mvn verify`（Testcontainers + JaCoCo 行覆盖率 ≥ 90% 门禁）
+- [X] T008 [P] 创建 CI `.github/workflows/admin-center.yml`：`npm ci`、`lint`、`typecheck`、`test:cov`（≥ 90%）、`build`
+- [X] T009 [P] 创建本地依赖编排 `infra/local/docker-compose.yml`（PostgreSQL 16；Redis 7，开启 AOF `everysec`）与 `infra/local/.env.example`；UAM 的端口**不映射到宿主机**
+- [X] T010 [P] 在 `apps/admin-center/src/components/ui/` 加入用到的 shadcn/ui 组件：`button`、`input`、`label`、`card`、`alert`、`avatar`、`badge`、`table`、`alert-dialog`、`dialog`、`dropdown-menu`、`sidebar`、`sheet`、`breadcrumb`、`tooltip`、`separator`
+- [X] T011 [P] 实现 `apps/admin-center` 的 `gen:api` 脚本：由 `contracts/uam/openapi.yaml` 生成 `apps/admin-center/src/lib/uam/types.generated.ts`（提交生成结果）
+- [X] T012 [P] 编写 `apps/uam/Dockerfile`（JDK 21 运行时，可执行 jar）、`apps/admin-center/Dockerfile`（Node LTS，Next.js standalone 输出）以及各自的 `.dockerignore`
 
 ---
 

@@ -1,6 +1,6 @@
 # Contract: Admin Center 页面、路由与 cookie
 
-**Feature**: [spec.md](../spec.md) | **UAM 契约**: [uam/openapi.yaml](./uam/openapi.yaml) | **Date**: 2026-10-23
+**Feature**: [spec.md](../spec.md) | **UAM 契约**: [contracts/uam/openapi.yaml](../../../contracts/uam/openapi.yaml) | **Date**: 2026-10-23
 
 Admin Center 是接入层 Web Server（Next.js SSR）：浏览器对它的访问**基于会话**；它对 UAM 的访问**不基于会话**（见 openapi.yaml）。本文约定页面、路由、cookie 与错误文案，是 Admin Center 的前端 / 路由契约。
 

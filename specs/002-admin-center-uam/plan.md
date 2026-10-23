@@ -18,7 +18,7 @@
 - **无 JWT**：UAM 不用用户凭据鉴权；`login` / `verify` 返回普通会话数据，Admin Center 把操作人（用户、账号、会话引用）作为 `X-Operator-*` 请求头传入，UAM 信任它并只用于自我保护规则与写操作日志；撤销只有浏览器路径一层，每请求 `verify`，会话结束后窗口为 0（R5、R6）。
 - **服务密钥**（FR-042 ~ FR-044）：每个对 UAM 的调用都带静态服务密钥（`Authorization: Bearer`）；客户端清单放配置（名称、至多两个 SHA-256 哈希、权限），支持不停机轮换，由 `generate-service-key` 工具生成；只有带 `assert-end-user-context` 权限的客户端能代用户断言操作人（R4）。
 - **写操作规则全部在 UAM**：新建（事务 + 唯一索引 + 幂等键）、停用 / 启用（咨询锁串行化 + 登录后复查状态）、强制下线（按会话引用）、改密；每次写操作写一条结构化应用日志（R15、R16）。
-- **契约先行**：UAM 用 OpenAPI 3.1（[contracts/uam/openapi.yaml](./contracts/uam/openapi.yaml)），Admin Center 的路由、cookie 与错误文案见 [contracts/web-routes.md](./contracts/web-routes.md)。
+- **契约先行**：UAM 用 OpenAPI 3.1（[contracts/uam/openapi.yaml](../../contracts/uam/openapi.yaml)），Admin Center 的路由、cookie 与错误文案见 [contracts/web-routes.md](./contracts/web-routes.md)。
 - **界面设计原型**（spec FR-041）已随本计划交付：[prototype/](./prototype/README.md)，**须经你确认后才开始界面实现**。
 
 > **待你确认的一项决定**：spec 没有指定技术栈，本计划沿用本仓库既有路线（UAM：Java 21 + Spring Boot 4；Admin Center：Next.js 15 + shadcn/ui；PostgreSQL + Redis），理由与替代方案见 research R2。若要换栈，请在进入 `/speckit-tasks` 前告知。
@@ -249,7 +249,7 @@ specs/002-admin-center-uam/
 ├── data-model.md        # Phase 1：PostgreSQL / Redis 结构、状态转换、校验规则
 ├── quickstart.md        # Phase 1：启动与逐场景验证指南
 ├── contracts/
-│   ├── uam/openapi.yaml # UAM 的 OpenAPI 3.1 契约（实现的第一个任务迁到仓库根 contracts/uam/）
+│   ├── uam/README.md    # 指向仓库根 contracts/uam/openapi.yaml（UAM 的 OpenAPI 3.1 契约，已迁出）
 │   └── web-routes.md    # Admin Center 的页面、路由、cookie 与错误文案契约
 ├── diagrams/            # Design 章节的图：PlantUML 源文件（.puml）与渲染好的 SVG
 ├── prototype/           # Phase 1：界面设计原型（静态、可点击、三种视口）——须经用户确认
@@ -310,7 +310,7 @@ apps/
         ├── unit/  contract/  e2e/        # e2e：视口矩阵、登录、用户与会话管理、无障碍
         └── support/uam-stub.ts           # msw 桩，按 OpenAPI 校验请求与响应
 
-contracts/uam/openapi.yaml                # 共享契约的唯一权威位置（首个实现任务从本特性 contracts/ 迁入）
+contracts/uam/openapi.yaml                # 共享契约的唯一权威位置（T005 已从本特性 contracts/ 迁入）
 infra/local/                              # docker-compose（PostgreSQL、Redis）、docker-compose.scale.yml（多实例）、nginx 无粘滞负载均衡、scripts/rolling-restart.sh
 infra/load/k6/                            # 压测脚本（SC-009、SC-011）
 .github/workflows/{uam,admin-center}.yml  # CI：lint、typecheck、test、覆盖率门禁、build

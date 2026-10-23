@@ -21,7 +21,7 @@ info:
     UAM 只在内网访问，且只对客户端开放（网络边界与服务密钥是两层保护）。`clientIp` 与操作人都由被授权的客户端提供。
     会话标识（`sessionId`）是机密，只在 `login` 的响应和 `verify` / `logout` 的请求里出现；
     页面与其他接口只使用非机密的会话引用（`sessionRef`）。
-    本文件是特性 `002-admin-center-uam` 的契约；实现的第一个任务把它迁到仓库根 `contracts/uam/openapi.yaml`。
+    本文件是 UAM 接口契约的唯一权威（特性 `002-admin-center-uam` 定义，T005 起位于仓库根 `contracts/uam/openapi.yaml`）；变更须先改本文件与失败用例，再改实现与客户端。
 servers:
   - url: https://uam.internal.example
     description: 内网 / VPN 内，示例地址
