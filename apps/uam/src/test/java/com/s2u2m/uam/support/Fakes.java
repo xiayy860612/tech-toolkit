@@ -11,14 +11,17 @@ import com.s2u2m.uam.domain.model.Session;
 import com.s2u2m.uam.domain.model.SessionRef;
 import com.s2u2m.uam.domain.model.User;
 import com.s2u2m.uam.domain.model.UserWithAccountCount;
+import com.s2u2m.uam.domain.model.WriteOperationEvent;
 import com.s2u2m.uam.domain.port.AccountRepository;
 import com.s2u2m.uam.domain.port.Clock;
 import com.s2u2m.uam.domain.port.CredentialRepository;
+import com.s2u2m.uam.domain.port.IdempotencyStore;
 import com.s2u2m.uam.domain.port.LoginThrottle;
 import com.s2u2m.uam.domain.port.PasswordHasher;
 import com.s2u2m.uam.domain.port.SessionStore;
 import com.s2u2m.uam.domain.port.TransactionRunner;
 import com.s2u2m.uam.domain.port.UserRepository;
+import com.s2u2m.uam.domain.port.WriteOperationLog;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -30,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 /** 单元测试用的假端口（内存实现），领域与用例测试不碰数据库与 Redis。 */
@@ -308,6 +312,69 @@ public final class Fakes {
     public void reset(String subject) {
       resets.add(subject);
       failures.remove(subject);
+    }
+  }
+
+  /** 收集写操作日志事件的假实现。 */
+  public static final class RecordingWriteLog implements WriteOperationLog {
+    public final List<WriteOperationEvent> events = new ArrayList<>();
+
+    @Override
+    public void record(WriteOperationEvent event) {
+      events.add(event);
+    }
+  }
+
+  /** 内存幂等存储：按「范围 + 键」保存进行中标记或完成快照；{@code onInFlight} 在每次返回「进行中」时回调（参数为第几次）， 用来模拟占位方在等待期间完成或放弃。 */
+  public static final class FakeIdempotencyStore implements IdempotencyStore {
+    private record Entry(String fingerprint, String response) {}
+
+    private final Map<String, Entry> entries = new HashMap<>();
+    public final List<String> released = new ArrayList<>();
+    public final List<String> completed = new ArrayList<>();
+    public int claims;
+    public int inFlightReturned;
+    public IntConsumer onInFlight = count -> {};
+
+    private static String id(String scope, String key) {
+      return scope + "|" + key;
+    }
+
+    public boolean holds(String scope, String key) {
+      return entries.containsKey(id(scope, key));
+    }
+
+    public String snapshotOf(String scope, String key) {
+      Entry entry = entries.get(id(scope, key));
+      return entry == null ? null : entry.response();
+    }
+
+    @Override
+    public Claim claim(String scope, String key, String fingerprint) {
+      claims++;
+      Entry entry = entries.get(id(scope, key));
+      if (entry == null) {
+        entries.put(id(scope, key), new Entry(fingerprint, null));
+        return new Claim.Acquired();
+      }
+      if (entry.response() != null) {
+        return new Claim.Completed(entry.fingerprint(), entry.response());
+      }
+      inFlightReturned++;
+      onInFlight.accept(inFlightReturned);
+      return new Claim.InFlight(entry.fingerprint());
+    }
+
+    @Override
+    public void complete(String scope, String key, String fingerprint, String response) {
+      completed.add(id(scope, key));
+      entries.put(id(scope, key), new Entry(fingerprint, response));
+    }
+
+    @Override
+    public void release(String scope, String key) {
+      released.add(id(scope, key));
+      entries.remove(id(scope, key));
     }
   }
 }

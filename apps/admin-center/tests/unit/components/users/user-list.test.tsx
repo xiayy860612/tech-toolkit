@@ -118,9 +118,11 @@ describe("UserList：分页", () => {
 });
 
 describe("UserList：空态", () => {
-  it("没有任何用户：「还没有用户」，无表格与分页", () => {
+  it("没有任何用户：「还没有用户」，无表格与分页，并引导新建第一个用户", () => {
     render(<UserList users={[]} total={0} page={1} size={20} query="" />);
     expect(screen.getByText("还没有用户")).toBeInTheDocument();
+    expect(screen.getByText("新建第一个用户开始使用。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "新建用户" })).toHaveAttribute("href", "/users/new");
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "分页" })).not.toBeInTheDocument();
   });
@@ -130,5 +132,6 @@ describe("UserList：空态", () => {
     expect(screen.getByText("没有找到匹配「nobody」的用户")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "清除搜索" })).toHaveAttribute("href", "/users");
     expect(screen.queryByText("还没有用户")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "新建用户" })).not.toBeInTheDocument();
   });
 });

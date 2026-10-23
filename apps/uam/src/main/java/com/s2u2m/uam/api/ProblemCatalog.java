@@ -15,6 +15,7 @@ final class ProblemCatalog {
       case OPERATOR_REQUIRED -> HttpStatus.BAD_REQUEST;
       case THROTTLED -> HttpStatus.TOO_MANY_REQUESTS;
       case ACCOUNT_NAME_TAKEN,
+          IDEMPOTENCY_IN_PROGRESS,
           CANNOT_DISABLE_SELF,
           CANNOT_DISABLE_LAST_ACTIVE_USER,
           CANNOT_TERMINATE_OWN_SESSION ->

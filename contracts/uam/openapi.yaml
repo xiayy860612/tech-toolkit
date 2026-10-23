@@ -153,7 +153,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UserDetail" }
         "409":
-          description: 账号名已被使用（`account_name_taken`）
+          description: 账号名已被使用（`account_name_taken`），或同一 `Idempotency-Key` 的请求仍在处理中、等待超时（`idempotency_in_progress`）
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -433,7 +433,7 @@ components:
         status: { type: integer }
         code:
           type: string
-          examples: [invalid_credentials, session_invalid, client_unauthenticated, client_forbidden, operator_required, throttled, account_name_taken, validation_failed,
+          examples: [invalid_credentials, session_invalid, client_unauthenticated, client_forbidden, operator_required, throttled, account_name_taken, idempotency_in_progress, validation_failed,
                      cannot_disable_self, cannot_disable_last_active_user, cannot_terminate_own_session,
                      session_not_found, user_not_found, current_password_incorrect, weak_password, same_as_current]
         detail: { type: string }

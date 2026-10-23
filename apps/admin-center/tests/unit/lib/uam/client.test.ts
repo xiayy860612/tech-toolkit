@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { headers } from "next/headers";
-import { getUser, listOnlineUsers, listUserSessions, listUsers, uamRequest, verifySession } from "@/lib/uam/client";
+import { createUser, getUser, listOnlineUsers, listUserSessions, listUsers, uamRequest, verifySession } from "@/lib/uam/client";
 import { UamError, uamErrorMessage, fieldReasonMessage } from "@/lib/uam/errors";
 import {
   createUamStub,
@@ -366,5 +366,36 @@ describe("问题码 → 界面文案（与 contracts/web-routes.md §5 一致）
   it("未知问题码按不可用处理", () => {
     expect(uamErrorMessage(problem("brand_new_code"), "write")).toBe("操作未生效");
     expect(uamErrorMessage(problem("brand_new_code"), "read")).toBe("服务暂不可用，请稍后重试");
+  });
+});
+
+describe("createUser", () => {
+  const input = { userName: "王五", accountName: "wangwu", password: "Sup3r-Secret-pass" };
+  const KEY = "11111111-2222-4333-8444-555555555555";
+
+  it("POST /v1/users：带服务密钥、操作人请求头与 Idempotency-Key，请求体即输入；返回新用户", async () => {
+    stub.respond("createUser", { status: 201, body: { ...userBody, status: "ACTIVE" } });
+    const user = await createUser(input, operator, KEY);
+    expect(user.id).toBe(FIXTURE_IDS.userId);
+    const [call] = stub.calls;
+    expect(call.method).toBe("POST");
+    expect(call.path).toBe("/v1/users");
+    expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(call.headers.get("idempotency-key")).toBe(KEY);
+    expect(call.headers.get("x-operator-user-id")).toBe(operator.userId);
+    expect(call.body).toEqual(input);
+  });
+
+  it("409 与 422 抛出带字段级错误的 UamError；错误里没有密码", async () => {
+    stub.respond("createUser", { status: 409, body: problemBody(409, "account_name_taken") });
+    await expect(createUser(input, operator, KEY)).rejects.toMatchObject({ kind: "problem", code: "account_name_taken", status: 409 });
+
+    stub.respond("createUser", {
+      status: 422,
+      body: problemBody(422, "validation_failed", { errors: [{ field: "password", reason: "too_weak" }] }),
+    });
+    const error = await createUser(input, operator, KEY).catch((e: UamError) => e);
+    expect(error).toMatchObject({ code: "validation_failed", fieldErrors: [{ field: "password", reason: "too_weak" }] });
+    expect(JSON.stringify(error)).not.toContain(input.password);
   });
 });

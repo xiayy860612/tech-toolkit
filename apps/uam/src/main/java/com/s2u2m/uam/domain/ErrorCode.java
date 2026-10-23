@@ -11,6 +11,8 @@ public enum ErrorCode {
   OPERATOR_REQUIRED("operator_required"),
   THROTTLED("throttled"),
   ACCOUNT_NAME_TAKEN("account_name_taken"),
+  /** 同一个 {@code Idempotency-Key} 的请求仍在处理中，等待超时。 */
+  IDEMPOTENCY_IN_PROGRESS("idempotency_in_progress"),
   VALIDATION_FAILED("validation_failed"),
   CANNOT_DISABLE_SELF("cannot_disable_self"),
   CANNOT_DISABLE_LAST_ACTIVE_USER("cannot_disable_last_active_user"),

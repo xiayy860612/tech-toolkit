@@ -63,6 +63,16 @@ export function actualUserCount(): number {
   return Number(psql("SELECT count(*) FROM app_user;")[0]);
 }
 
+/** UAM（数据库）里某用户名的用户数（US4：双击只建一个、被拒的创建不留数据）。 */
+export function userCountNamed(name: string): number {
+  return Number(psql(`SELECT count(*) FROM app_user WHERE name = ${sqlText(name)};`)[0]);
+}
+
+/** UAM（数据库）里某账号名（大小写不敏感）的账号数。 */
+export function accountCountNamed(account: string): number {
+  return Number(psql(`SELECT count(*) FROM account WHERE login_name_norm = ${sqlText(account.toLowerCase())};`)[0]);
+}
+
 /** US3 的造数：固定标识，重复执行不会产生重复数据。两个用户都不是 ADMIN，用来在会话管理里被看到。 */
 export const SESSIONS_SEED = {
   /** 两个账号的用户：每个账号各开一个会话。 */

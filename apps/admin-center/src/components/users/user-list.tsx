@@ -31,7 +31,11 @@ export function UserList({ users, total, page, size, query }: UserListProps) {
         </Button>
       </StateCard>
     ) : (
-      <StateCard title="还没有用户" description="系统中暂时没有任何用户。" />
+      <StateCard title="还没有用户" description="新建第一个用户开始使用。">
+        <Button asChild className="h-11">
+          <Link href="/users/new">新建用户</Link>
+        </Button>
+      </StateCard>
     );
   }
 

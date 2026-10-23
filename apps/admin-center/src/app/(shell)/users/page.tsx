@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import { UamReadError } from "@/components/users/uam-read-error";
 import { UserList } from "@/components/users/user-list";
@@ -50,9 +52,14 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
 
 function Header() {
   return (
-    <div className="mb-4">
-      <h1 className="text-2xl font-bold">用户管理</h1>
-      <p className="text-muted-foreground">所有用户及其关联账号</p>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div>
+        <h1 className="text-2xl font-bold">用户管理</h1>
+        <p className="text-muted-foreground">所有用户及其关联账号</p>
+      </div>
+      <Button asChild className="h-11 px-5">
+        <Link href="/users/new">新建用户</Link>
+      </Button>
     </div>
   );
 }

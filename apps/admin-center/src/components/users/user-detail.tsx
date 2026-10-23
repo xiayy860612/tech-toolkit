@@ -8,10 +8,18 @@ import { FormattedTime } from "./formatted-time";
 import { StateCard } from "./state-card";
 import { StatusBadge } from "./status-badge";
 
-/** 用户详情：基本信息 + 全部账号。停用 / 启用入口属于后续用户故事，这里没有。 */
-export function UserDetail({ user }: { user: UserDetailData }) {
+/**
+ * 用户详情：基本信息 + 全部账号。停用 / 启用入口属于后续用户故事，这里没有。
+ * `created`：刚新建成功后跳转而来，显示一次性提示「用户已创建」。
+ */
+export function UserDetail({ user, created = false }: { user: UserDetailData; created?: boolean }) {
   return (
     <div className="grid gap-4">
+      {created && (
+        <Alert role="status">
+          <span className="col-start-2">用户已创建。</span>
+        </Alert>
+      )}
       <header>
         <h1 className="mb-1 text-2xl font-bold break-all">{user.name}</h1>
         <StatusBadge status={user.status} />

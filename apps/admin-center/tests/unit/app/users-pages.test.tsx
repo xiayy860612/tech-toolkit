@@ -15,7 +15,10 @@ jest.mock("@/lib/uam/client", () => ({ listUsers: jest.fn(), getUser: jest.fn() 
 
 type Param = string | string[] | undefined;
 const listProps = (search: { q?: Param; page?: Param } = {}) => ({ searchParams: Promise.resolve(search) });
-const detailProps = (userId: string) => ({ params: Promise.resolve({ userId }) });
+const detailProps = (userId: string, search: { created?: Param } = {}) => ({
+  params: Promise.resolve({ userId }),
+  searchParams: Promise.resolve(search),
+});
 const page = (items = [makeSummary()], total = items.length, p = 1) => ({ items, page: p, size: 20, total });
 
 afterEach(() => jest.clearAllMocks());
@@ -29,6 +32,17 @@ describe("/users 列表页", () => {
     expect(within(screen.getByRole("navigation", { name: "面包屑" })).getByText("用户管理")).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("searchbox")).toHaveValue("");
     expect(screen.getByRole("table", { name: "用户列表" })).toBeInTheDocument();
+  });
+
+  it("页头有「新建用户」入口，指向 /users/new（UAM 不可用时也在）", async () => {
+    jest.mocked(listUsers).mockResolvedValue(page());
+    const ok = render(await UsersPage(listProps()));
+    expect(screen.getByRole("link", { name: "新建用户" })).toHaveAttribute("href", "/users/new");
+    ok.unmount();
+
+    jest.mocked(listUsers).mockRejectedValue(new UamError("unavailable", "x"));
+    render(await UsersPage(listProps()));
+    expect(screen.getByRole("link", { name: "新建用户" })).toHaveAttribute("href", "/users/new");
   });
 
   it("q 与 page 传给 UAM，搜索框回填；q 去首尾空白", async () => {
@@ -106,6 +120,19 @@ describe("/users/[userId] 详情页", () => {
     expect(within(crumbs).getByRole("link", { name: "用户管理" })).toHaveAttribute("href", "/users");
     expect(within(crumbs).getByText("李四")).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { level: 2, name: "关联账号（2）" })).toBeInTheDocument();
+  });
+
+  it("?created=1（新建成功后的跳转）：显示一次性提示「用户已创建」；其它取值不显示", async () => {
+    jest.mocked(getUser).mockResolvedValue(makeDetail());
+    const shown = render(await UserDetailPage(detailProps(USER_IDS.li, { created: "1" })));
+    expect(screen.getByRole("status")).toHaveTextContent("用户已创建");
+    shown.unmount();
+
+    for (const created of [undefined, "0", "true", ["1", "1"]]) {
+      const view = render(await UserDetailPage(detailProps(USER_IDS.li, { created })));
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      view.unmount();
+    }
   });
 
   it("无账号用户：空态", async () => {

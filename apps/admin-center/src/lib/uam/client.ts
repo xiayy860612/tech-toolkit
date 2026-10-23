@@ -10,6 +10,7 @@ export type LoginResponse = components["schemas"]["LoginResponse"];
 export type UserSummary = components["schemas"]["UserSummary"];
 export type UserPage = components["schemas"]["UserPage"];
 export type UserDetail = components["schemas"]["UserDetail"];
+export type CreateUserRequest = components["schemas"]["CreateUserRequest"];
 export type Account = components["schemas"]["Account"];
 export type OnlineUser = components["schemas"]["OnlineUser"];
 export type OnlineUserPage = components["schemas"]["OnlineUserPage"];
@@ -199,4 +200,20 @@ export async function listUserSessions(userId: string, operator: Operator): Prom
     operator,
   });
   return data.items;
+}
+
+/**
+ * 创建用户及其一个「账号名 / 密码」账号（`POST /v1/users`）。写操作：带操作人请求头与 `Idempotency-Key`
+ * （每次表单渲染一个；UAM 在 10 分钟内对同键重放返回原结果，防双击与超时重试重复创建）。
+ * 失败抛 `UamError`：409 `account_name_taken`、422 `validation_failed`（含字段级 `errors`）等；错误信息不含密码。
+ */
+export async function createUser(request: CreateUserRequest, operator: Operator, idempotencyKey: string): Promise<UserDetail> {
+  const { data } = await uamRequest<UserDetail>({
+    method: "POST",
+    path: "/v1/users",
+    body: request,
+    operator,
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+  return data;
 }

@@ -240,6 +240,7 @@ export interface components {
              * @example operator_required
              * @example throttled
              * @example account_name_taken
+             * @example idempotency_in_progress
              * @example validation_failed
              * @example cannot_disable_self
              * @example cannot_disable_last_active_user
@@ -643,7 +644,7 @@ export interface operations {
             400: components["responses"]["OperatorRequired"];
             401: components["responses"]["ClientUnauthenticated"];
             403: components["responses"]["ClientForbidden"];
-            /** @description 账号名已被使用（`account_name_taken`） */
+            /** @description 账号名已被使用（`account_name_taken`），或同一 `Idempotency-Key` 的请求仍在处理中、等待超时（`idempotency_in_progress`） */
             409: {
                 headers: {
                     [name: string]: unknown;

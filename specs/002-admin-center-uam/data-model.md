@@ -73,7 +73,7 @@ session ──(经 account)──> app_user                    （会话通过�
 | `uam:online` | ZSET | 成员 `{userId}\|{ref}`，分数 = 空闲到期（epoch 秒，取空闲与绝对到期较小者） | 在线用户列表的索引（research R9） |
 | `uam:throttle:login:{sha256(规范化账号名\|来源地址)}` | STRING（计数） | 连续失败次数 | 5 次后锁该来源 15 分钟（`Retry-After` 取剩余 TTL） |
 | `uam:throttle:pwchg:{sha256(accountId\|来源地址)}` | STRING（计数） | 当前密码连续错误次数 | 口径同登录 |
-| `uam:idem:{key}` | STRING | 创建用户的响应快照，或进行中标记 | TTL 10 分钟；`SET NX` 抢占，重放返回原响应 |
+| `uam:idem:{sha256(客户端id\|键)}` | STRING | 创建用户的响应快照（`D\|指纹\|快照`），或进行中标记（`P\|指纹`） | 快照 TTL 10 分钟、进行中标记 30 秒；`SET NX` 抢占，重放返回原响应；按客户端隔离；快照与指纹都不含密码 |
 
 ### 3.1 会话生命周期（Lua 脚本原子完成）
 

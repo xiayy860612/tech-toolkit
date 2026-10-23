@@ -208,21 +208,21 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T096 [P] [US4] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/CreateUserUseCaseTest.java`：用例只负责编排（字段规则校验由 `AccountProvisioningServiceTest` 覆盖）：服务返回的字段级错误 `errors[{field, reason}]` 原样透传；成功与失败（含被拒）都写 `uam.admin.write`（`action=user.create`）
-- [ ] T097 [P] [US4] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/CreateUserIT.java`：用户 + 账号 + 凭据在**同一事务**，失败不留半成品；账号名冲突（大小写不同、含已停用用户的账号）→ 409 `account_name_taken`；`Idempotency-Key` 相同的重放（10 分钟内）返回原 201；密码只以哈希落库，响应与日志里没有密码；`app_user.updated_at` 与 `credential.updated_at` 非空
-- [ ] T098 [P] [US4] 并发测试 `apps/uam/src/test/java/com/s2u2m/uam/concurrency/ConcurrentCreateUserIT.java`：两个请求并发抢同一账号名，只有一个成功；同键重复提交只建一个用户
-- [ ] T099 [P] [US4] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/UsersWriteContractIT.java`：`POST /v1/users` 的 201 / 400 `operator_required` / 409 / 422
-- [ ] T100 [P] [US4] 单元与组件测试 `apps/admin-center/tests/unit/app/new-user-actions.test.ts`、`apps/admin-center/tests/unit/components/users/user-form.test.tsx`：每次渲染生成 `Idempotency-Key`；字段旁显示原因；冲突保留已填内容（密码除外）；成功 303 到详情页并提示「用户已创建」；提交时按钮禁用
-- [ ] T101 [P] [US4] E2E `apps/admin-center/tests/e2e/us4-create-user.spec.ts`（S5）：创建后可登录（并记录创建耗时，SC-004：90% ≤ 2 分钟）；大小写不同的重名被拒；弱密码给出字段级原因；双击只建一个
+- [X] T096 [P] [US4] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/CreateUserUseCaseTest.java`：用例只负责编排（字段规则校验由 `AccountProvisioningServiceTest` 覆盖）：服务返回的字段级错误 `errors[{field, reason}]` 原样透传；成功与失败（含被拒）都写 `uam.admin.write`（`action=user.create`）
+- [X] T097 [P] [US4] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/CreateUserIT.java`：用户 + 账号 + 凭据在**同一事务**，失败不留半成品；账号名冲突（大小写不同、含已停用用户的账号）→ 409 `account_name_taken`；`Idempotency-Key` 相同的重放（10 分钟内）返回原 201；密码只以哈希落库，响应与日志里没有密码；`app_user.updated_at` 与 `credential.updated_at` 非空
+- [X] T098 [P] [US4] 并发测试 `apps/uam/src/test/java/com/s2u2m/uam/concurrency/ConcurrentCreateUserIT.java`：两个请求并发抢同一账号名，只有一个成功；同键重复提交只建一个用户
+- [X] T099 [P] [US4] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/UsersWriteContractIT.java`：`POST /v1/users` 的 201 / 400 `operator_required` / 409 / 422
+- [X] T100 [P] [US4] 单元与组件测试 `apps/admin-center/tests/unit/app/new-user-actions.test.ts`、`apps/admin-center/tests/unit/components/users/user-form.test.tsx`：每次渲染生成 `Idempotency-Key`；字段旁显示原因；冲突保留已填内容（密码除外）；成功 303 到详情页并提示「用户已创建」；提交时按钮禁用
+- [X] T101 [P] [US4] E2E `apps/admin-center/tests/e2e/us4-create-user.spec.ts`（S5）：创建后可登录（并记录创建耗时，SC-004：90% ≤ 2 分钟）；大小写不同的重名被拒；弱密码给出字段级原因；双击只建一个
 
 ### Implementation for User Story 4
 
-- [ ] T102 [US4] `apps/uam/src/main/java/com/s2u2m/uam/domain/port/IdempotencyStore.java` 与 `RedisGuards.java` 的幂等部分：键 `uam:idem:{key}`，TTL 10 分钟，`SET NX` 抢占，重放返回原响应
-- [ ] T103 [US4] `apps/uam/src/main/java/com/s2u2m/uam/application/CreateUserUseCase.java`（复用 `AccountProvisioningService`，只负责幂等键、写日志与编排）与 `apps/uam/src/main/java/com/s2u2m/uam/api/dto/CreateUserRequest.java`；使 T096 ~ T098 通过
-- [ ] T104 [US4] 在 `UsersController.java` 增加 `POST /v1/users`（读 `Idempotency-Key`，要求操作人请求头）；使 T099 通过
-- [ ] T105 [US4] 在 `apps/admin-center/src/lib/uam/client.ts` 增加 `createUser`
-- [ ] T106 [US4] 新建页 `apps/admin-center/src/app/(shell)/users/new/page.tsx`、`apps/admin-center/src/app/(shell)/users/new/actions.ts`、`apps/admin-center/src/components/users/user-form.tsx`；使 T100 通过
-- [ ] T107 [US4] 验证：T096 ~ T101 通过（`apps/admin-center/tests/e2e/us4-create-user.spec.ts`）；跑 quickstart S5
+- [X] T102 [US4] `apps/uam/src/main/java/com/s2u2m/uam/domain/port/IdempotencyStore.java` 与 `RedisGuards.java` 的幂等部分：键 `uam:idem:{key}`，TTL 10 分钟，`SET NX` 抢占，重放返回原响应
+- [X] T103 [US4] `apps/uam/src/main/java/com/s2u2m/uam/application/CreateUserUseCase.java`（复用 `AccountProvisioningService`，只负责幂等键、写日志与编排）与 `apps/uam/src/main/java/com/s2u2m/uam/api/dto/CreateUserRequest.java`；使 T096 ~ T098 通过
+- [X] T104 [US4] 在 `UsersController.java` 增加 `POST /v1/users`（读 `Idempotency-Key`，要求操作人请求头）；使 T099 通过
+- [X] T105 [US4] 在 `apps/admin-center/src/lib/uam/client.ts` 增加 `createUser`
+- [X] T106 [US4] 新建页 `apps/admin-center/src/app/(shell)/users/new/page.tsx`、`apps/admin-center/src/app/(shell)/users/new/actions.ts`、`apps/admin-center/src/components/users/user-form.tsx`；使 T100 通过
+- [X] T107 [US4] 验证：T096 ~ T101 通过（`apps/admin-center/tests/e2e/us4-create-user.spec.ts`）；跑 quickstart S5
 
 **Checkpoint**: US4 可独立验证。
 

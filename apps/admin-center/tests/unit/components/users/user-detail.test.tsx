@@ -47,6 +47,11 @@ describe("UserDetail", () => {
     expect(container.querySelector("script")).toBeNull();
   });
 
+  it("created：显示一次性提示「用户已创建」（status）", () => {
+    render(<UserDetail user={makeDetail()} created />);
+    expect(screen.getByRole("status")).toHaveTextContent("用户已创建");
+  });
+
   it("本期不出现范围外或属于后续用户故事的入口（编辑 / 删除 / 停用 / 启用）", () => {
     render(<UserDetail user={makeDetail()} />);
     for (const name of [/编辑/, /删除/, /停用用户/, /启用用户/]) {
