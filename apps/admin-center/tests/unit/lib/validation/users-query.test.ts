@@ -1,4 +1,4 @@
-import { parseUserId, parseUsersQuery } from "@/lib/validation/users-query";
+import { parsePage, parseUserId, parseUsersQuery } from "@/lib/validation/users-query";
 
 describe("parseUsersQuery", () => {
   it("缺省：q 为空、page 为 1", () => {
@@ -45,4 +45,15 @@ describe("parseUserId", () => {
       expect(parseUserId(value)).toBeNull();
     },
   );
+});
+
+describe("parsePage", () => {
+  it("缺省与非法 → 1；合法正整数原样；数组取第一项", () => {
+    expect(parsePage(undefined)).toBe(1);
+    expect(parsePage("abc")).toBe(1);
+    expect(parsePage("0")).toBe(1);
+    expect(parsePage("7")).toBe(7);
+    expect(parsePage(["4", "5"])).toBe(4);
+    expect(parsePage([])).toBe(1);
+  });
 });

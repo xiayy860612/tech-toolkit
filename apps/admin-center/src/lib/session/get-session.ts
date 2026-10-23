@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { UamError } from "@/lib/uam/errors";
-import { verifySession, type VerifyResponse } from "@/lib/uam/client";
+import { verifySession, type Operator, type VerifyResponse } from "@/lib/uam/client";
 import { readSessionId } from "./cookie";
 
 /**
@@ -33,3 +33,11 @@ async function loadSession(): Promise<SessionState> {
 
 /** 同一请求内去重（React `cache`）：布局与页面各调一次也只 `verify` 一次。 */
 export const getSession = cache(loadSession);
+
+/** 当前请求的操作人（用于 `X-Operator-*` 请求头）；未登录或无法确认会话时为 `null`（外壳会按三态处理）。 */
+export async function getOperator(): Promise<Operator | null> {
+  const state = await getSession();
+  if (state.status !== "authenticated") return null;
+  const { user, account, sessionRef } = state.session;
+  return { userId: user.id, accountId: account.id, sessionRef };
+}

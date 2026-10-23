@@ -4,6 +4,7 @@
 import { cookies } from "next/headers";
 import {
   createUamStub,
+  FIXTURE_IDS,
   problemBody,
   UAM_STUB_BASE_URL,
   UAM_STUB_SERVICE_KEY,
@@ -36,8 +37,11 @@ function setCookie(value: string | undefined) {
 
 type State = { status: string; hadCookie?: boolean; session?: { user: { name: string } } };
 let getSession: () => Promise<State>;
+let getOperator: () => Promise<{ userId: string; accountId: string; sessionRef: string } | null>;
 beforeAll(async () => {
-  getSession = (await import("@/lib/session/get-session")).getSession as unknown as typeof getSession;
+  const mod = await import("@/lib/session/get-session");
+  getSession = mod.getSession as unknown as typeof getSession;
+  getOperator = mod.getOperator;
 });
 
 beforeAll(() => stub.listen());
@@ -118,5 +122,26 @@ describe("getSession 三态", () => {
     setCookie("sid");
     delete process.env.UAM_SERVICE_KEY; // 配置错误是程序问题，应抛出而不是静默成 unverified
     await expect(getSession()).rejects.toThrow("UAM_SERVICE_KEY");
+  });
+});
+
+describe("getOperator", () => {
+  it("已登录 → 操作人（用户、账号、会话引用），用于 X-Operator-* 请求头", async () => {
+    setCookie("sid");
+    stub.respond("verifySession", { status: 200, body: verifyResponseBody() });
+    expect(await getOperator()).toEqual({
+      userId: FIXTURE_IDS.userId,
+      accountId: FIXTURE_IDS.accountId,
+      sessionRef: FIXTURE_IDS.sessionRef,
+    });
+  });
+
+  it("未登录 / 无法确认会话 → null", async () => {
+    setCookie(undefined);
+    expect(await getOperator()).toBeNull();
+
+    setCookie("sid");
+    stub.respond("verifySession", { status: 200, body: verifyResponseBody(), delayMs: 500 });
+    expect(await getOperator()).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { test as base, expect, type Page } from "@playwright/test";
-import { psql, uamCli } from "./stack";
+import { psql, redisCli, uamCli } from "./stack";
 
 /** 本地 E2E 的测试账号；密码只在测试里使用。 */
 export const ADMIN = { account: "admin", password: "E2e-Admin-Pass-1", name: "系统管理员" };
@@ -61,6 +61,57 @@ export function actualAccountCount(userId: string): number {
 /** UAM（数据库）里的用户总数（与不带搜索词的列表「共 N 位用户」对账）。 */
 export function actualUserCount(): number {
   return Number(psql("SELECT count(*) FROM app_user;")[0]);
+}
+
+/** US3 的造数：固定标识，重复执行不会产生重复数据。两个用户都不是 ADMIN，用来在会话管理里被看到。 */
+export const SESSIONS_SEED = {
+  /** 两个账号的用户：每个账号各开一个会话。 */
+  multi: { id: "e2e00003-0000-4000-8000-000000000001", name: "甲号在线者", accounts: ["e2e.sess.alpha", "e2e.sess.beta"] },
+  /** 一个账号的用户。 */
+  single: { id: "e2e00003-0000-4000-8000-000000000002", name: "乙号在线者", account: "e2e.sess.solo" },
+  /** 有账号但从不登录的用户：没有会话。 */
+  idle: { id: "e2e00003-0000-4000-8000-000000000003", name: "丙号离线者", account: "e2e.sess.idle" },
+  password: "E2e-Sess-Pass-1",
+};
+
+/** 造 US3 需要的用户及其账号（用户用 SQL 插入，账号用部署期命令 add-account；密码只经标准输入）。 */
+export function seedSessionUsers(): void {
+  const { multi, single, idle, password } = SESSIONS_SEED;
+  psql(`
+    INSERT INTO app_user (id, name, status, updated_at) VALUES
+      (${sqlText(multi.id)}, ${sqlText(multi.name)}, 'ACTIVE', now()),
+      (${sqlText(single.id)}, ${sqlText(single.name)}, 'ACTIVE', now()),
+      (${sqlText(idle.id)}, ${sqlText(idle.name)}, 'ACTIVE', now())
+    ON CONFLICT (id) DO NOTHING;
+  `);
+  const accounts: Array<[string, string]> = [...multi.accounts.map((a): [string, string] => [multi.id, a]), [single.id, single.account], [idle.id, idle.account]];
+  for (const [userId, account] of accounts) {
+    const exists = psql(`SELECT 1 FROM account WHERE login_name_norm = ${sqlText(account.toLowerCase())};`).length > 0;
+    if (!exists) uamCli(["add-account", "--user-id", userId, "--account-name", account], `${password}\n`);
+  }
+}
+
+/** UAM（数据库）里某账号所属用户的标识。 */
+export function userIdOfAccount(account: string): string {
+  return psql(`SELECT user_id FROM account WHERE login_name_norm = ${sqlText(account.toLowerCase())};`)[0];
+}
+
+export interface LiveSession {
+  userId: string;
+  /** 非机密的会话引用（完整）。 */
+  ref: string;
+}
+
+/**
+ * Redis 里此刻实际有效的会话（SC-003 对账用）：`uam:online` 的成员 `{userId}|{ref}`，分数是空闲到期（epoch 秒），
+ * 分数大于当前时间的才算有效（UAM 列表接口读取时才清理过期成员）。
+ */
+export function liveSessions(): LiveSession[] {
+  const now = Math.floor(Date.now() / 1000);
+  return redisCli(["ZRANGEBYSCORE", "uam:online", `(${now}`, "+inf"]).map((member) => {
+    const [userId, ref] = member.split("|");
+    return { userId, ref };
+  });
 }
 
 /** 登录辅助：走真实的登录页。 */

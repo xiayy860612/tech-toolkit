@@ -21,6 +21,11 @@ const pageParam = z
   .transform(Number)
   .catch(1);
 
+/** `?page=`：缺失、非法一律是第 1 页；数组取第一项。用户与在线用户两个列表共用。 */
+export function parsePage(raw: Param): number {
+  return pageParam.parse(firstValue(raw) ?? "");
+}
+
 export interface UsersQuery {
   query: string;
   page: number;
@@ -30,7 +35,7 @@ export interface UsersQuery {
 export function parseUsersQuery(search: { q?: Param; page?: Param }): UsersQuery {
   return {
     query: queryParam.parse(firstValue(search.q) ?? ""),
-    page: pageParam.parse(firstValue(search.page) ?? ""),
+    page: parsePage(search.page),
   };
 }
 

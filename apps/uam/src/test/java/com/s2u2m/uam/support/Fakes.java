@@ -5,6 +5,7 @@ import com.s2u2m.uam.domain.ErrorCode;
 import com.s2u2m.uam.domain.model.Account;
 import com.s2u2m.uam.domain.model.Credential;
 import com.s2u2m.uam.domain.model.LoginName;
+import com.s2u2m.uam.domain.model.OnlineUserSummary;
 import com.s2u2m.uam.domain.model.PageResult;
 import com.s2u2m.uam.domain.model.Session;
 import com.s2u2m.uam.domain.model.SessionRef;
@@ -21,6 +22,7 @@ import com.s2u2m.uam.domain.port.UserRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,6 +72,20 @@ public final class Fakes {
     @Override
     public long count() {
       return byId.size();
+    }
+
+    /** {@link #findNames} 的调用次数与最近一次的参数。 */
+    public int findNamesCalls;
+
+    public Collection<UUID> lastFindNamesIds = List.of();
+
+    @Override
+    public Map<UUID, String> findNames(Collection<UUID> ids) {
+      findNamesCalls++;
+      lastFindNamesIds = List.copyOf(ids);
+      Map<UUID, String> names = new HashMap<>();
+      ids.stream().filter(byId::containsKey).forEach(id -> names.put(id, byId.get(id).name()));
+      return names;
     }
 
     /** 最近一次 {@link #search} 的参数，以及它要返回的结果。 */
@@ -212,6 +228,11 @@ public final class Fakes {
     public final List<SessionRef> terminated = new ArrayList<>();
     public final List<Session> touched = new ArrayList<>();
 
+    /** {@link #listOnline} 要返回的（已聚合、已排序的）在线用户，以及最近一次传入的当前时刻。 */
+    public List<OnlineUserSummary> online = List.of();
+
+    public Instant listOnlineNow;
+
     @Override
     public Optional<SessionRef> create(Session session, String tokenHash) {
       Optional<String> oldHash =
@@ -237,6 +258,19 @@ public final class Fakes {
       byHash.put(tokenHash, touchedSession);
       touched.add(touchedSession);
       return Optional.of(touchedSession);
+    }
+
+    @Override
+    public List<OnlineUserSummary> listOnline(Instant now) {
+      listOnlineNow = now;
+      return online;
+    }
+
+    @Override
+    public List<Session> sessionsOfAccounts(Collection<UUID> accountIds) {
+      return accountIds.stream()
+          .flatMap(id -> byHash.values().stream().filter(s -> s.accountId().equals(id)))
+          .toList();
     }
 
     @Override

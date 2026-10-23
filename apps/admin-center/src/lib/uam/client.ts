@@ -11,6 +11,9 @@ export type UserSummary = components["schemas"]["UserSummary"];
 export type UserPage = components["schemas"]["UserPage"];
 export type UserDetail = components["schemas"]["UserDetail"];
 export type Account = components["schemas"]["Account"];
+export type OnlineUser = components["schemas"]["OnlineUser"];
+export type OnlineUserPage = components["schemas"]["OnlineUserPage"];
+export type UserSession = components["schemas"]["Session"];
 
 /** 操作人上下文：作为 X-Operator-* 请求头传给 UAM（写操作必带）。 */
 export interface Operator {
@@ -170,4 +173,30 @@ export async function listUsers({ query, page, size }: ListUsersParams = {}): Pr
 export async function getUser(userId: string): Promise<UserDetail> {
   const { data } = await uamRequest<UserDetail>({ method: "GET", path: `/v1/users/${encodeURIComponent(userId)}` });
   return data;
+}
+
+export interface ListOnlineUsersParams {
+  /** 页码，从 1 开始；缺省由 UAM 取 1。 */
+  page?: number;
+  /** 每页条数；缺省由 UAM 取 20。 */
+  size?: number;
+}
+
+/** 分页列出当前在线用户，按最近活动倒序（`GET /v1/online-users`）。读操作：不带操作人请求头。 */
+export async function listOnlineUsers({ page, size }: ListOnlineUsersParams = {}): Promise<OnlineUserPage> {
+  const { data } = await uamRequest<OnlineUserPage>({ method: "GET", path: "/v1/online-users", query: { page, size } });
+  return data;
+}
+
+/**
+ * 某用户当前的全部有效会话（`GET /v1/users/{userId}/sessions`）；用户不存在时抛 `UamError`（problem `user_not_found`）。
+ * 带操作人请求头：UAM 据 `X-Operator-Session-Ref` 标注 `current`。响应只含非机密的会话引用。
+ */
+export async function listUserSessions(userId: string, operator: Operator): Promise<UserSession[]> {
+  const { data } = await uamRequest<{ items: UserSession[] }>({
+    method: "GET",
+    path: `/v1/users/${encodeURIComponent(userId)}/sessions`,
+    operator,
+  });
+  return data.items;
 }

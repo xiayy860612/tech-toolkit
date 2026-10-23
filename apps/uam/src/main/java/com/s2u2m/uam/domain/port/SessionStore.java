@@ -1,8 +1,13 @@
 package com.s2u2m.uam.domain.port;
 
+import com.s2u2m.uam.domain.model.OnlineUserSummary;
 import com.s2u2m.uam.domain.model.Session;
 import com.s2u2m.uam.domain.model.SessionRef;
+import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /** 会话存储（Redis）；会话只以 {@code SHA-256(会话标识)} 为键，明文标识从不入库。 */
 public interface SessionStore {
@@ -17,4 +22,14 @@ public interface SessionStore {
 
   /** 按会话引用终止；会话本来就不存在返回 {@code false}。 */
   boolean terminate(SessionRef ref);
+
+  /**
+   * 在线用户：先清理到期的在线索引条目，再按用户聚合仍有效的会话；按最近活动时间倒序、用户标识升序，保证分页稳定。
+   *
+   * @param now 当前时刻；有效到期不晚于它的会话不计入
+   */
+  List<OnlineUserSummary> listOnline(Instant now);
+
+  /** 各账号当前的会话（即账号到会话的指针指向的那条），按传入账号的顺序；没有会话的账号不产生条目。 */
+  List<Session> sessionsOfAccounts(Collection<UUID> accountIds);
 }

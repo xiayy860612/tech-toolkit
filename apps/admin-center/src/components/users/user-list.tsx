@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { UserSummary } from "@/lib/uam/client";
 import { usersHref } from "@/lib/users-href";
 import { FormattedTime } from "./formatted-time";
+import { Pagination } from "./pagination";
 import { StateCard } from "./state-card";
 import { StatusBadge } from "./status-badge";
 
@@ -15,24 +16,6 @@ export interface UserListProps {
   size: number;
   /** 当前搜索词（已清洗）；空串表示没有搜索。 */
   query: string;
-}
-
-function PagerButton({ href, children }: { href: string | null; children: string }) {
-  if (!href) {
-    return (
-      <span
-        aria-disabled="true"
-        className="inline-flex h-11 items-center justify-center rounded-md border px-4 text-sm font-medium opacity-50"
-      >
-        {children}
-      </span>
-    );
-  }
-  return (
-    <Button asChild variant="outline" className="h-11 px-4">
-      <Link href={href}>{children}</Link>
-    </Button>
-  );
 }
 
 /**
@@ -114,13 +97,11 @@ export function UserList({ users, total, page, size, query }: UserListProps) {
         ))}
       </ul>
 
-      <nav aria-label="分页" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-4 py-3">
-        <span className="text-sm text-muted-foreground">{`共 ${total} 位用户 · 第 ${page} / ${pages} 页`}</span>
-        <span className="flex gap-2">
-          <PagerButton href={page > 1 ? usersHref(query, page - 1) : null}>上一页</PagerButton>
-          <PagerButton href={page < pages ? usersHref(query, page + 1) : null}>下一页</PagerButton>
-        </span>
-      </nav>
+      <Pagination
+        summary={`共 ${total} 位用户 · 第 ${page} / ${pages} 页`}
+        prevHref={page > 1 ? usersHref(query, page - 1) : null}
+        nextHref={page < pages ? usersHref(query, page + 1) : null}
+      />
     </Card>
   );
 }

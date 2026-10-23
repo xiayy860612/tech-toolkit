@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { headers } from "next/headers";
-import { getUser, listUsers, uamRequest, verifySession } from "@/lib/uam/client";
+import { getUser, listOnlineUsers, listUserSessions, listUsers, uamRequest, verifySession } from "@/lib/uam/client";
 import { UamError, uamErrorMessage, fieldReasonMessage } from "@/lib/uam/errors";
 import {
   createUamStub,
@@ -253,6 +253,66 @@ describe("listUsers / getUser（读用户，T081）", () => {
     const spy = jest.spyOn(global, "fetch").mockResolvedValue(new Response(JSON.stringify(problemBody(404, "user_not_found")), { status: 404 }));
     await getUser("../sessions?x=1").catch(() => undefined);
     expect(String(spy.mock.calls[0][0])).toContain("/v1/users/..%2Fsessions%3Fx%3D1");
+    spy.mockRestore();
+  });
+});
+
+describe("listOnlineUsers / listUserSessions（读会话，T093）", () => {
+  const online = { userId: FIXTURE_IDS.userId, userName: "张三", sessionCount: 2, lastActiveAt: "2026-10-24T11:55:00Z" };
+  const session = {
+    sessionRef: FIXTURE_IDS.sessionRef,
+    accountId: FIXTURE_IDS.accountId,
+    accountName: "zhangsan",
+    accountKind: "PASSWORD",
+    loginAt: "2026-10-24T10:00:00Z",
+    lastActiveAt: "2026-10-24T11:55:00Z",
+    expiresAt: "2026-10-24T22:00:00Z",
+    current: true,
+  };
+
+  it("listOnlineUsers：页码映射为 page、size 可指定；返回 UAM 的分页数据；带服务密钥，不带 X-Operator-*", async () => {
+    const body = { items: [online], page: 2, size: 50, total: 51 };
+    stub.respond("listOnlineUsers", { status: 200, body });
+    await expect(listOnlineUsers({ page: 2, size: 50 })).resolves.toEqual(body);
+    const call = stub.calls[0];
+    expect(call.path).toBe("/v1/online-users");
+    expect(call.query.get("page")).toBe("2");
+    expect(call.query.get("size")).toBe("50");
+    expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(call.headers.get("x-operator-user-id")).toBeNull();
+  });
+
+  it("listOnlineUsers：无参数时不带查询参数", async () => {
+    stub.respond("listOnlineUsers", { status: 200, body: { items: [], page: 1, size: 20, total: 0 } });
+    await listOnlineUsers();
+    expect([...stub.calls[0].query.keys()]).toEqual([]);
+  });
+
+  it("listOnlineUsers：UAM 不可用 → UamError(unavailable)", async () => {
+    stub.respond("listOnlineUsers", { networkError: true });
+    await expect(listOnlineUsers()).rejects.toMatchObject({ kind: "unavailable" });
+  });
+
+  it("listUserSessions：带操作人请求头（UAM 据会话引用算 current），返回会话数组", async () => {
+    stub.respond("listUserSessions", { status: 200, body: { items: [session] } });
+    await expect(listUserSessions(FIXTURE_IDS.userId, operator)).resolves.toEqual([session]);
+    const call = stub.calls[0];
+    expect(call.path).toBe(`/v1/users/${FIXTURE_IDS.userId}/sessions`);
+    expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(call.headers.get("x-operator-session-ref")).toBe(operator.sessionRef);
+    expect(call.headers.get("x-operator-user-id")).toBe(operator.userId);
+    expect(call.headers.get("x-operator-account-id")).toBe(operator.accountId);
+  });
+
+  it("listUserSessions：404 user_not_found → UamError(problem, user_not_found)", async () => {
+    stub.respond("listUserSessions", { status: 404, body: problemBody(404, "user_not_found") });
+    await expect(listUserSessions(FIXTURE_IDS.userId, operator)).rejects.toMatchObject({ kind: "problem", status: 404, code: "user_not_found" });
+  });
+
+  it("listUserSessions：userId 里的特殊字符不能改变请求路径", async () => {
+    const spy = jest.spyOn(global, "fetch").mockResolvedValue(new Response(JSON.stringify(problemBody(404, "user_not_found")), { status: 404 }));
+    await listUserSessions("../x?y=1", operator).catch(() => undefined);
+    expect(String(spy.mock.calls[0][0])).toContain("/v1/users/..%2Fx%3Fy%3D1/sessions");
     spy.mockRestore();
   });
 });

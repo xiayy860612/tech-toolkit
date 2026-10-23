@@ -181,20 +181,20 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T085 [P] [US3] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/OnlineUsersIT.java`：只含有有效会话的用户；`sessionCount` 与 `lastActiveAt` 正确，按最近活动倒序；已过期的会话不计入（`ZREMRANGEBYSCORE -inf now` 清理）；用户名回 PostgreSQL 批量取；分页
-- [ ] T086 [P] [US3] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/UserSessionsIT.java`：某用户的会话 = 其每个账号的 `uam:acct:{accountId}:sess` 指向的会话；每条含账号名与种类、登录 / 最近活动 / 到期时间；`current` 由请求头 `X-Operator-Session-Ref` 与会话引用相等得出；响应与日志中**没有会话标识**
-- [ ] T087 [P] [US3] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/SessionsReadContractIT.java`：`GET /v1/online-users`、`GET /v1/users/{userId}/sessions`
-- [ ] T088 [P] [US3] 组件测试 `apps/admin-center/tests/unit/components/sessions/{online-user-list,session-list}.test.tsx`：在线用户列「用户名、有效会话数、最近活动」；空态「当前没有在线用户」；会话卡片含账号与种类、时间、会话引用（不含会话标识）；「当前会话」标注
-- [ ] T089 [P] [US3] E2E `apps/admin-center/tests/e2e/us3-sessions.spec.ts`（S7）：断言到在线用户会话详情不超过 2 次点击 / 触控（SC-002），在线用户集合与实际有会话的用户一致（SC-003）
+- [X] T085 [P] [US3] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/OnlineUsersIT.java`：只含有有效会话的用户；`sessionCount` 与 `lastActiveAt` 正确，按最近活动倒序；已过期的会话不计入（`ZREMRANGEBYSCORE -inf now` 清理）；用户名回 PostgreSQL 批量取；分页
+- [X] T086 [P] [US3] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/UserSessionsIT.java`：某用户的会话 = 其每个账号的 `uam:acct:{accountId}:sess` 指向的会话；每条含账号名与种类、登录 / 最近活动 / 到期时间；`current` 由请求头 `X-Operator-Session-Ref` 与会话引用相等得出；响应与日志中**没有会话标识**
+- [X] T087 [P] [US3] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/SessionsReadContractIT.java`：`GET /v1/online-users`、`GET /v1/users/{userId}/sessions`
+- [X] T088 [P] [US3] 组件测试 `apps/admin-center/tests/unit/components/sessions/{online-user-list,session-list}.test.tsx`：在线用户列「用户名、有效会话数、最近活动」；空态「当前没有在线用户」；会话卡片含账号与种类、时间、会话引用（不含会话标识）；「当前会话」标注
+- [X] T089 [P] [US3] E2E `apps/admin-center/tests/e2e/us3-sessions.spec.ts`（S7）：断言到在线用户会话详情不超过 2 次点击 / 触控（SC-002），在线用户集合与实际有会话的用户一致（SC-003）
 
 ### Implementation for User Story 3
 
-- [ ] T090 [US3] 在 `apps/uam/src/main/java/com/s2u2m/uam/domain/port/SessionStore.java` 与 `RedisSessionStore.java` 增加 `listOnline`（清理后在 UAM 内按用户聚合）与 `sessionsOfAccounts`
-- [ ] T091 [US3] 用例与 DTO `apps/uam/src/main/java/com/s2u2m/uam/application/{ListOnlineUsersUseCase,ListUserSessionsUseCase}.java`、`apps/uam/src/main/java/com/s2u2m/uam/api/dto/{OnlineUser,OnlineUserPage,SessionView}.java`；使 T085、T086 通过
-- [ ] T092 [US3] `apps/uam/src/main/java/com/s2u2m/uam/api/SessionsController.java`：`GET /v1/online-users`、`GET /v1/users/{userId}/sessions`；使 T087 通过
-- [ ] T093 [US3] 在 `apps/admin-center/src/lib/uam/client.ts` 增加 `listOnlineUsers`、`listUserSessions`
-- [ ] T094 [US3] 页面 `apps/admin-center/src/app/(shell)/sessions/page.tsx`、`apps/admin-center/src/app/(shell)/sessions/[userId]/page.tsx` 与 `apps/admin-center/src/components/sessions/{online-user-list,session-list}.tsx`；使 T088 通过
-- [ ] T095 [US3] 验证：T085 ~ T089 通过（`apps/admin-center/tests/e2e/us3-sessions.spec.ts`）；跑 quickstart S7
+- [X] T090 [US3] 在 `apps/uam/src/main/java/com/s2u2m/uam/domain/port/SessionStore.java` 与 `RedisSessionStore.java` 增加 `listOnline`（清理后在 UAM 内按用户聚合）与 `sessionsOfAccounts`
+- [X] T091 [US3] 用例与 DTO `apps/uam/src/main/java/com/s2u2m/uam/application/{ListOnlineUsersUseCase,ListUserSessionsUseCase}.java`、`apps/uam/src/main/java/com/s2u2m/uam/api/dto/{OnlineUser,OnlineUserPage,SessionView}.java`；使 T085、T086 通过
+- [X] T092 [US3] `apps/uam/src/main/java/com/s2u2m/uam/api/SessionsController.java`：`GET /v1/online-users`、`GET /v1/users/{userId}/sessions`；使 T087 通过
+- [X] T093 [US3] 在 `apps/admin-center/src/lib/uam/client.ts` 增加 `listOnlineUsers`、`listUserSessions`
+- [X] T094 [US3] 页面 `apps/admin-center/src/app/(shell)/sessions/page.tsx`、`apps/admin-center/src/app/(shell)/sessions/[userId]/page.tsx` 与 `apps/admin-center/src/components/sessions/{online-user-list,session-list}.tsx`；使 T088 通过
+- [X] T095 [US3] 验证：T085 ~ T089 通过（`apps/admin-center/tests/e2e/us3-sessions.spec.ts`）；跑 quickstart S7
 
 **Checkpoint**: 三个 P1 故事（US1 ~ US3）完成，达到 MVP。
 

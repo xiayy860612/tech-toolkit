@@ -1,12 +1,17 @@
 package com.s2u2m.uam.infrastructure.redis;
 
 import com.s2u2m.uam.domain.model.AccountKind;
+import com.s2u2m.uam.domain.model.OnlineUserSummary;
 import com.s2u2m.uam.domain.model.Session;
 import com.s2u2m.uam.domain.model.SessionRef;
 import com.s2u2m.uam.domain.port.Clock;
 import com.s2u2m.uam.domain.port.SessionStore;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,6 +48,7 @@ public class RedisSessionStore implements SessionStore {
   private final DefaultRedisScript<String> loginScript = script("login.lua", String.class);
   private final DefaultRedisScript<Long> touchScript = script("touch.lua", Long.class);
   private final DefaultRedisScript<Long> terminateScript = script("terminate.lua", Long.class);
+  private final DefaultRedisScript<List> onlineScript = script("online.lua", List.class);
 
   public RedisSessionStore(StringRedisTemplate redis, Clock clock) {
     this.redis = redis;
@@ -82,6 +88,49 @@ public class RedisSessionStore implements SessionStore {
 
   @Override
   public Optional<Session> find(String tokenHash) {
+    return read(tokenHash);
+  }
+
+  @Override
+  public List<OnlineUserSummary> listOnline(Instant now) {
+    List<?> flat =
+        redis.execute(
+            onlineScript,
+            List.of(ONLINE),
+            Long.toString(now.getEpochSecond()),
+            Long.toString(now.toEpochMilli()));
+    Map<UUID, int[]> counts = new HashMap<>();
+    Map<UUID, Instant> latest = new HashMap<>();
+    for (int i = 0; flat != null && i + 1 < flat.size(); i += 2) {
+      String member = (String) flat.get(i);
+      UUID userId = UUID.fromString(member.substring(0, member.indexOf('|')));
+      Instant lastActiveAt = Instant.ofEpochMilli(Long.parseLong((String) flat.get(i + 1)));
+      counts.computeIfAbsent(userId, id -> new int[1])[0]++;
+      latest.merge(userId, lastActiveAt, (a, b) -> a.isAfter(b) ? a : b);
+    }
+    List<OnlineUserSummary> online = new ArrayList<>();
+    counts.forEach(
+        (userId, count) -> online.add(new OnlineUserSummary(userId, count[0], latest.get(userId))));
+    online.sort(
+        Comparator.comparing(OnlineUserSummary::lastActiveAt)
+            .reversed()
+            .thenComparing(OnlineUserSummary::userId));
+    return online;
+  }
+
+  @Override
+  public List<Session> sessionsOfAccounts(Collection<UUID> accountIds) {
+    List<Session> found = new ArrayList<>();
+    for (UUID accountId : accountIds) {
+      String tokenHash = redis.opsForValue().get(accountKey(accountId));
+      if (tokenHash != null) {
+        read(tokenHash).ifPresent(found::add);
+      }
+    }
+    return found;
+  }
+
+  private Optional<Session> read(String tokenHash) {
     Map<Object, Object> hash = redis.opsForHash().entries(SESSION + tokenHash);
     if (hash.isEmpty()) {
       return Optional.empty();

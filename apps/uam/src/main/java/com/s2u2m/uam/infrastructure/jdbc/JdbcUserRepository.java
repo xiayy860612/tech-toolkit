@@ -9,7 +9,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -46,6 +49,21 @@ public class JdbcUserRepository implements UserRepository {
         .param("id", id)
         .query(JdbcUserRepository::map)
         .optional();
+  }
+
+  @Override
+  public Map<UUID, String> findNames(Collection<UUID> ids) {
+    if (ids.isEmpty()) {
+      return Map.of();
+    }
+    Map<UUID, String> names = new HashMap<>();
+    jdbc.sql("SELECT id, name FROM app_user WHERE id IN (:ids)")
+        .param("ids", ids)
+        .query(
+            rs -> {
+              names.put(rs.getObject("id", UUID.class), rs.getString("name"));
+            });
+    return names;
   }
 
   @Override

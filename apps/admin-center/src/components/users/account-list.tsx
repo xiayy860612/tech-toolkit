@@ -1,11 +1,10 @@
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Account } from "@/lib/uam/client";
+import { ACCOUNT_KIND_LABELS } from "./account-kind";
 import { FormattedTime } from "./formatted-time";
 import { StateMessage } from "./state-card";
 import { StatusBadge } from "./status-badge";
-
-const KIND_LABELS: Record<Account["kind"], string> = { PASSWORD: "账号名 / 密码" };
 
 /**
  * 用户的全部账号（FR-019）：账号名、账号种类、状态、创建时间。不含任何凭据。
@@ -33,7 +32,7 @@ export function AccountList({ accounts }: { accounts: Account[] }) {
                 {accounts.map((account) => (
                   <TableRow key={account.id}>
                     <TableCell className="max-w-64 px-4 py-3 font-medium break-all whitespace-normal">{account.loginName}</TableCell>
-                    <TableCell className="px-4">{KIND_LABELS[account.kind]}</TableCell>
+                    <TableCell className="px-4">{ACCOUNT_KIND_LABELS[account.kind]}</TableCell>
                     <TableCell className="px-4">
                       <StatusBadge status={account.status} />
                     </TableCell>
@@ -52,7 +51,7 @@ export function AccountList({ accounts }: { accounts: Account[] }) {
                 <p className="mb-1 font-semibold break-all">{account.loginName}</p>
                 <dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 text-sm">
                   <dt className="text-muted-foreground">账号种类</dt>
-                  <dd className="justify-self-end">{KIND_LABELS[account.kind]}</dd>
+                  <dd className="justify-self-end">{ACCOUNT_KIND_LABELS[account.kind]}</dd>
                   <dt className="text-muted-foreground">状态</dt>
                   <dd className="justify-self-end">
                     <StatusBadge status={account.status} />

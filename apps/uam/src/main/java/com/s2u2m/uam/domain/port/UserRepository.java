@@ -3,6 +3,8 @@ package com.s2u2m.uam.domain.port;
 import com.s2u2m.uam.domain.model.PageResult;
 import com.s2u2m.uam.domain.model.User;
 import com.s2u2m.uam.domain.model.UserWithAccountCount;
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,4 +26,7 @@ public interface UserRepository {
    * @param size 每页条数
    */
   PageResult<UserWithAccountCount> search(String query, int page, int size);
+
+  /** 一次批量取用户名；不存在的用户不出现在结果里。 */
+  Map<UUID, String> findNames(Collection<UUID> ids);
 }

@@ -60,3 +60,22 @@ export function psql(sql: string): string[] {
   const out = execFileSync("docker", args, { input: sql, encoding: "utf8" });
   return out.split("\n").filter((line) => line.length > 0);
 }
+
+/** 在栈里的 Redis 执行 redis-cli（只读核对 UAM 的会话索引，如 SC-003 的在线用户集合）；按行返回输出。 */
+export function redisCli(args: string[]): string[] {
+  const compose = [
+    "compose",
+    "-f",
+    path.join(root, "infra/local/docker-compose.stack.yml"),
+    "--env-file",
+    path.join(root, "infra/local/e2e.env"),
+    "exec",
+    "-T",
+    "redis",
+    "redis-cli",
+    ...args,
+  ];
+  return execFileSync("docker", compose, { encoding: "utf8" })
+    .split("\n")
+    .filter((line) => line.length > 0);
+}
