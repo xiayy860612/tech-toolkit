@@ -2,6 +2,14 @@ spring:
   application:
     name: uam
   # 数据库与 Redis 连接只经环境变量注入（SPRING_DATASOURCE_*、SPRING_DATA_REDIS_*），禁止入库
+  # 客户端超时都小于 Admin Center 调 UAM 的 1.5 s（UAM_TIMEOUT_MS 默认值），故障时 UAM 先返回 5xx，而不是让调用方先超时、请求线程继续挂着
+  data:
+    redis:
+      timeout: 1s
+      connect-timeout: 1s
+  datasource:
+    hikari:
+      connection-timeout: 1000 # 毫秒；池耗尽时取连接最多等 1 s
   flyway:
     enabled: true
   lifecycle:
@@ -40,6 +48,8 @@ uam:
     idle: 30m
     absolute: 12h
     touch-interval: 60s
+    # 管理员强制下线后，被下线者的下一次请求仍能得到「已被强制下线」提示的时长（墓碑 uam:term:{sha} 的 TTL）
+    terminated-notice-ttl: 10m
   login:
     throttle:
       max-failures: 5

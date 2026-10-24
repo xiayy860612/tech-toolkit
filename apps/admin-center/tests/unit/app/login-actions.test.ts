@@ -180,8 +180,8 @@ describe("login 动作：UAM 的结论", () => {
 
   it("UAM 返回字段级 validation_failed：显示在对应字段旁，其余字段忽略", async () => {
     stub.respond("login", {
-      status: 400,
-      body: problemBody(400, "validation_failed", {
+      status: 422,
+      body: problemBody(422, "validation_failed", {
         errors: [
           { field: "accountName", reason: "invalid_chars" },
           { field: "clientIp", reason: "required" },
@@ -194,9 +194,18 @@ describe("login 动作：UAM 的结论", () => {
   });
 
   it("validation_failed 没有可显示的字段：给通用提示", async () => {
-    stub.respond("login", { status: 400, body: problemBody(400, "validation_failed") });
+    stub.respond("login", { status: 422, body: problemBody(422, "validation_failed") });
     const state = await login({}, form());
     expect(state.formError).toBe("输入有误，请按提示修改后重试");
+  });
+
+  it("UAM 返回 400 bad_request（Admin Center 不会发出读不懂的请求，属意外拒绝）：按「服务暂不可用」处理，不当作凭据错误，不写 cookie，不回显输入", async () => {
+    stub.respond("login", { status: 400, body: problemBody(400, "bad_request") });
+    const state = await login({}, form());
+    expect(state).toEqual({ formError: "服务暂不可用，请稍后重试", accountName: "zhangsan" });
+    expect(state.formError).not.toBe("账号名或密码错误");
+    expect(JSON.stringify(state)).not.toContain(PASSWORD);
+    expect(cookieSet).not.toHaveBeenCalled();
   });
 
   it("UAM 不可用（连接失败）：提示服务暂不可用，不写 cookie", async () => {

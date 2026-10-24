@@ -95,7 +95,7 @@ class OnlineUsersIT extends IntegrationTestBase {
             data.account(loggedOut, "logged.out"),
             "logged.out",
             now.minus(Duration.ofMinutes(3)));
-    store.terminateByRef(gone.ref());
+    store.terminateByRef(gone.ref(), false);
 
     Response response = online("");
 
@@ -157,14 +157,14 @@ class OnlineUsersIT extends IntegrationTestBase {
     Created two =
         sessions.live(user, "双账号", data.account(user, "pair.two"), "pair.two", now.minusSeconds(9));
 
-    store.terminateByRef(one.ref());
+    store.terminateByRef(one.ref(), false);
     JsonNode afterOne = online("").json().get("items");
     assertThat(afterOne).hasSize(1);
     assertThat(afterOne.get(0).get("sessionCount").asInt()).isEqualTo(1);
     assertThat(Instant.parse(afterOne.get(0).get("lastActiveAt").asString()))
         .isEqualTo(now.minusSeconds(9));
 
-    store.terminateByRef(two.ref());
+    store.terminateByRef(two.ref(), false);
     assertThat(online("").json().get("items")).isEmpty();
   }
 

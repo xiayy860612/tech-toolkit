@@ -14,6 +14,7 @@
   - `tests/{unit,contract,e2e,support}/`
 - Admin Center **无状态**、不存密码、不连数据库（`package.json` 不得出现数据库驱动 / ORM，由 `security-check.sh` 守住）；`UAM_SERVICE_KEY` 只在服务端使用，绝不进入浏览器包。它是 UAM 的**客户端**（Client）：每个请求带 `Authorization: Bearer <服务密钥>`，写操作与会话页另带 `X-Operator-*`。
 - 所有写入口（5 个 Server Action 文件与 `POST /logout`）第一步都是 `isSameOriginRequest` 同源校验（`src/lib/security/origin-check.ts`），再读会话、调 UAM。
+- **布局不是认证边界**：Next 局部渲染（RSC 请求带的 `Next-Router-State-Tree` 已含 `(shell)` 段）会跳过 `(shell)/layout.tsx`。每个受保护页面第一步调 `requireOperator()`（`src/lib/session/get-session.ts`）：匿名 → 跳登录 / `/session/expire`，unverified → 返回 `null`（页面不渲染、不调 UAM）；`listUsers` / `getUser` / `listOnlineUsers` / `listUserSessions` 在类型上要求传入操作人，并带 `X-Operator-*` 请求头。回归用例见 `tests/e2e/us13-rsc-auth-bypass.spec.ts`。
 
 ## 命令（在 `apps/admin-center/` 下执行）
 
@@ -69,7 +70,7 @@ infra/local/scripts/bootstrap.sh down    # 结束后关栈并清数据卷
 - 压测：`infra/load/k6/`（`seed-data.sh`、`list-and-detail.js`、`validate-throughput.js`，经 compose 的 `load` profile 运行，命令见 compose 文件里的注释）；结果与未测项见 `infra/load/RESULTS.md`，SC-011 的判定方法见 `infra/load/SC-011.md`（**尚未测量**）。
 - **安全检查** `infra/local/scripts/security-check.sh [static|runtime|all]`（默认 `all`；兼容 bash 3.2）：
   - `static`（不需要 Docker）：无被跟踪的 `.env`（只允许 `*.example` 与 `infra/local/e2e.env`）；`package.json` 无数据库驱动 / ORM（FR-013）；工作区与全部历史里没有完整长度的 `uamk_` 密钥或私钥特征（允许名单与理由写在脚本里）；`src/lib` 服务端模块都有 `import "server-only"`；构建浏览器包（`npm run build`，不设环境变量）后 `.next/static` 里没有服务密钥；每个写入口先做同源校验，并跑相关「跨站 / 同源」单元测试。`SECURITY_CHECK_SKIP_BUILD=1` 复用已有构建。
-  - `runtime`（需要已启动的 E2E 栈，否则退出码 2）：用 curl 走真实流程，对 login、createUser、terminateSession、disableUser、enableUser、changePassword、`POST /logout` 各用「外站 Origin / `Sec-Fetch-Site: cross-site` / 无来源头」伪造一次，必须被拒且状态不变（同源请求作对照）；最后扫描全部响应、两个服务的日志与浏览器脚本，没有标记密码、`$argon2`、会话标识、服务密钥（SC-014）。
+  - `runtime`（需要已启动的 E2E 栈，否则退出码 2）：用 curl 走真实流程，对 login、createUser、terminateSession、disableUser、enableUser、changePassword、`POST /logout` 各用「外站 Origin / `Sec-Fetch-Site: cross-site` / 无来源头」伪造一次，必须被拒且状态不变（同源请求作对照）；另有 R10：不带 cookie（及带失效 cookie）发 `RSC: 1` + 含 `(shell)` 段的 `Next-Router-State-Tree` 请求数据页，响应里不得出现标记用户名（Next 局部渲染会跳过布局，受保护页面必须自己先调 `requireOperator()`，对照用有效会话）；最后扫描全部响应、两个服务的日志与浏览器脚本，没有标记密码、`$argon2`、会话标识、服务密钥（SC-014）。
   - `all`：先 static 再 runtime；栈原本没起则自己 `up`、结束 `down`，原本已启动则保持原样。退出码 0 全部通过、1 有失败项、2 用法 / 环境错误。
 
 ## 运维告警与排障

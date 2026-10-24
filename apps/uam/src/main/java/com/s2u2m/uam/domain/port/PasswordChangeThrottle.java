@@ -8,10 +8,8 @@ import java.util.OptionalLong;
  */
 public interface PasswordChangeThrottle {
 
-  /** 该来源被拒绝时返回剩余秒数（即 {@code Retry-After}），否则为空。 */
-  OptionalLong changeBlockedFor(String subject);
-
-  void recordChangeFailure(String subject);
+  /** 在哈希比对之前原子占用一次尝试名额（口径同 {@link LoginThrottle#admit}）：被拒绝返回剩余秒数，放行返回空。 */
+  OptionalLong admitChange(String subject);
 
   /** 当前密码校验通过后清零。 */
   void resetChange(String subject);

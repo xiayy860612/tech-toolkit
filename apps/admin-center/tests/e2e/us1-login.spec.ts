@@ -106,7 +106,10 @@ test.describe("S2：失败提示统一与限流", () => {
     await expect(page.getByLabel("账号名")).toHaveValue(ADMIN.account);
     expect(await sessionCookie(page.context())).toBeUndefined();
 
-    await login(page, "no.such.account", "definitely-wrong-1");
+    // 不存在的账号名也按「账号名 + 来源地址」计失败次数，且永远登录不成功、计数不清零：
+    // 每次运行用独立的账号名，免得跨视口项目累计到限流阈值（第 6 个项目会被拦）
+    const unknownAccount = `no.such.${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+    await login(page, unknownAccount, "definitely-wrong-1");
     await expect(failure(page, "账号名或密码错误")).toBeVisible();
     expect(await failure(page, "账号名或密码错误").innerText()).toBe(wrongPasswordText);
   });

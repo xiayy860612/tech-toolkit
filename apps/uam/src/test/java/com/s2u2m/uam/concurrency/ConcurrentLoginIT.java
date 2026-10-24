@@ -39,10 +39,12 @@ class ConcurrentLoginIT extends IntegrationTestBase {
     ExecutorService pool = Executors.newFixedThreadPool(LOGINS);
     List<Future<String>> futures = new ArrayList<>();
     for (int i = 0; i < LOGINS; i++) {
+      // 每个并发登录用不同的来源地址：同一「账号 + 来源」同时在途的尝试最多 5 个（限流闸门原子占名额，见 ConcurrentThrottleIT）
+      String sourceIp = "203.0.113." + (i + 1);
       Callable<String> task =
           () -> {
             gate.await();
-            ApiClient.Response response = api.login("zhangsan", PASSWORD, "203.0.113.7");
+            ApiClient.Response response = api.login("zhangsan", PASSWORD, sourceIp);
             assertThat(response.status()).isEqualTo(200);
             return response.json().get("sessionId").asString();
           };

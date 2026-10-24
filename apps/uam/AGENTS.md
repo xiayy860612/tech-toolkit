@@ -61,8 +61,11 @@ mvn -f apps/uam/pom.xml spring-boot:run
 | `UAM_CLIENTS` | 客户端清单（JSON：`id`、`keyHashes`（1–2 个 `sha256:<hex>`）、`permissions`），缺失则启动失败 | 必填 |
 | `SPRING_PROFILES_ACTIVE` | 部署期命令设为 `cli`（见下文）；服务本身不设 | 空 |
 | `uam.session.idle` / `uam.session.absolute` / `uam.session.touch-interval` | 会话空闲 / 绝对时限 / 续期最小间隔 | `30m` / `12h` / `60s` |
+| `uam.session.terminated-notice-ttl` | 管理员强制下线后，`verify` 的 401 仍带 `reason: terminated` 的时长（墓碑 `uam:term:{sha}` 的 TTL） | `10m` |
 | `uam.login.throttle.max-failures` / `.block` | 登录失败限制 | `5` / `15m` |
-| `uam.password.min-length` | 密码最短长度 | `10` |
+| `uam.password.min-length` | 密码最短长度（上限固定 128 个码点，使任何合规密码都能在 256 个 UTF-16 字符的登录请求上限内提交） | `10` |
+
+客户端超时（`application.yml`）：Redis 命令与连接 `spring.data.redis.timeout` / `connect-timeout` 各 1 s，PostgreSQL 取连接 `spring.datasource.hikari.connection-timeout` 1000 ms，均小于 Admin Center 调 UAM 的 1.5 s（`UAM_TIMEOUT_MS`）。
 
 `uam.*` 可用 Spring 的任意外部化方式覆盖（环境变量写成 `UAM_SESSION_IDLE` 这类形式）。健康检查：`/actuator/health`（免校验，只暴露 UP / DOWN；就绪组含 PostgreSQL 与 Redis）；`/actuator/prometheus` 需要有效服务密钥。
 
@@ -86,6 +89,7 @@ mvn -f apps/uam/pom.xml spring-boot:run
 | `POST /v1/auth/login`、`POST /v1/auth/sessions/verify`、`POST /v1/auth/logout`、`POST /v1/accounts/{accountId}/password`、`POST /v1/users`、`POST /v1/users/{userId}/disable`、`POST /v1/users/{userId}/enable`、`DELETE /v1/sessions/{sessionRef}` | 有效服务密钥 + 权限 `assert-end-user-context`；写操作还必须带 `X-Operator-User-Id`、`X-Operator-Account-Id`、`X-Operator-Session-Ref`，缺失 → 400 `operator_required` |
 | `GET /actuator/health/**` | 免校验 |
 
+- **错误状态码（一个错误码对应一个状态码）**：`validation_failed` 一律 422（含请求体缺失 / 为空 / 过长字段、`Idempotency-Key`、`page=0` / `size>100` 等规则校验，带 `errors[{field, reason}]`）；无法解析或类型不符的请求（坏 JSON、空请求体、JSON 类型不对、非 UUID 的路径 id、`page=abc`）一律 400 `bad_request`（不回显请求值）；`operator_required` 仍为 400；`ErrorStatusContractIT` 遍历契约的每个接口固定这些映射。
 - 拒绝：缺失、无效、已撤销的密钥一律 401 `client_unauthenticated`（响应不透露哪里不对）；密钥有效但缺权限 → 403 `client_forbidden`。
 - **拒绝日志**：事件 `uam.client.rejected`（WARN，JSON 顶层字段 `ts`、`sourceAddress`、`reason`、`status`、`method`、`path`、`clientId`），**不含密钥**。`reason` 取 `missing_key`（没有 Authorization 头）、`malformed`（不是 `Bearer <密钥>`）、`unknown_key`（不匹配任何有效哈希，含已撤销的旧密钥）、`forbidden`（密钥有效但缺权限）。每秒最多写 200 条，超出只计数，下一秒第一条带 `suppressedBefore`。写操作日志是事件 `uam.admin.write`（INFO，含操作人、对象、动作、结果）。
 - **轮换步骤（不停机，FR-044）**：

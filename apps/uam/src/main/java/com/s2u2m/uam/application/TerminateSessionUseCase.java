@@ -15,7 +15,8 @@ import org.springframework.stereotype.Component;
  * 强制下线某条会话（FR-016、FR-028、FR-030）。
  *
  * <p>先过自我保护（目标是操作人当前会话则拒绝，此时不触碰任何会话），再按会话引用只终止这一条；会话本来就不存在（已退出、到期、被取代、被终止）→ {@code
- * session_not_found}。该用户的其他会话、账号与用户状态都不变。成功、被拒绝、失败都写 {@code uam.admin.write} 日志（只记会话引用，不含会话标识）。
+ * session_not_found}。强制下线会留下短期墓碑，使被下线者下一次 {@code verify} 的 401 带 {@code reason:
+ * terminated}。该用户的其他会话、账号与用户状态都不变。成功、被拒绝、失败都写 {@code uam.admin.write} 日志（只记会话引用，不含会话标识）。
  */
 @Component
 @Profile("!cli")
@@ -44,7 +45,7 @@ public class TerminateSessionUseCase {
 
   private void execute(TerminateSessionCommand command) {
     SelfProtectionRule.checkTerminate(command.target(), command.operator().sessionRef());
-    if (!sessions.terminateByRef(command.target())) {
+    if (!sessions.terminateByRef(command.target(), true)) {
       throw new DomainException(ErrorCode.SESSION_NOT_FOUND, "会话不存在或已结束");
     }
   }

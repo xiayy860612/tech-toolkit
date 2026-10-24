@@ -67,30 +67,34 @@ log "S13 开始（run_id=$run_id）"
 
 echo "== 1. 登录一次后，请求分到全部 Admin Center 与 UAM 实例，100% 已登录（SC-010）"
 sid="$(web_login "$EDGE" "$ADMIN_ACCOUNT" "$ADMIN_PASSWORD")" || { echo "管理员登录失败"; exit 1; }
-nginx_mark="$(log_mark nginx)"
 uamlb_mark="$(log_mark uam-lb)"
 verify_before="$(for i in 1 2 3; do uam_verify_count "uam-$i"; done | tr '\n' ' ')"
 
+# nginx 日志的标记必须紧贴在轮询扫描之前，并在钉住的请求（8091 ~ 8093，也走同一份 nginx 日志、落在各自实例上）发出之前读取计数；
+# 否则每个实例单靠钉住的 10 次就能达标，「无粘滞」断言永远不会失败。
+nginx_mark="$(log_mark nginx)"
 assert "经入口（轮询）连续 30 次访问 /users 全部已登录" "$(sweep "$EDGE" "$sid" /users 30)" "ok=30"
-for i in 1 2 3; do
-  assert "钉在 Admin Center 第 $i 个实例：访问 /users、/sessions 各 5 次全部已登录" \
-    "$(count_ok "$(pin_url "$i")" "$sid" /users 5 /sessions 5)" "ok=10"
-done
-
-# 入口落点：同一个 cookie、同一个来源，应被严格轮询到 3 个实例（没有粘滞）
+# 入口落点：同一个 cookie、同一个来源，应被轮询到 3 个实例（没有粘滞）
 counts="$(upstream_counts nginx "$nginx_mark")"
 for i in 1 2 3; do
   ip="$(container_ip "admin-center-$i" edge)"
   n="$(printf '%s\n' "$counts" | awk -v t="$ip:3000" '$2 == t {s += $1} END {print s + 0}')"
-  # 入口 30 次轮询各 10 次；钉住的 10 次也落在各自实例上，所以每个实例至少 10 次
-  if [ "$n" -ge 10 ]; then
-    assert "入口把请求分给了 admin-center-$i（$ip，共 $n 次）" "yes" "yes"
+  # 30 次轮询理论上各 10 次；入口 nginx 自己的健康检查（每 3 秒一次 /login，同样走轮询池）会插进来，
+  # 所以留出余量，只要求每个实例 >= 8 次。若 nginx 变成粘滞（如 ip_hash / 按 cookie 映射），至少有一个实例会是 0 次，断言即失败。
+  if [ "$n" -ge 8 ]; then
+    assert "入口把请求分给了 admin-center-$i（$ip，30 次轮询中 $n 次，要求 >= 8）" "yes" "yes"
   else
-    assert "入口把请求分给了 admin-center-$i（$ip，共 $n 次）" "no" "yes"
+    assert "入口把请求分给了 admin-center-$i（$ip，30 次轮询中 $n 次，要求 >= 8）" "no" "yes"
   fi
 done
 edge_share="$(printf '%s\n' "$counts" | wc -l | tr -d ' ')"
 assert "上游地址种类 = Admin Center 实例数" "$edge_share" "3"
+
+# 钉住的请求放在入口计数读取之后（它们同样会让 uam-lb 做 verify，下面的 UAM 分布断言仍把它们算在内）
+for i in 1 2 3; do
+  assert "钉在 Admin Center 第 $i 个实例：访问 /users、/sessions 各 5 次全部已登录" \
+    "$(count_ok "$(pin_url "$i")" "$sid" /users 5 /sessions 5)" "ok=10"
+done
 
 # 这些页面每次渲染都会对 UAM 做 verify；uam-lb 把它们分到 3 个 UAM 实例
 verify_after="$(for i in 1 2 3; do uam_verify_count "uam-$i"; done | tr '\n' ' ')"

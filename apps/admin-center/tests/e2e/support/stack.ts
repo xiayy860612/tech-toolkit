@@ -7,6 +7,8 @@ const execFileAsync = promisify(execFile);
 
 const root = path.resolve(__dirname, "../../../../..");
 const bootstrap = path.join(root, "infra/local/scripts/bootstrap.sh");
+/** compose 项目名：显式传 -p，免得开发者 shell 里的 COMPOSE_PROJECT_NAME 盖过编排文件的 name（与 docker-compose.stack.yml 的 name 一致）。 */
+const COMPOSE_PROJECT = "uam-e2e";
 
 /** E2E 栈的入口地址（bootstrap.sh 把 Admin Center 映射到宿主机 3000 端口）。 */
 export const BASE_URL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000";
@@ -25,6 +27,8 @@ export function stopStack(): void {
 export function uamCli(args: string[], stdin?: string): string {
   const compose = [
     "compose",
+    "-p",
+    COMPOSE_PROJECT,
     "-f",
     path.join(root, "infra/local/docker-compose.stack.yml"),
     "--env-file",
@@ -50,6 +54,8 @@ export function uamCli(args: string[], stdin?: string): string {
 export function psql(sql: string): string[] {
   const args = [
     "compose",
+    "-p",
+    COMPOSE_PROJECT,
     "-f",
     path.join(root, "infra/local/docker-compose.stack.yml"),
     "--env-file",
@@ -69,6 +75,8 @@ export function psql(sql: string): string[] {
 export function redisCli(args: string[]): string[] {
   const compose = [
     "compose",
+    "-p",
+    COMPOSE_PROJECT,
     "-f",
     path.join(root, "infra/local/docker-compose.stack.yml"),
     "--env-file",
@@ -85,7 +93,7 @@ export function redisCli(args: string[]): string[] {
 }
 
 /** docker compose 的公共参数（栈文件与 E2E 环境文件）。 */
-const composeBase = () => ["compose", "-f", path.join(root, "infra/local/docker-compose.stack.yml"), "--env-file", path.join(root, "infra/local/e2e.env")];
+const composeBase = () => ["compose", "-p", COMPOSE_PROJECT, "-f", path.join(root, "infra/local/docker-compose.stack.yml"), "--env-file", path.join(root, "infra/local/e2e.env")];
 
 /**
  * 停掉栈里的一个服务（不删容器与数据卷；US11 用它模拟「UAM 暂不可用」）。

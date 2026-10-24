@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import { UamReadError } from "@/components/users/uam-read-error";
 import { UserDetail, UserNotFound } from "@/components/users/user-detail";
-import { getOperator } from "@/lib/session/get-session";
+import { requireOperator } from "@/lib/session/get-session";
 import { getUser, type UserDetail as UserDetailData } from "@/lib/uam/client";
 import { UamError } from "@/lib/uam/errors";
 import { parseUserId } from "@/lib/validation/users-query";
@@ -16,6 +16,8 @@ const LIST = { label: "用户管理", href: "/users" };
  * 状态管理（停用 / 启用）在详情页内；目标是当前登录用户时入口禁用（`isSelf`）。
  * 新建成功后以 `?created=1` 跳转而来，显示一次性提示：只认精确的 `1`，纯展示、不携带数据；选它而不是 cookie，因为最简单且无状态。
  * 不存在（UAM 404 `user_not_found`）或格式非法的 `userId` 显示「用户不存在」；其它读失败显示「服务暂不可用」。
+ * `requireOperator()` 必须是本页第一步（US13，理由见 `users/page.tsx`）；`isSelf` 直接用它返回的操作人，
+ * 不再单独调 `getOperator()`。
  */
 export default async function UserDetailPage({
   params,
@@ -24,12 +26,15 @@ export default async function UserDetailPage({
   params: Promise<{ userId: string }>;
   searchParams: Promise<{ created?: string | string[] }>;
 }) {
+  const operator = await requireOperator();
+  if (!operator) return null; // unverified：外壳显示「服务暂不可用」，本页不渲染任何数据、不调用 UAM
+
   const userId = parseUserId((await params).userId);
   if (!userId) return notFound();
 
   let user: UserDetailData;
   try {
-    user = await getUser(userId);
+    user = await getUser(userId, operator);
   } catch (error) {
     if (!(error instanceof UamError)) throw error;
     if (error.kind === "problem" && error.code === "user_not_found") return notFound();
@@ -44,7 +49,7 @@ export default async function UserDetailPage({
   return (
     <>
       <Breadcrumbs items={[LIST, { label: user.name }]} />
-      <UserDetail user={user} created={(await searchParams).created === "1"} isSelf={(await getOperator())?.userId === user.id} />
+      <UserDetail user={user} created={(await searchParams).created === "1"} isSelf={operator.userId === user.id} />
     </>
   );
 }

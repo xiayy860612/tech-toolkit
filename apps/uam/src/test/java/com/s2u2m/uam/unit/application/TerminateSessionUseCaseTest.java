@@ -130,6 +130,28 @@ class TerminateSessionUseCaseTest {
   }
 
   @Test
+  void anAdministratorTerminationLeavesATombstoneByPassingTheMarkFlag() {
+    Session target = newSession("zhangsan-a");
+    String hash = sessions.byHash.keySet().iterator().next();
+
+    useCase.terminate(command(target.ref()));
+
+    assertThat(sessions.terminatedMarks).containsExactly(true);
+    assertThat(sessions.tombstones).containsExactly(hash);
+  }
+
+  @Test
+  void rejectionsLeaveNoTombstone() {
+    Session own = newSession("ops");
+    operator = new OperatorContext(own.userId(), own.accountId(), own.ref().value());
+
+    rejection(() -> useCase.terminate(command(own.ref())));
+    rejection(() -> useCase.terminate(command(SessionRef.random())));
+
+    assertThat(sessions.tombstones).isEmpty();
+  }
+
+  @Test
   void terminatingTwiceFailsTheSecondTimeWithNotFound() {
     Session target = newSession("zhangsan-a");
     useCase.terminate(command(target.ref()));
@@ -183,7 +205,7 @@ class TerminateSessionUseCaseTest {
     FakeSessionStore broken =
         new FakeSessionStore() {
           @Override
-          public boolean terminateByRef(SessionRef ref) {
+          public boolean terminateByRef(SessionRef ref, boolean markTerminated) {
             throw new IllegalStateException("redis down");
           }
         };

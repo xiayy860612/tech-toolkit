@@ -40,6 +40,31 @@ describe("GET /session/expire", () => {
     expect(setCookie).not.toMatch(/Domain/i);
   });
 
+  it("verify 说被管理员强制下线（reason=terminated）：清除 cookie，303 到 /login?reason=session_terminated", async () => {
+    jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: true, reason: "terminated" });
+    const res = await call();
+    expect(res.status).toBe(303);
+    const location = new URL(res.headers.get("location")!, "http://x");
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("reason")).toBe("session_terminated");
+    expect(res.headers.get("location")).toMatch(/^\/login\?/); // 相对地址
+    expect(res.headers.get("set-cookie")).toMatch(/^asid=;.*Max-Age=0/i);
+  });
+
+  it("被强制下线且带 next：/login?reason=session_terminated&next=<原路径>", async () => {
+    jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: true, reason: "terminated" });
+    const res = await call(`?next=${encodeURIComponent("/users/abc?x=1")}`);
+    const location = new URL(res.headers.get("location")!, "http://x");
+    expect(location.searchParams.get("reason")).toBe("session_terminated");
+    expect(location.searchParams.get("next")).toBe("/users/abc?x=1");
+  });
+
+  it("anonymous 没有 reason（到期 / 退出 / 被取代 / 用户被停用）：仍是 session_ended", async () => {
+    jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: true });
+    const res = await call();
+    expect(new URL(res.headers.get("location")!, "http://x").searchParams.get("reason")).toBe("session_ended");
+  });
+
   it("本来就没有 cookie：直接去 /login，不带「会话已结束」", async () => {
     jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: false });
     const res = await call();

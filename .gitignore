@@ -49,3 +49,4 @@ apps/admin-center/tsconfig.tsbuildinfo
 .env.*
 !.env.example
 !infra/local/e2e.env
+apps/admin-center/.swc/

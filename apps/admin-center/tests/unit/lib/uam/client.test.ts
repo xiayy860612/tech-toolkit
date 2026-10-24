@@ -156,9 +156,51 @@ describe("错误归类", () => {
     expect(error.code).not.toBe("session_invalid");
   });
 
+  it("400 bad_request → problem（不是 misconfigured / 凭据错误），不带字段错误，也不写运维告警", async () => {
+    const spy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    stub.respond("listUsers", { status: 400, body: problemBody(400, "bad_request") });
+    const error = await read().catch((e) => e);
+    expect(error).toBeInstanceOf(UamError);
+    expect(error).toMatchObject({ kind: "problem", status: 400, code: "bad_request" });
+    expect(error.fieldErrors).toBeUndefined();
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it("403 client_forbidden → misconfigured", async () => {
     stub.respond("verifySession", { status: 403, body: problemBody(403, "client_forbidden") });
     await expect(verifySession("s")).rejects.toMatchObject({ kind: "misconfigured", code: "client_forbidden" });
+  });
+
+  it("verify 的 401 session_invalid 带 reason: terminated → UamError.reason 为 terminated（被管理员强制下线）", async () => {
+    stub.respond("verifySession", { status: 401, body: problemBody(401, "session_invalid", { reason: "terminated" }) });
+    await expect(verifySession("s")).rejects.toMatchObject({ kind: "problem", code: "session_invalid", reason: "terminated" });
+  });
+
+  it("verify 的 401 session_invalid 不带 reason → UamError.reason 缺省（到期 / 退出 / 被取代 / 用户被停用）", async () => {
+    stub.respond("verifySession", { status: 401, body: problemBody(401, "session_invalid") });
+    const error = await verifySession("s").catch((e) => e);
+    expect(error).toBeInstanceOf(UamError);
+    expect(error.reason).toBeUndefined();
+  });
+
+  it.each([["expired"], [""], [42], [null], [["terminated"]], ["TERMINATED"]])(
+    "reason 取值 %j 不是字面量 terminated → 忽略（不信任契约之外的值）",
+    async (reason) => {
+      stub.respond("verifySession", { status: 401, body: problemBody(401, "session_invalid", { reason }) });
+      const error = await verifySession("s").catch((e) => e);
+      expect(error).toMatchObject({ kind: "problem", code: "session_invalid" });
+      expect(error.reason).toBeUndefined();
+      stub.violations.length = 0; // 故意构造了契约之外的 reason
+    },
+  );
+
+  it("reason 只对 session_invalid 有意义：其它问题码上出现也不采信", async () => {
+    stub.respond("login", { status: 401, body: problemBody(401, "invalid_credentials", { reason: "terminated" }) });
+    const error = await uamRequest({ method: "POST", path: "/v1/auth/login", body: { accountName: "a", password: "b", clientIp: "203.0.113.1" } }).catch((e) => e);
+    expect(error).toMatchObject({ kind: "problem", code: "invalid_credentials" });
+    expect(error.reason).toBeUndefined();
+    stub.violations.length = 0;
   });
 
   it("401 session_invalid 与业务问题码 → problem，携带 code、字段错误、Retry-After", async () => {
@@ -207,53 +249,68 @@ describe("listUsers / getUser（读用户，T081）", () => {
   it("listUsers：把搜索词映射为 UAM 的 query、页码为 page；返回 UAM 的分页数据", async () => {
     const body = { items: [summary], page: 2, size: 20, total: 21 };
     stub.respond("listUsers", { status: 200, body });
-    await expect(listUsers({ query: "Li", page: 2 })).resolves.toEqual(body);
+    await expect(listUsers({ query: "Li", page: 2 }, operator)).resolves.toEqual(body);
     expect(stub.calls[0].path).toBe("/v1/users");
     expect(stub.calls[0].query.get("query")).toBe("Li");
     expect(stub.calls[0].query.get("page")).toBe("2");
     expect(stub.calls[0].query.has("size")).toBe(false);
   });
 
-  it("listUsers：无参数 / 空搜索词时不带查询参数；带服务密钥，不带 X-Operator-*", async () => {
+  it("listUsers：无参数 / 空搜索词时不带查询参数；带服务密钥与操作人请求头（US13：读操作也要求操作人，便于审计）", async () => {
     stub.respond("listUsers", { status: 200, body: { items: [], page: 1, size: 20, total: 0 } });
-    await listUsers();
-    await listUsers({ query: "" });
+    await listUsers({}, operator);
+    await listUsers({ query: "" }, operator);
     for (const call of stub.calls) {
       expect([...call.query.keys()]).toEqual([]);
       expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
-      expect(call.headers.get("x-operator-user-id")).toBeNull();
+      expect(call.headers.get("x-operator-user-id")).toBe(operator.userId);
+      expect(call.headers.get("x-operator-account-id")).toBe(operator.accountId);
+      expect(call.headers.get("x-operator-session-ref")).toBe(operator.sessionRef);
     }
   });
 
   it("listUsers：size 可指定", async () => {
     stub.respond("listUsers", { status: 200, body: { items: [], page: 1, size: 50, total: 0 } });
-    await listUsers({ size: 50 });
+    await listUsers({ size: 50 }, operator);
     expect(stub.calls[0].query.get("size")).toBe("50");
   });
 
   it("listUsers：UAM 不可用 → UamError(unavailable)", async () => {
     stub.respond("listUsers", { networkError: true });
-    await expect(listUsers()).rejects.toMatchObject({ kind: "unavailable" });
+    await expect(listUsers({}, operator)).rejects.toMatchObject({ kind: "unavailable" });
+  });
+
+  it("listUsers：类型层面不能不带操作人调用（US13：类型系统必须拒绝「页面不先确认会话就读数据」）", async () => {
+    stub.respond("listUsers", { status: 200, body: { items: [], page: 1, size: 20, total: 0 } });
+    // @ts-expect-error 第二个参数（操作人）是必填的
+    await listUsers({});
   });
 
   it("getUser：取详情（含全部账号），路径参数做编码", async () => {
     const body = { ...summary, accounts: [{ id: FIXTURE_IDS.accountId, loginName: "zhangsan", kind: "PASSWORD", status: "ACTIVE", createdAt: "2026-10-01T08:30:00Z" }] };
     delete (body as Record<string, unknown>).accountCount;
     stub.respond("getUser", { status: 200, body });
-    await expect(getUser(FIXTURE_IDS.userId)).resolves.toEqual(body);
+    await expect(getUser(FIXTURE_IDS.userId, operator)).resolves.toEqual(body);
     expect(stub.calls[0].path).toBe(`/v1/users/${FIXTURE_IDS.userId}`);
+    expect(stub.calls[0].headers.get("x-operator-user-id")).toBe(operator.userId);
   });
 
   it("getUser：404 user_not_found → UamError(problem, user_not_found)", async () => {
     stub.respond("getUser", { status: 404, body: problemBody(404, "user_not_found") });
-    await expect(getUser(FIXTURE_IDS.userId)).rejects.toMatchObject({ kind: "problem", status: 404, code: "user_not_found" });
+    await expect(getUser(FIXTURE_IDS.userId, operator)).rejects.toMatchObject({ kind: "problem", status: 404, code: "user_not_found" });
   });
 
   it("getUser：userId 里的特殊字符不能改变请求路径", async () => {
     const spy = jest.spyOn(global, "fetch").mockResolvedValue(new Response(JSON.stringify(problemBody(404, "user_not_found")), { status: 404 }));
-    await getUser("../sessions?x=1").catch(() => undefined);
+    await getUser("../sessions?x=1", operator).catch(() => undefined);
     expect(String(spy.mock.calls[0][0])).toContain("/v1/users/..%2Fsessions%3Fx%3D1");
     spy.mockRestore();
+  });
+
+  it("getUser：类型层面不能不带操作人调用（US13）", async () => {
+    stub.respond("getUser", { status: 404, body: problemBody(404, "user_not_found") });
+    // @ts-expect-error 第二个参数（操作人）是必填的
+    await getUser(FIXTURE_IDS.userId).catch(() => undefined);
   });
 });
 
@@ -270,27 +327,33 @@ describe("listOnlineUsers / listUserSessions（读会话，T093）", () => {
     current: true,
   };
 
-  it("listOnlineUsers：页码映射为 page、size 可指定；返回 UAM 的分页数据；带服务密钥，不带 X-Operator-*", async () => {
+  it("listOnlineUsers：页码映射为 page、size 可指定；返回 UAM 的分页数据；带服务密钥与操作人请求头", async () => {
     const body = { items: [online], page: 2, size: 50, total: 51 };
     stub.respond("listOnlineUsers", { status: 200, body });
-    await expect(listOnlineUsers({ page: 2, size: 50 })).resolves.toEqual(body);
+    await expect(listOnlineUsers({ page: 2, size: 50 }, operator)).resolves.toEqual(body);
     const call = stub.calls[0];
     expect(call.path).toBe("/v1/online-users");
     expect(call.query.get("page")).toBe("2");
     expect(call.query.get("size")).toBe("50");
     expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
-    expect(call.headers.get("x-operator-user-id")).toBeNull();
+    expect(call.headers.get("x-operator-user-id")).toBe(operator.userId);
   });
 
   it("listOnlineUsers：无参数时不带查询参数", async () => {
     stub.respond("listOnlineUsers", { status: 200, body: { items: [], page: 1, size: 20, total: 0 } });
-    await listOnlineUsers();
+    await listOnlineUsers({}, operator);
     expect([...stub.calls[0].query.keys()]).toEqual([]);
   });
 
   it("listOnlineUsers：UAM 不可用 → UamError(unavailable)", async () => {
     stub.respond("listOnlineUsers", { networkError: true });
-    await expect(listOnlineUsers()).rejects.toMatchObject({ kind: "unavailable" });
+    await expect(listOnlineUsers({}, operator)).rejects.toMatchObject({ kind: "unavailable" });
+  });
+
+  it("listOnlineUsers：类型层面不能不带操作人调用（US13）", async () => {
+    stub.respond("listOnlineUsers", { status: 200, body: { items: [], page: 1, size: 20, total: 0 } });
+    // @ts-expect-error 第二个参数（操作人）是必填的
+    await listOnlineUsers({});
   });
 
   it("listUserSessions：带操作人请求头（UAM 据会话引用算 current），返回会话数组", async () => {
@@ -361,6 +424,11 @@ describe("问题码 → 界面文案（与 contracts/web-routes.md §5 一致）
     ["misconfigured", "write", "操作未生效"],
   ] as const)("%s（%s）→ %s", (kind, mode, message) => {
     expect(uamErrorMessage(new UamError(kind, "x"), mode)).toBe(message);
+  });
+
+  it("bad_request 没有专门文案：读提示服务暂不可用，写提示操作未生效（不是输入有误）", () => {
+    expect(uamErrorMessage(problem("bad_request"), "read")).toBe("服务暂不可用，请稍后重试");
+    expect(uamErrorMessage(problem("bad_request"), "write")).toBe("操作未生效");
   });
 
   it("未知问题码按不可用处理", () => {

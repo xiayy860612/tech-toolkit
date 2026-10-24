@@ -89,6 +89,7 @@ class SessionExpiryIT extends IntegrationTestBase {
     assertThat(response.status()).isEqualTo(401);
     assertThat(response.contentType()).startsWith("application/problem+json");
     assertThat(response.json().get("code").asString()).isEqualTo("session_invalid");
+    assertThat(response.json().has("reason")).as("到期不带 reason").isFalse();
   }
 
   private void assertNotOnlineAnywhere() {

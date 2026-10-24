@@ -32,7 +32,8 @@ final class CliArguments {
     for (int i = 0; i < args.size(); i++) {
       String arg = args.get(i);
       if (!arg.startsWith("--")) {
-        throw new UsageException("多余的参数：" + arg);
+        // 不回显：多余的位置参数可能是敲错位置的密码
+        throw new UsageException("多余的参数（出于安全不回显其内容）");
       }
       String name = arg.substring(2);
       String value;

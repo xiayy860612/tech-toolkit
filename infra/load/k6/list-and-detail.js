@@ -48,6 +48,9 @@ const thresholds = {
   // 页面正常展示（含 200 且不是降级页）的比例
   "checks{phase:measure}": ["rate>0.99"],
   "http_req_failed{phase:measure}": ["rate<0.01"],
+  // 到达率压不上去（VU 用尽，迭代被丢弃）时，延迟指标会好看得失真：丢弃任何迭代都算本轮失败。
+  // 注意用 scenario 标签：dropped_iterations 只带 k6 自动打的 scenario 标签，不带场景里自定义的 phase 标签（实测）
+  "dropped_iterations{scenario:measure}": ["count==0"],
 };
 for (const kind of KINDS) thresholds[`http_req_duration{phase:measure,kind:${kind}}`] = ["p(95)<2000"];
 

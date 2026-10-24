@@ -4,7 +4,7 @@ import { fieldReasonMessage } from "@/lib/uam/errors";
 
 /** 规则与 UAM 契约（CreateUserRequest）、spec FR-022 一致；UAM 仍会再校验一次（它是权威）。 */
 const USER_NAME_MAX = 64;
-const PASSWORD_MAX = 256;
+const PASSWORD_MAX = 128; // UAM PasswordPolicy.MAX_LENGTH，按 Unicode 码点计（代理对算一个）
 const ACCOUNT_NAME = /^[A-Za-z0-9_.-]{3,32}$/;
 
 const USER_NAME_REQUIRED = "请填写用户名";
@@ -23,7 +23,7 @@ const createUserSchema = z.object({
   password: z
     .string()
     .min(1, PASSWORD_REQUIRED)
-    .max(PASSWORD_MAX, PASSWORD_TOO_LONG)
+    .refine((s) => Array.from(s).length <= PASSWORD_MAX, PASSWORD_TOO_LONG)
     .refine((s) => s.length >= 10 && /[A-Za-z]/.test(s) && /\d/.test(s), PASSWORD_RULE),
 });
 
@@ -97,7 +97,7 @@ const REASONS: Record<NewUserField, Record<string, string>> = {
     invalid_chars: ACCOUNT_NAME_RULE,
     taken: ACCOUNT_NAME_TAKEN,
   },
-  password: { required: PASSWORD_REQUIRED, too_short: PASSWORD_RULE, too_weak: PASSWORD_RULE },
+  password: { required: PASSWORD_REQUIRED, too_short: PASSWORD_RULE, too_weak: PASSWORD_RULE, too_long: PASSWORD_TOO_LONG },
 };
 
 /** UAM `validation_failed` 的字段错误 → 字段旁文案（不认识的字段忽略，不认识的原因用通用文案）。 */

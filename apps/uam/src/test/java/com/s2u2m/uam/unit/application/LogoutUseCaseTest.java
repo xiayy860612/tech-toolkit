@@ -71,6 +71,18 @@ class LogoutUseCaseTest {
   }
 
   @Test
+  void logoutNeverLeavesATombstoneSoTheLaterVerifyHasNoReason() {
+    Started mine = newSession("alice");
+
+    useCase.logout(mine.token().id());
+
+    assertThat(sessions.terminatedMarks).containsExactly(false);
+    assertThat(sessions.tombstones).isEmpty();
+    assertThatThrownBy(() -> verify.verify(mine.token().id()))
+        .isInstanceOfSatisfying(DomainException.class, e -> assertThat(e.reason()).isEmpty());
+  }
+
+  @Test
   void theSameIdIsInvalidAfterLogout() {
     Started mine = newSession("alice");
     assertThat(verify.verify(mine.token().id()).ref()).isEqualTo(mine.session().ref());

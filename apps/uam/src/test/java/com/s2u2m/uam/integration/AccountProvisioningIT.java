@@ -15,7 +15,10 @@ import com.s2u2m.uam.domain.port.CredentialRepository;
 import com.s2u2m.uam.domain.port.PasswordHasher;
 import com.s2u2m.uam.domain.port.TransactionRunner;
 import com.s2u2m.uam.domain.port.UserRepository;
+import com.s2u2m.uam.domain.port.UserStatusLock;
 import com.s2u2m.uam.support.IntegrationTestBase;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -37,6 +40,7 @@ class AccountProvisioningIT extends IntegrationTestBase {
   @Autowired CredentialRepository credentials;
   @Autowired PasswordHasher hasher;
   @Autowired TransactionRunner tx;
+  @Autowired UserStatusLock statusLock;
   @Autowired Clock clock;
   @Autowired AccountProvisioningService service;
 
@@ -74,10 +78,16 @@ class AccountProvisioningIT extends IntegrationTestBase {
           public void updatePasswordHash(UUID accountId, String passwordHash) {
             credentials.updatePasswordHash(accountId, passwordHash);
           }
+
+          @Override
+          public boolean upgradePasswordHash(
+              UUID accountId, String expectedHash, String passwordHash) {
+            return credentials.upgradePasswordHash(accountId, expectedHash, passwordHash);
+          }
         };
     AccountProvisioningService broken =
         new AccountProvisioningService(
-            users, accounts, failing, hasher, new PasswordPolicy(10), tx, clock);
+            users, accounts, failing, hasher, new PasswordPolicy(10), tx, statusLock, clock);
 
     assertThatThrownBy(() -> broken.createUserWithAccount("张三", "zhangsan", PASSWORD))
         .isInstanceOf(IllegalStateException.class);
@@ -104,10 +114,16 @@ class AccountProvisioningIT extends IntegrationTestBase {
 
           @Override
           public void updatePasswordHash(UUID accountId, String passwordHash) {}
+
+          @Override
+          public boolean upgradePasswordHash(
+              UUID accountId, String expectedHash, String passwordHash) {
+            return false;
+          }
         };
     AccountProvisioningService broken =
         new AccountProvisioningService(
-            users, accounts, failing, hasher, new PasswordPolicy(10), tx, clock);
+            users, accounts, failing, hasher, new PasswordPolicy(10), tx, statusLock, clock);
 
     assertThatThrownBy(() -> broken.addAccount(first.userId(), "zhangsan.2", PASSWORD))
         .isInstanceOf(IllegalStateException.class);
@@ -161,6 +177,63 @@ class AccountProvisioningIT extends IntegrationTestBase {
 
     assertThat(winners).isEqualTo(1);
     assertThat(rows("app_user")).as("失败的并发请求不留半成品用户").isEqualTo(1);
+    assertThat(rows("account")).isEqualTo(1);
+    assertThat(rows("credential")).isEqualTo(1);
+  }
+
+  /** 每次 {@code count()} 读到结果之后再睡一会儿：把「读到 0 → 插入」之间的窗口撑开，让并发的 init-admin 必然交错。 */
+  private UserRepository slowCount(long millis) {
+    return (UserRepository)
+        Proxy.newProxyInstance(
+            UserRepository.class.getClassLoader(),
+            new Class<?>[] {UserRepository.class},
+            (proxy, method, args) -> {
+              try {
+                Object result = method.invoke(users, args);
+                if (method.getName().equals("count")) {
+                  Thread.sleep(millis);
+                }
+                return result;
+              } catch (InvocationTargetException e) {
+                throw e.getCause();
+              }
+            });
+  }
+
+  @Test
+  void concurrentInitialUsersCreateExactlyOneUser() throws Exception {
+    AccountProvisioningService racing =
+        new AccountProvisioningService(
+            slowCount(300),
+            accounts,
+            credentials,
+            hasher,
+            new PasswordPolicy(10),
+            tx,
+            statusLock,
+            clock);
+    CountDownLatch gate = new CountDownLatch(1);
+    ExecutorService pool = Executors.newFixedThreadPool(2);
+    List<Future<Optional<Provisioned>>> results = new ArrayList<>();
+    for (String name : List.of("admin-a", "admin-b")) {
+      results.add(
+          pool.submit(
+              () -> {
+                gate.await();
+                return racing.createInitialUserWithAccount("系统管理员", name, PASSWORD);
+              }));
+    }
+    gate.countDown();
+    long created = 0;
+    for (Future<Optional<Provisioned>> result : results) {
+      if (result.get().isPresent()) {
+        created++;
+      }
+    }
+    pool.shutdown();
+
+    assertThat(created).isEqualTo(1);
+    assertThat(rows("app_user")).isEqualTo(1);
     assertThat(rows("account")).isEqualTo(1);
     assertThat(rows("credential")).isEqualTo(1);
   }

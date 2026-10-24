@@ -1,7 +1,8 @@
 /**
  * @jest-environment node
  */
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import {
   createUamStub,
   FIXTURE_IDS,
@@ -12,6 +13,11 @@ import {
 } from "../../../support/uam-stub";
 
 jest.mock("next/headers", () => ({ cookies: jest.fn(), headers: jest.fn().mockRejectedValue(new Error("no scope")) }));
+jest.mock("next/navigation", () => ({
+  redirect: jest.fn((to: string) => {
+    throw new Error(`NEXT_REDIRECT:${to}`);
+  }),
+}));
 // 测试环境里的 React.cache 不做去重（那是 RSC 请求作用域才有的行为）：换成按调用记忆的替身，
 // 以此断言 getSession 确实被 cache() 包裹、同一请求内只 verify 一次；每个用例前清空记忆，模拟新请求。
 const mockCacheResets: Array<() => void> = [];
@@ -35,19 +41,30 @@ function setCookie(value: string | undefined) {
   } as never);
 }
 
-type State = { status: string; hadCookie?: boolean; session?: { user: { name: string } } };
+function setRequestPath(path?: string) {
+  jest.mocked(headers).mockResolvedValue(new Headers(path ? { "x-next-path": path } : {}) as never);
+}
+
+type State = { status: string; hadCookie?: boolean; reason?: string; session?: { user: { name: string } } };
+type Operator = { userId: string; accountId: string; sessionRef: string };
 let getSession: () => Promise<State>;
-let getOperator: () => Promise<{ userId: string; accountId: string; sessionRef: string } | null>;
+let getOperator: () => Promise<Operator | null>;
+let anonymousRedirectTarget: (hadCookie: boolean) => Promise<string>;
+let requireOperator: () => Promise<Operator | null>;
 beforeAll(async () => {
   const mod = await import("@/lib/session/get-session");
   getSession = mod.getSession as unknown as typeof getSession;
   getOperator = mod.getOperator;
+  anonymousRedirectTarget = mod.anonymousRedirectTarget;
+  requireOperator = mod.requireOperator as unknown as typeof requireOperator;
 });
 
 beforeAll(() => stub.listen());
 afterAll(() => stub.close());
 beforeEach(() => {
   mockCacheResets.forEach((reset) => reset());
+  jest.mocked(headers).mockRejectedValue(new Error("no scope"));
+  jest.mocked(redirect).mockClear();
   process.env.UAM_BASE_URL = UAM_STUB_BASE_URL;
   process.env.UAM_SERVICE_KEY = UAM_STUB_SERVICE_KEY;
   process.env.UAM_TIMEOUT_MS = "100";
@@ -81,6 +98,21 @@ describe("getSession 三态", () => {
     expect(await getSession()).toEqual({ status: "anonymous", hadCookie: true });
   });
 
+  it("401 session_invalid 带 reason: terminated → anonymous 且带 reason（被管理员强制下线）", async () => {
+    setCookie("killed");
+    stub.respond("verifySession", { status: 401, body: problemBody(401, "session_invalid", { reason: "terminated" }) });
+    expect(await getSession()).toEqual({ status: "anonymous", hadCookie: true, reason: "terminated" });
+  });
+
+  it("401 session_invalid 带契约之外的 reason → 忽略，状态里没有 reason", async () => {
+    setCookie("stale");
+    stub.respond("verifySession", { status: 401, body: problemBody(401, "session_invalid", { reason: "whatever" }) });
+    const state = (await getSession()) as { reason?: string };
+    expect(state).toEqual({ status: "anonymous", hadCookie: true });
+    expect("reason" in state).toBe(false);
+    stub.violations.length = 0; // 故意构造了契约之外的 reason
+  });
+
   it("超时 → unverified", async () => {
     setCookie("sid");
     stub.respond("verifySession", { status: 200, body: verifyResponseBody(), delayMs: 500 });
@@ -92,6 +124,12 @@ describe("getSession 三态", () => {
     stub.respond("verifySession", { status: 503 });
     expect(await getSession()).toEqual({ status: "unverified" });
     stub.violations.length = 0; // 契约没声明 503
+  });
+
+  it("400 bad_request（意外拒绝，不是会话结论）→ unverified：保留 cookie，不当作 anonymous", async () => {
+    setCookie("sid");
+    stub.respond("verifySession", { status: 400, body: problemBody(400, "bad_request") });
+    expect(await getSession()).toEqual({ status: "unverified" });
   });
 
   it("连接失败 → unverified", async () => {
@@ -143,5 +181,58 @@ describe("getOperator", () => {
     setCookie("sid");
     stub.respond("verifySession", { status: 200, body: verifyResponseBody(), delayMs: 500 });
     expect(await getOperator()).toBeNull();
+  });
+});
+
+describe("anonymousRedirectTarget（(shell)/layout.tsx 与 requireOperator 共用）", () => {
+  it("没带过 cookie → /login，带安全的 next", async () => {
+    setRequestPath("/sessions");
+    expect(await anonymousRedirectTarget(false)).toBe(`/login?next=${encodeURIComponent("/sessions")}`);
+  });
+
+  it("带过 cookie → /session/expire，带安全的 next", async () => {
+    setRequestPath("/users/abc?x=1");
+    expect(await anonymousRedirectTarget(true)).toBe(`/session/expire?next=${encodeURIComponent("/users/abc?x=1")}`);
+  });
+
+  it("原路径缺失或不安全：不带 next", async () => {
+    setRequestPath();
+    expect(await anonymousRedirectTarget(false)).toBe("/login");
+    setRequestPath("//evil.example");
+    expect(await anonymousRedirectTarget(true)).toBe("/session/expire");
+  });
+});
+
+describe("requireOperator（US13：页面级会话守卫，RSC 局部渲染可能跳过外壳布局，见 CVE 复现）", () => {
+  it("authenticated → 操作人（用户、账号、会话引用）", async () => {
+    setCookie("sid");
+    stub.respond("verifySession", { status: 200, body: verifyResponseBody() });
+    expect(await requireOperator()).toEqual({
+      userId: FIXTURE_IDS.userId,
+      accountId: FIXTURE_IDS.accountId,
+      sessionRef: FIXTURE_IDS.sessionRef,
+    });
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("unverified → null，不跳转、不暴露任何数据", async () => {
+    setCookie("sid");
+    stub.respond("verifySession", { status: 200, body: verifyResponseBody(), delayMs: 500 });
+    expect(await requireOperator()).toBeNull();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("anonymous 没有 cookie → 跳转 /login?next=<当前请求路径>，全程不调用 UAM", async () => {
+    setCookie(undefined);
+    setRequestPath("/users");
+    await expect(requireOperator()).rejects.toThrow(`NEXT_REDIRECT:/login?next=${encodeURIComponent("/users")}`);
+    expect(stub.calls).toHaveLength(0);
+  });
+
+  it("anonymous 带过失效 cookie → 跳转 /session/expire?next=<当前请求路径>", async () => {
+    setCookie("stale");
+    stub.respond("verifySession", { status: 401, body: problemBody(401, "session_invalid") });
+    setRequestPath("/sessions/abc");
+    await expect(requireOperator()).rejects.toThrow(`NEXT_REDIRECT:/session/expire?next=${encodeURIComponent("/sessions/abc")}`);
   });
 });

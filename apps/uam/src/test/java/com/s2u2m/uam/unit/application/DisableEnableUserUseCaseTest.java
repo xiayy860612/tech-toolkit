@@ -165,6 +165,7 @@ class DisableEnableUserUseCaseTest {
         .containsExactlyInAnyOrder(
             first.id(), second.id(), accounts.findByUserId(target.id()).get(2).id());
     assertThat(sessions.byHash.values()).doesNotContain(s1, s2);
+    assertThat(sessions.tombstones).as("停用不留强制下线墓碑").isEmpty();
   }
 
   @Test

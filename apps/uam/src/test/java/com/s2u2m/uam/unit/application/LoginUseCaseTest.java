@@ -18,6 +18,7 @@ import com.s2u2m.uam.domain.model.User;
 import com.s2u2m.uam.domain.model.UserStatus;
 import com.s2u2m.uam.domain.policy.LoginThrottlePolicy;
 import com.s2u2m.uam.domain.policy.SessionPolicy;
+import com.s2u2m.uam.domain.port.AccountRepository;
 import com.s2u2m.uam.support.Fakes.FakeAccounts;
 import com.s2u2m.uam.support.Fakes.FakeClock;
 import com.s2u2m.uam.support.Fakes.FakeCredentials;
@@ -161,6 +162,51 @@ class LoginUseCaseTest {
   }
 
   @Test
+  void accountNamesWithNulOrLoneSurrogatesNeverReachTheRepositoryAndFailLikeAnUnknownAccount() {
+    AccountRepository guarded = org.mockito.Mockito.mock(AccountRepository.class);
+    LoginUseCase guardedUseCase =
+        new LoginUseCase(
+            users,
+            guarded,
+            credentials,
+            hasher,
+            sessions,
+            throttle,
+            throttlePolicy,
+            sessionPolicy,
+            clock);
+
+    for (String name : new String[] {"a\u0000b", "\u0000", "a\uD800b", "a\uDC00", "alice\uD83D"}) {
+      hasher.comparedHashes.clear();
+      LoginCommand command = login(name, PASSWORD);
+
+      assertThatThrownBy(() -> guardedUseCase.login(command))
+          .isInstanceOfSatisfying(
+              DomainException.class,
+              e -> {
+                assertThat(e.errorCode()).isEqualTo(ErrorCode.INVALID_CREDENTIALS);
+                assertThat(e.getMessage()).isEqualTo("账号名或密码错误");
+              });
+      assertThat(hasher.comparedHashes).containsExactly(FakePasswordHasher.DUMMY);
+      assertThat(throttle.failures.get(throttlePolicy.subject(LoginName.of(name), IP)))
+          .isEqualTo(1);
+    }
+    org.mockito.Mockito.verifyNoInteractions(guarded);
+    assertThat(sessions.byHash).isEmpty();
+  }
+
+  @Test
+  void unsafeAccountNamesAreStillThrottled() {
+    for (int i = 0; i < 5; i++) {
+      assertInvalidCredentials(login("a\u0000b", PASSWORD));
+    }
+
+    assertThatThrownBy(() -> useCase.login(login("a\u0000b", PASSWORD)))
+        .isInstanceOfSatisfying(
+            DomainException.class, e -> assertThat(e.errorCode()).isEqualTo(ErrorCode.THROTTLED));
+  }
+
+  @Test
   void wrongPasswordIsInvalidCredentialsAndComparesTheRealHash() {
     assertInvalidCredentials(login("alice", "Wrong-password-1"));
 
@@ -238,6 +284,8 @@ class LoginUseCaseTest {
 
     assertThat(racing.byHash).isEmpty();
     assertThat(racing.terminated).hasSize(1);
+    assertThat(racing.terminatedMarks).as("登录与停用竞态的回滚不留墓碑").containsExactly(false);
+    assertThat(racing.tombstones).isEmpty();
     String subject = throttlePolicy.subject(LoginName.of("alice"), IP);
     assertThat(throttle.failures.get(subject)).isEqualTo(1);
   }
@@ -302,6 +350,36 @@ class LoginUseCaseTest {
 
     assertThat(credentials.hashes.get(account.id())).isEqualTo("fake$" + PASSWORD);
     assertThat(hasher.hashCalls).isEqualTo(2); // 造数一次 + 升级一次
+  }
+
+  @Test
+  void aPasswordChangedBetweenVerifyAndUpgradeIsNotOverwrittenByTheUpgrade() {
+    FakePasswordHasher racingHasher =
+        new FakePasswordHasher() {
+          @Override
+          public String hash(String rawPassword) {
+            // 升级用的新哈希算出来之前，另一个请求已经改了密码
+            credentials.hashes.put(account.id(), "fake$Changed-concurrently-9");
+            return super.hash(rawPassword);
+          }
+        };
+    racingHasher.upgradeNeeded = true;
+    LoginUseCase racing =
+        new LoginUseCase(
+            users,
+            accounts,
+            credentials,
+            racingHasher,
+            sessions,
+            throttle,
+            throttlePolicy,
+            sessionPolicy,
+            clock);
+
+    LoginResult result = racing.login(login("alice", PASSWORD));
+
+    assertThat(result.session().accountId()).isEqualTo(account.id());
+    assertThat(credentials.hashes.get(account.id())).isEqualTo("fake$Changed-concurrently-9");
   }
 
   @Test

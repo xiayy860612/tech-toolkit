@@ -167,8 +167,8 @@ describe("createUser 动作：输入校验（不调用 UAM，字段旁给出原�
   });
 
   it("超长密码在本地拒绝", async () => {
-    const state = await createUser({}, form({ password: "a1".repeat(129) }));
-    expect(state.fieldErrors?.password).toMatch(/256/);
+    const state = await createUser({}, form({ password: `${"a1".repeat(64)}x` }));
+    expect(state.fieldErrors?.password).toBe("密码最长 128 个字符");
     expect(stub.calls).toHaveLength(0);
   });
 
@@ -282,12 +282,14 @@ describe("createUser 动作：UAM 的结论", () => {
     expect(console.error).toHaveBeenCalledTimes(1);
   });
 
-  it("其它业务问题码（operator_required 或未知）：「操作未生效」，保持原幂等键", async () => {
-    for (const code of ["operator_required", "brand_new_code"]) {
+  it("其它业务问题码（operator_required、bad_request 或未知）：「操作未生效」，保持原幂等键，不回显密码", async () => {
+    for (const code of ["operator_required", "bad_request", "brand_new_code"]) {
       stub.respond("createUser", { status: 400, body: problemBody(400, code) });
       const state = await createUser({}, form());
       expect(state.formError).toBe("操作未生效");
       expect(state.idempotencyKey).toBe(KEY);
+      expect(state.fieldErrors).toBeUndefined();
+      expect(JSON.stringify(state)).not.toContain(PASSWORD);
     }
   });
 

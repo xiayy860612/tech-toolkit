@@ -82,6 +82,34 @@ public final class OpenApiContract {
     return operations;
   }
 
+  /** 契约里某个接口声明的全部响应状态码（来自 {@code responses} 的键）。 */
+  public static Set<Integer> declaredStatuses(String operationId) {
+    Set<Integer> statuses = new HashSet<>();
+    DOCUMENT
+        .get("paths")
+        .propertyNames()
+        .forEach(
+            path ->
+                DOCUMENT
+                    .get("paths")
+                    .get(path)
+                    .propertyNames()
+                    .forEach(
+                        method -> {
+                          JsonNode operation = DOCUMENT.get("paths").get(path).get(method);
+                          if (operation.isObject()
+                              && operation.has("operationId")
+                              && operation.get("operationId").asString().equals(operationId)) {
+                            operation
+                                .get("responses")
+                                .propertyNames()
+                                .forEach(code -> statuses.add(Integer.parseInt(code)));
+                          }
+                        }));
+    assertThat(statuses).as("契约里没有接口 %s", operationId).isNotEmpty();
+    return statuses;
+  }
+
   /** 校验 {@code instance} 符合 {@code components.schemas.<schemaName>}，且没有契约之外的字段。 */
   public static void assertConforms(String schemaName, JsonNode instance) {
     ObjectNode wrapper = JSON.createObjectNode();

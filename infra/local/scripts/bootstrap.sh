@@ -12,7 +12,8 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-compose=(docker compose -f "$here/../docker-compose.stack.yml" --env-file "$here/../e2e.env")
+# 显式 -p：开发者 shell 里的 COMPOSE_PROJECT_NAME 会盖过编排文件的 name，`down -v` 可能误删别的项目（与 docker-compose.stack.yml 的 name 保持一致）
+compose=(docker compose -p uam-e2e -f "$here/../docker-compose.stack.yml" --env-file "$here/../e2e.env")
 # shellcheck source=service-key-lib.sh
 source "$here/service-key-lib.sh"
 uam_compose() { "${compose[@]}" "$@"; }

@@ -66,7 +66,14 @@ class CreateUserUseCaseTest {
   void setUp() {
     provisioning =
         new AccountProvisioningService(
-            users, accounts, credentials, hasher, new PasswordPolicy(10), tx, new FakeClock(T0));
+            users,
+            accounts,
+            credentials,
+            hasher,
+            new PasswordPolicy(10),
+            tx,
+            () -> {},
+            new FakeClock(T0));
     getUser = new GetUserUseCase(users, accounts);
     useCase = useCase(Duration.ofSeconds(2));
   }
@@ -266,6 +273,76 @@ class CreateUserUseCaseTest {
     assertThat(store.holds(CLIENT, KEY)).isFalse();
     assertThat(users.byId).isEmpty();
     assertThat(accounts.byId).isEmpty();
+  }
+
+  /** 完成快照时总是失败的幂等存储。 */
+  private static final class CompleteFailingStore extends FakeIdempotencyStore {
+    @Override
+    public void complete(String scope, String key, String fingerprint, String response) {
+      throw new IllegalStateException("模拟 Redis 在提交后不可用");
+    }
+  }
+
+  @Test
+  void aFailureToSaveTheSnapshotAfterCommitNeverReleasesTheKeyOrFailsTheRequest() {
+    CompleteFailingStore failing = new CompleteFailingStore();
+    CreateUserUseCase failingUseCase =
+        new CreateUserUseCase(
+            provisioning,
+            getUser,
+            failing,
+            writeLog,
+            json,
+            Duration.ofMillis(20),
+            Duration.ofMillis(5));
+
+    GetUserUseCase.Result result = failingUseCase.create(command());
+
+    assertThat(result.user().name()).isEqualTo("张三");
+    assertThat(users.byId).hasSize(1);
+    assertThat(failing.released).as("提交之后不能释放占位").isEmpty();
+    assertThat(failing.holds(CLIENT, KEY)).as("进行中标记留给 TTL 过期").isTrue();
+    WriteOperationEvent event = onlyEvent();
+    assertThat(event.outcome()).isEqualTo(Outcome.SUCCESS);
+    assertThat(event.targetId()).isEqualTo(result.user().id().toString());
+
+    // 同键重试：仍被占位挡住，绝不会再建第二个用户
+    assertThatThrownBy(() -> failingUseCase.create(command()))
+        .isInstanceOfSatisfying(
+            DomainException.class,
+            e -> assertThat(e.errorCode()).isEqualTo(ErrorCode.IDEMPOTENCY_IN_PROGRESS));
+    assertThat(users.byId).hasSize(1);
+  }
+
+  @Test
+  void aFailureToReadTheUserBackAfterCommitFallsBackToTheCreatedEntities() {
+    GetUserUseCase unreadable =
+        new GetUserUseCase(users, accounts) {
+          @Override
+          public Result get(UUID userId) {
+            throw new IllegalStateException("模拟提交后读取失败");
+          }
+        };
+    CreateUserUseCase readFailing =
+        new CreateUserUseCase(
+            provisioning,
+            unreadable,
+            store,
+            writeLog,
+            json,
+            Duration.ofSeconds(2),
+            Duration.ofMillis(5));
+
+    GetUserUseCase.Result result = readFailing.create(command());
+
+    assertThat(result.user()).isEqualTo(users.byId.values().iterator().next());
+    assertThat(result.accounts()).containsExactlyElementsOf(accounts.byId.values());
+    assertThat(store.released).isEmpty();
+    assertThat(store.completed).hasSize(1);
+    assertThat(onlyEvent().outcome()).isEqualTo(Outcome.SUCCESS);
+    // 同键重放得到同一个用户
+    assertThat(readFailing.create(command()).user().id()).isEqualTo(result.user().id());
+    assertThat(users.byId).hasSize(1);
   }
 
   @Test

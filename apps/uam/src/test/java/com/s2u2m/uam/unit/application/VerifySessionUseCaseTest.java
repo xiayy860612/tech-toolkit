@@ -103,6 +103,47 @@ class VerifySessionUseCaseTest {
     assertSessionInvalid(sessionId);
   }
 
+  private void assertSessionInvalidWithReason(String id, java.util.Optional<String> reason) {
+    assertThatThrownBy(() -> useCase.verify(id))
+        .isInstanceOfSatisfying(
+            DomainException.class,
+            e -> {
+              assertThat(e.errorCode()).isEqualTo(ErrorCode.SESSION_INVALID);
+              assertThat(e.reason()).isEqualTo(reason);
+            });
+  }
+
+  @Test
+  void aSessionForceTerminatedByAnAdministratorIsInvalidWithReasonTerminated() {
+    sessions.terminateByRef(stored.ref(), true);
+
+    assertSessionInvalidWithReason(sessionId, java.util.Optional.of("terminated"));
+  }
+
+  @Test
+  void aSessionEndedInAnyOtherWayIsInvalidWithoutAReason() {
+    sessions.terminateByRef(stored.ref(), false); // 退出、停用、登录回滚：不留墓碑
+
+    assertSessionInvalidWithReason(sessionId, java.util.Optional.empty());
+    assertSessionInvalidWithReason(SessionToken.generate().id(), java.util.Optional.empty());
+    assertSessionInvalidWithReason(null, java.util.Optional.empty());
+    assertSessionInvalidWithReason("x".repeat(129), java.util.Optional.empty());
+  }
+
+  @Test
+  void anExpiredSessionWithoutATombstoneHasNoReason() {
+    clock.advance(Duration.ofMinutes(31));
+
+    assertSessionInvalidWithReason(sessionId, java.util.Optional.empty());
+  }
+
+  @Test
+  void aLiveSessionIsNeverAffectedByAnUnrelatedTombstone() {
+    sessions.tombstones.add(SessionToken.generate().hash());
+
+    assertThat(useCase.verify(sessionId).ref()).isEqualTo(stored.ref());
+  }
+
   @Test
   void noTouchWithinTheTouchInterval() {
     clock.advance(Duration.ofSeconds(60));

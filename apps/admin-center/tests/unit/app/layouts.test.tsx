@@ -13,7 +13,10 @@ jest.mock("next/navigation", () => ({
     throw new Error(`NEXT_REDIRECT:${to}`);
   }),
 }));
-jest.mock("@/lib/session/get-session", () => ({ getSession: jest.fn() }));
+jest.mock("@/lib/session/get-session", () => ({
+  ...jest.requireActual("@/lib/session/get-session"),
+  getSession: jest.fn(),
+}));
 
 function sidebarCookie(value?: string) {
   jest.mocked(cookies).mockResolvedValue({

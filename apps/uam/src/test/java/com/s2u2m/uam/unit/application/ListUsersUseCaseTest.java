@@ -86,6 +86,24 @@ class ListUsersUseCaseTest {
   }
 
   @Test
+  void aQueryWithNulOrAnUnpairedSurrogateIsInvalidChars() {
+    for (String bad : List.of("a\u0000b", "\u0000", "ab\uD800", "\uDC00ab")) {
+      assertThatThrownBy(() -> useCase.list(1, 20, bad))
+          .isInstanceOfSatisfying(
+              DomainException.class,
+              e -> {
+                assertThat(e.errorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+                assertThat(e.fieldErrors())
+                    .extracting(f -> f.field() + ":" + f.reason())
+                    .containsExactly("query:invalid_chars");
+              });
+    }
+    assertThat(users.lastQuery).isEqualTo("<never called>");
+    useCase.list(1, 20, "emoji\uD83D\uDE00");
+    assertThat(users.lastQuery).isEqualTo("emoji\uD83D\uDE00");
+  }
+
+  @Test
   void sizeZeroAndNegativePageAreRejected() {
     assertThatThrownBy(() -> useCase.list(-1, 20, null)).isInstanceOf(DomainException.class);
     assertThatThrownBy(() -> useCase.list(1, 0, null)).isInstanceOf(DomainException.class);

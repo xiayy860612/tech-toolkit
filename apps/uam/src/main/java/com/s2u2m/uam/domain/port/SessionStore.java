@@ -21,10 +21,16 @@ public interface SessionStore {
   Optional<Session> touch(String tokenHash, Session touched);
 
   /**
-   * 按会话引用终止（强制下线、登录后复查回滚）：一次清理 {@code sess} / {@code sref} / {@code acct} 指针（仍指向它时）/ {@code
+   * 按会话引用终止（强制下线、退出、登录后复查回滚）：一次清理 {@code sess} / {@code sref} / {@code acct} 指针（仍指向它时）/ {@code
    * online}，随后 {@code WAIT 1}。只动这一条会话；会话本来就不存在返回 {@code false}。
+   *
+   * @param markTerminated 仅管理员强制下线传 {@code true}：在同一次原子操作里留下短期墓碑，之后 {@link #wasTerminated}
+   *     在通知窗口内为真；退出、 登录回滚等传 {@code false}，不留墓碑
    */
-  boolean terminateByRef(SessionRef ref);
+  boolean terminateByRef(SessionRef ref, boolean markTerminated);
+
+  /** 该会话（以 {@code SHA-256(会话标识)} 表示）是否在通知窗口内被管理员强制下线；墓碑到期后为 {@code false}。 */
+  boolean wasTerminated(String tokenHash);
 
   /**
    * 终止这些账号当前的会话（用户停用时传入其全部账号）：一次清理 {@code sess} / {@code sref} / {@code acct} 指针 / {@code online}，

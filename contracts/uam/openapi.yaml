@@ -15,6 +15,10 @@ info:
       只用于自我保护规则（不能停用自己、不能强制下线自己的会话、标注 `current`）和写操作日志；它不是认证，也不用于授权。
       写操作必须带操作人请求头，缺失返回 400 `operator_required`；读操作可选。
 
+    **错误状态码约定（一个错误码对应一个状态码）**：`validation_failed` 一律 HTTP 422（请求能解析，但字段或查询参数不符合规则，带 `errors`）；
+    请求无法解析或类型不符（JSON 格式错误 / 为空、JSON 类型不对、路径变量或查询参数类型不符）一律 HTTP 400 `bad_request`；
+    `operator_required` 仍为 400（缺失或不合法的 `X-Operator-*` 头）。
+
     每个客户端有独立的名称、至多两把同时有效的密钥（用于不停机轮换）和权限。未被授予断言权限的客户端调用登录、校验会话、退出、
     修改密码与所有写接口返回 403 `client_forbidden`，只读查询可用。
 
@@ -58,7 +62,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/LoginResponse" }
-        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
         "401":
           description: "`invalid_credentials`（账号名或密码错误），或 `client_unauthenticated`（服务密钥缺失 / 无效）"
           content:
@@ -73,7 +78,8 @@ paths:
       summary: 校验会话标识并取得会话数据
       description: |
         会话标识只作为本调用的输入。有效则按需续期（距上次写入超过 60 秒才写）并返回会话数据。
-        会话无效、过期、被取代或被终止，一律 401 `session_invalid`。
+        会话无效、过期、被取代或被终止，一律 401 `session_invalid`；仅当该会话在通知窗口内被管理员经
+        `DELETE /v1/sessions/{sessionRef}` 强制终止时，401 body 额外带 `reason: terminated`，其余情形不带 `reason`。
       requestBody:
         required: true
         content:
@@ -86,8 +92,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VerifyResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "401":
-          description: "`session_invalid`（会话无效、过期、被取代或被终止），或 `client_unauthenticated`（服务密钥缺失 / 无效）"
+          description: "`session_invalid`（会话无效、过期、被取代或被终止；被管理员强制终止且仍在通知窗口内时带 `reason: terminated`），或 `client_unauthenticated`（服务密钥缺失 / 无效）"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -104,6 +111,7 @@ paths:
             schema: { $ref: "#/components/schemas/VerifyRequest" }
       responses:
         "403": { $ref: "#/components/responses/ClientForbidden" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "204": { description: 会话已终止（或本来就不存在） }
 
@@ -112,6 +120,7 @@ paths:
       tags: [users]
       operationId: listUsers
       summary: 分页列出所有用户（含搜索）
+      description: 读操作，操作人请求头可选；客户端（Admin Center）带上用于审计，UAM 不据此做任何判断。
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Size"
@@ -119,13 +128,18 @@ paths:
           in: query
           description: 按用户名或账号名搜索，大小写不敏感、包含匹配；去首尾空白后为空则视为不搜索
           schema: { type: string, maxLength: 64 }
+        - $ref: "#/components/parameters/OptionalOperatorUserId"
+        - $ref: "#/components/parameters/OptionalOperatorAccountId"
+        - $ref: "#/components/parameters/OptionalOperatorSessionRef"
       responses:
+        "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "200":
           description: 用户分页
           content:
             application/json:
               schema: { $ref: "#/components/schemas/UserPage" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
     post:
       tags: [users]
       operationId: createUser
@@ -146,7 +160,7 @@ paths:
       responses:
         "403": { $ref: "#/components/responses/ClientForbidden" }
         "401": { $ref: "#/components/responses/ClientUnauthenticated" }
-        "400": { $ref: "#/components/responses/OperatorRequired" }
+        "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
         "201":
           description: 已创建
           content:
@@ -164,9 +178,14 @@ paths:
       tags: [users]
       operationId: getUser
       summary: 用户详情及其关联的全部账号
+      description: 读操作，操作人请求头可选；客户端（Admin Center）带上用于审计，UAM 不据此做任何判断。
       parameters:
         - $ref: "#/components/parameters/UserId"
+        - $ref: "#/components/parameters/OptionalOperatorUserId"
+        - $ref: "#/components/parameters/OptionalOperatorAccountId"
+        - $ref: "#/components/parameters/OptionalOperatorSessionRef"
       responses:
+        "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "200":
           description: 用户详情
@@ -191,7 +210,7 @@ paths:
       responses:
         "403": { $ref: "#/components/responses/ClientForbidden" }
         "401": { $ref: "#/components/responses/ClientUnauthenticated" }
-        "400": { $ref: "#/components/responses/OperatorRequired" }
+        "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
         "200":
           description: 已停用（或本来就是已停用）
           content:
@@ -218,7 +237,7 @@ paths:
       responses:
         "403": { $ref: "#/components/responses/ClientForbidden" }
         "401": { $ref: "#/components/responses/ClientUnauthenticated" }
-        "400": { $ref: "#/components/responses/OperatorRequired" }
+        "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
         "200":
           description: 已启用（或本来就是正常）
           content:
@@ -231,16 +250,22 @@ paths:
       tags: [sessions]
       operationId: listOnlineUsers
       summary: 分页列出当前在线用户（至少有一个有效会话）
+      description: 读操作，操作人请求头可选；客户端（Admin Center）带上用于审计，UAM 不据此做任何判断。
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Size"
+        - $ref: "#/components/parameters/OptionalOperatorUserId"
+        - $ref: "#/components/parameters/OptionalOperatorAccountId"
+        - $ref: "#/components/parameters/OptionalOperatorSessionRef"
       responses:
+        "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "200":
           description: 在线用户分页，按最近活动时间倒序
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OnlineUserPage" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
 
   /v1/users/{userId}/sessions:
     get:
@@ -256,6 +281,7 @@ paths:
           description: 操作人自己的会话引用；提供则用它标注 `current`
           schema: { type: string, format: uuid }
       responses:
+        "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
         "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "200":
           description: 会话列表（可能为空）
@@ -289,7 +315,7 @@ paths:
       responses:
         "403": { $ref: "#/components/responses/ClientForbidden" }
         "401": { $ref: "#/components/responses/ClientUnauthenticated" }
-        "400": { $ref: "#/components/responses/OperatorRequired" }
+        "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
         "204": { description: 会话已终止 }
         "404":
           description: 会话不存在或已结束（`session_not_found`）
@@ -324,10 +350,10 @@ paths:
       responses:
         "403": { $ref: "#/components/responses/ClientForbidden" }
         "401": { $ref: "#/components/responses/ClientUnauthenticated" }
-        "400": { $ref: "#/components/responses/OperatorRequired" }
+        "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
         "204": { description: 密码已修改 }
         "422":
-          description: 校验失败（`current_password_incorrect` / `weak_password` / `same_as_current`）
+          description: 校验失败：`validation_failed`（请求体字段缺失 / 为空 / 过长，带 `errors`），或 `current_password_incorrect` / `weak_password` / `same_as_current`
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -386,6 +412,24 @@ components:
       required: true
       description: 发起操作的运维人员当前会话的引用（非机密）。由客户端填写，UAM 信任它
       schema: { type: string, format: uuid }
+    OptionalOperatorUserId:
+      name: X-Operator-User-Id
+      in: header
+      required: false
+      description: 同 OperatorUserId；读操作里可选，仅用于审计，UAM 不据此做任何判断
+      schema: { type: string, format: uuid }
+    OptionalOperatorAccountId:
+      name: X-Operator-Account-Id
+      in: header
+      required: false
+      description: 同 OperatorAccountId；读操作里可选，仅用于审计，UAM 不据此做任何判断
+      schema: { type: string, format: uuid }
+    OptionalOperatorSessionRef:
+      name: X-Operator-Session-Ref
+      in: header
+      required: false
+      description: 同 OperatorSessionRef；读操作里可选，仅用于审计，UAM 不据此做任何判断
+      schema: { type: string, format: uuid }
 
   responses:
     ClientUnauthenticated:
@@ -408,8 +452,25 @@ components:
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
+    OperatorRequiredOrBadRequest:
+      description: |
+        缺少操作人请求头（`operator_required`），或请求无法解析（`bad_request`，见 `BadRequest`）。
+        两者同为 400，以 `code` 区分。
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    BadRequest:
+      description: |
+        请求本身无法解析或类型不符（`bad_request`）：JSON 请求体格式错误或为空、字段 JSON 类型不对、
+        路径变量或查询参数类型不符（如非 UUID 的 `userId`、`page=abc`）、缺少框架层必需的绑定。
+        响应不回显任何请求值。与 `validation_failed`（422）的区别：`bad_request` 是「读不懂」，`validation_failed` 是「读懂了但不符合规则」。
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
     ValidationFailed:
-      description: 字段校验失败，`errors` 逐字段给出原因
+      description: |
+        字段校验失败（`validation_failed`，一律 HTTP 422）：请求体字段缺失 / 为空 / 过长、`Idempotency-Key` 长度、
+        分页与查询规则（如 `page=0`、`size>100`、`query` 过长）等；`errors` 逐字段给出原因
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
@@ -433,13 +494,19 @@ components:
         status: { type: integer }
         code:
           type: string
-          examples: [invalid_credentials, session_invalid, client_unauthenticated, client_forbidden, operator_required, throttled, account_name_taken, idempotency_in_progress, validation_failed,
+          examples: [invalid_credentials, session_invalid, client_unauthenticated, client_forbidden, operator_required, bad_request, throttled, account_name_taken, idempotency_in_progress, validation_failed,
                      cannot_disable_self, cannot_disable_last_active_user, cannot_terminate_own_session,
                      session_not_found, user_not_found, current_password_incorrect, weak_password, same_as_current]
         detail: { type: string }
+        reason:
+          type: string
+          enum: [terminated]
+          description: |
+            可选。仅出现在 `POST /v1/auth/sessions/verify` 的 401 `session_invalid` 上，且仅当该会话在通知窗口内
+            被管理员经 `DELETE /v1/sessions/{sessionRef}` 强制终止；其余情形不出现。
         errors:
           type: array
-          description: 仅 `validation_failed` 等字段级错误
+          description: 仅 `validation_failed`（HTTP 422）等字段级错误；`bad_request`（400）不带逐字段错误
           items:
             type: object
             required: [field, reason]

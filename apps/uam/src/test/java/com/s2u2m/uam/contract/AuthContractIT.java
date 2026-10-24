@@ -72,6 +72,22 @@ class AuthContractIT extends IntegrationTestBase {
   }
 
   @Test
+  void accountNameWithNulOrLoneSurrogateFailsLikeAnUnknownAccount() {
+    Response unknown = login("nobody", PASSWORD, "203.0.113.1");
+    assertProblem(unknown, 401, "invalid_credentials");
+
+    for (String name : new String[] {"a\u0000b", "\u0000", "a\uD800b"}) {
+      Response response = login(name, PASSWORD, "203.0.113.2");
+
+      assertProblem(response, 401, "invalid_credentials");
+      assertThat(response.json().get("detail")).isEqualTo(unknown.json().get("detail"));
+      assertThat(response.json().get("title")).isEqualTo(unknown.json().get("title"));
+      assertThat(response.body()).doesNotContain(name);
+    }
+    assertThat(redis.keys("uam:sess:*")).isEmpty();
+  }
+
+  @Test
   void loginNeverLeaksPasswordOrHash() {
     Response response = login("alice", PASSWORD, "203.0.113.7");
 
@@ -141,28 +157,28 @@ class AuthContractIT extends IntegrationTestBase {
   }
 
   @Test
-  void malformedLoginRequestsAreValidationFailed() {
+  void loginRulesViolationsAre422ValidationFailed() {
     assertProblem(
         api.postJson("/v1/auth/login", Map.of("password", "x", "clientIp", "1.2.3.4")),
-        400,
+        422,
         "validation_failed");
     assertProblem(
         api.postJson(
             "/v1/auth/login",
             Map.of("accountName", "alice", "password", "", "clientIp", "1.2.3.4")),
-        400,
+        422,
         "validation_failed");
     assertProblem(
         api.postJson("/v1/auth/login", Map.of("accountName", "alice", "password", "x")),
-        400,
+        422,
         "validation_failed");
     assertProblem(
         api.postJson(
             "/v1/auth/login",
             Map.of("accountName", "a".repeat(65), "password", "x", "clientIp", "1.2.3.4")),
-        400,
+        422,
         "validation_failed");
-    assertProblem(api.postJson("/v1/auth/login", "{not json"), 400, "validation_failed");
+    assertProblem(api.postJson("/v1/auth/login", "{not json"), 400, "bad_request");
 
     Response missing =
         api.postJson("/v1/auth/login", Map.of("password", "x", "clientIp", "1.2.3.4"));

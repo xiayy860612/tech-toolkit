@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { Breadcrumbs } from "@/components/shell/breadcrumbs";
-import { getSession } from "@/lib/session/get-session";
+import { getSession, requireOperator } from "@/lib/session/get-session";
 
 export const metadata: Metadata = { title: "修改密码" };
 
 /**
  * 修改自己的密码（FR-026）。被改的账号永远是当前登录所用的账号（由 Server Action 在服务端取自会话，页面不传任何账号标识）。
- * 会话状态由外壳布局负责；这里只读它来点名账号（无法确认会话时不点名，外壳已提示服务暂不可用）。
+ * 本页不读 UAM、没有数据，但仍须先调用 `requireOperator()`（US13）：匿名访问必须被跳转到登录页，
+ * 不能让 Next.js 的局部渲染绕过外壳布局、把这张表单渲染给匿名访问者；unverified 时表单照常渲染，
+ * 只是不点名账号（外壳已提示服务暂不可用）。
  */
 export default async function ChangePasswordPage() {
+  await requireOperator();
   const state = await getSession();
   const loginName = state.status === "authenticated" ? state.session.account.loginName : undefined;
 

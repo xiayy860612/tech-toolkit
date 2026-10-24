@@ -3,7 +3,9 @@
  *
  * - 服务密钥缺失 / 不匹配 → 桩自己回 401 `client_unauthenticated`（与真实 UAM 一致）。
  * - 写操作缺操作人请求头 → 桩回 400 `operator_required`（与真实 UAM 一致）。
- * - 其余违反契约的请求（路径参数、查询参数、请求头格式、请求体）与响应（状态码未声明、响应体不符合 schema）
+ * - 请求违反契约时桩同样模拟真实 UAM 的拒绝：请求体字段不符 → 422 `validation_failed`；读不懂的请求
+ *   （请求头 / 路径 / 查询参数类型不符、无请求体等）→ 400 `bad_request`。
+ * - 同时，以下违反契约的请求（路径参数、查询参数、请求头格式、请求体）与响应（状态码未声明、响应体不符合 schema）
  *   记入 `violations`，测试在 afterEach 里断言它为空。
  * 只能用在 `@jest-environment node` 的测试里。
  */
@@ -122,9 +124,11 @@ export function createUamStub(options: { serviceKey?: string } = {}) {
   }
 
   const checkRequest = (op: Operation, req: StubRequest): StubReply | null => {
-    const bad = (msg: string): StubReply => {
+    const bad = (msg: string, kind: "unparsable" | "invalid" = "unparsable"): StubReply => {
       violations.push(`[${op.operationId}] 请求违反契约：${msg}`);
-      return problem(400, "validation_failed", "stub: request violates contract");
+      return kind === "invalid"
+        ? problem(422, "validation_failed", "stub: request violates contract")
+        : problem(400, "bad_request", "stub: request violates contract");
     };
 
     // 服务密钥
@@ -162,7 +166,8 @@ export function createUamStub(options: { serviceKey?: string } = {}) {
       const schema = p.schema as Json;
       const data = schema.type === "integer" ? Number(value) : value;
       const err = validate(schema, data);
-      if (err) return bad(`查询参数 ${name}：${err}`);
+      // 类型不符（如 page=abc）读不懂 → 400；类型对但越界（如 page=0）是规则问题 → 422
+      if (err) return bad(`查询参数 ${name}：${err}`, Number.isNaN(data) ? "unparsable" : "invalid");
     }
 
     // 请求体
@@ -173,7 +178,7 @@ export function createUamStub(options: { serviceKey?: string } = {}) {
         if (bodySpec.required) return bad("缺少请求体");
       } else {
         const err = validate(schema, req.body);
-        if (err) return bad(`请求体：${err}`);
+        if (err) return bad(`请求体：${err}`, "invalid");
       }
     } else if (req.body !== undefined) {
       return bad("该接口没有请求体");

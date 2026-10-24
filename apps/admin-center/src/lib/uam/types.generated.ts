@@ -37,7 +37,8 @@ export interface paths {
         /**
          * 校验会话标识并取得会话数据
          * @description 会话标识只作为本调用的输入。有效则按需续期（距上次写入超过 60 秒才写）并返回会话数据。
-         *     会话无效、过期、被取代或被终止，一律 401 `session_invalid`。
+         *     会话无效、过期、被取代或被终止，一律 401 `session_invalid`；仅当该会话在通知窗口内被管理员经
+         *     `DELETE /v1/sessions/{sessionRef}` 强制终止时，401 body 额外带 `reason: terminated`，其余情形不带 `reason`。
          */
         post: operations["verifySession"];
         delete?: never;
@@ -70,7 +71,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 分页列出所有用户（含搜索） */
+        /**
+         * 分页列出所有用户（含搜索）
+         * @description 读操作，操作人请求头可选；客户端（Admin Center）带上用于审计，UAM 不据此做任何判断。
+         */
         get: operations["listUsers"];
         put?: never;
         /**
@@ -92,7 +96,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 用户详情及其关联的全部账号 */
+        /**
+         * 用户详情及其关联的全部账号
+         * @description 读操作，操作人请求头可选；客户端（Admin Center）带上用于审计，UAM 不据此做任何判断。
+         */
         get: operations["getUser"];
         put?: never;
         post?: never;
@@ -150,7 +157,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 分页列出当前在线用户（至少有一个有效会话） */
+        /**
+         * 分页列出当前在线用户（至少有一个有效会话）
+         * @description 读操作，操作人请求头可选；客户端（Admin Center）带上用于审计，UAM 不据此做任何判断。
+         */
         get: operations["listOnlineUsers"];
         put?: never;
         post?: never;
@@ -238,6 +248,7 @@ export interface components {
              * @example client_unauthenticated
              * @example client_forbidden
              * @example operator_required
+             * @example bad_request
              * @example throttled
              * @example account_name_taken
              * @example idempotency_in_progress
@@ -253,7 +264,13 @@ export interface components {
              */
             code: string;
             detail?: string;
-            /** @description 仅 `validation_failed` 等字段级错误 */
+            /**
+             * @description 可选。仅出现在 `POST /v1/auth/sessions/verify` 的 401 `session_invalid` 上，且仅当该会话在通知窗口内
+             *     被管理员经 `DELETE /v1/sessions/{sessionRef}` 强制终止；其余情形不出现。
+             * @enum {string}
+             */
+            reason?: "terminated";
+            /** @description 仅 `validation_failed`（HTTP 422）等字段级错误；`bad_request`（400）不带逐字段错误 */
             errors?: {
                 /**
                  * @example userName
@@ -446,7 +463,35 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description 字段校验失败，`errors` 逐字段给出原因 */
+        /**
+         * @description 缺少操作人请求头（`operator_required`），或请求无法解析（`bad_request`，见 `BadRequest`）。
+         *     两者同为 400，以 `code` 区分。
+         */
+        OperatorRequiredOrBadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description 请求本身无法解析或类型不符（`bad_request`）：JSON 请求体格式错误或为空、字段 JSON 类型不对、
+         *     路径变量或查询参数类型不符（如非 UUID 的 `userId`、`page=abc`）、缺少框架层必需的绑定。
+         *     响应不回显任何请求值。与 `validation_failed`（422）的区别：`bad_request` 是「读不懂」，`validation_failed` 是「读懂了但不符合规则」。
+         */
+        BadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /**
+         * @description 字段校验失败（`validation_failed`，一律 HTTP 422）：请求体字段缺失 / 为空 / 过长、`Idempotency-Key` 长度、
+         *     分页与查询规则（如 `page=0`、`size>100`、`query` 过长）等；`errors` 逐字段给出原因
+         */
         ValidationFailed: {
             headers: {
                 [name: string]: unknown;
@@ -481,6 +526,12 @@ export interface components {
         OperatorAccountId: string;
         /** @description 发起操作的运维人员当前会话的引用（非机密）。由客户端填写，UAM 信任它 */
         OperatorSessionRef: string;
+        /** @description 同 OperatorUserId；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+        OptionalOperatorUserId: string;
+        /** @description 同 OperatorAccountId；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+        OptionalOperatorAccountId: string;
+        /** @description 同 OperatorSessionRef；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+        OptionalOperatorSessionRef: string;
     };
     requestBodies: never;
     headers: never;
@@ -510,7 +561,7 @@ export interface operations {
                     "application/json": components["schemas"]["LoginResponse"];
                 };
             };
-            400: components["responses"]["ValidationFailed"];
+            400: components["responses"]["BadRequest"];
             /** @description `invalid_credentials`（账号名或密码错误），或 `client_unauthenticated`（服务密钥缺失 / 无效） */
             401: {
                 headers: {
@@ -521,6 +572,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["ClientForbidden"];
+            422: components["responses"]["ValidationFailed"];
             429: components["responses"]["Throttled"];
         };
     };
@@ -546,7 +598,8 @@ export interface operations {
                     "application/json": components["schemas"]["VerifyResponse"];
                 };
             };
-            /** @description `session_invalid`（会话无效、过期、被取代或被终止），或 `client_unauthenticated`（服务密钥缺失 / 无效） */
+            400: components["responses"]["BadRequest"];
+            /** @description `session_invalid`（会话无效、过期、被取代或被终止；被管理员强制终止且仍在通知窗口内时带 `reason: terminated`），或 `client_unauthenticated`（服务密钥缺失 / 无效） */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -578,6 +631,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["ClientUnauthenticated"];
             403: components["responses"]["ClientForbidden"];
         };
@@ -592,7 +646,14 @@ export interface operations {
                 /** @description 按用户名或账号名搜索，大小写不敏感、包含匹配；去首尾空白后为空则视为不搜索 */
                 query?: string;
             };
-            header?: never;
+            header?: {
+                /** @description 同 OperatorUserId；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+                "X-Operator-User-Id"?: components["parameters"]["OptionalOperatorUserId"];
+                /** @description 同 OperatorAccountId；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+                "X-Operator-Account-Id"?: components["parameters"]["OptionalOperatorAccountId"];
+                /** @description 同 OperatorSessionRef；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+                "X-Operator-Session-Ref"?: components["parameters"]["OptionalOperatorSessionRef"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -607,7 +668,9 @@ export interface operations {
                     "application/json": components["schemas"]["UserPage"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["ClientUnauthenticated"];
+            422: components["responses"]["ValidationFailed"];
         };
     };
     createUser: {
@@ -641,7 +704,7 @@ export interface operations {
                     "application/json": components["schemas"]["UserDetail"];
                 };
             };
-            400: components["responses"]["OperatorRequired"];
+            400: components["responses"]["OperatorRequiredOrBadRequest"];
             401: components["responses"]["ClientUnauthenticated"];
             403: components["responses"]["ClientForbidden"];
             /** @description 账号名已被使用（`account_name_taken`），或同一 `Idempotency-Key` 的请求仍在处理中、等待超时（`idempotency_in_progress`） */
@@ -659,7 +722,14 @@ export interface operations {
     getUser: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 同 OperatorUserId；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+                "X-Operator-User-Id"?: components["parameters"]["OptionalOperatorUserId"];
+                /** @description 同 OperatorAccountId；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+                "X-Operator-Account-Id"?: components["parameters"]["OptionalOperatorAccountId"];
+                /** @description 同 OperatorSessionRef；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+                "X-Operator-Session-Ref"?: components["parameters"]["OptionalOperatorSessionRef"];
+            };
             path: {
                 userId: components["parameters"]["UserId"];
             };
@@ -676,6 +746,7 @@ export interface operations {
                     "application/json": components["schemas"]["UserDetail"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["ClientUnauthenticated"];
             404: components["responses"]["NotFound"];
         };
@@ -707,7 +778,7 @@ export interface operations {
                     "application/json": components["schemas"]["UserDetail"];
                 };
             };
-            400: components["responses"]["OperatorRequired"];
+            400: components["responses"]["OperatorRequiredOrBadRequest"];
             401: components["responses"]["ClientUnauthenticated"];
             403: components["responses"]["ClientForbidden"];
             404: components["responses"]["NotFound"];
@@ -749,7 +820,7 @@ export interface operations {
                     "application/json": components["schemas"]["UserDetail"];
                 };
             };
-            400: components["responses"]["OperatorRequired"];
+            400: components["responses"]["OperatorRequiredOrBadRequest"];
             401: components["responses"]["ClientUnauthenticated"];
             403: components["responses"]["ClientForbidden"];
             404: components["responses"]["NotFound"];
@@ -763,7 +834,14 @@ export interface operations {
                 /** @description 每页条数，默认 20，上限 100 */
                 size?: components["parameters"]["Size"];
             };
-            header?: never;
+            header?: {
+                /** @description 同 OperatorUserId；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+                "X-Operator-User-Id"?: components["parameters"]["OptionalOperatorUserId"];
+                /** @description 同 OperatorAccountId；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+                "X-Operator-Account-Id"?: components["parameters"]["OptionalOperatorAccountId"];
+                /** @description 同 OperatorSessionRef；读操作里可选，仅用于审计，UAM 不据此做任何判断 */
+                "X-Operator-Session-Ref"?: components["parameters"]["OptionalOperatorSessionRef"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -778,7 +856,9 @@ export interface operations {
                     "application/json": components["schemas"]["OnlineUserPage"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["ClientUnauthenticated"];
+            422: components["responses"]["ValidationFailed"];
         };
     };
     listUserSessions: {
@@ -806,6 +886,7 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["OperatorRequiredOrBadRequest"];
             401: components["responses"]["ClientUnauthenticated"];
             404: components["responses"]["NotFound"];
         };
@@ -835,7 +916,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            400: components["responses"]["OperatorRequired"];
+            400: components["responses"]["OperatorRequiredOrBadRequest"];
             401: components["responses"]["ClientUnauthenticated"];
             403: components["responses"]["ClientForbidden"];
             /** @description 会话不存在或已结束（`session_not_found`） */
@@ -887,10 +968,10 @@ export interface operations {
                 };
                 content?: never;
             };
-            400: components["responses"]["OperatorRequired"];
+            400: components["responses"]["OperatorRequiredOrBadRequest"];
             401: components["responses"]["ClientUnauthenticated"];
             403: components["responses"]["ClientForbidden"];
-            /** @description 校验失败（`current_password_incorrect` / `weak_password` / `same_as_current`） */
+            /** @description 校验失败：`validation_failed`（请求体字段缺失 / 为空 / 过长，带 `errors`），或 `current_password_incorrect` / `weak_password` / `same_as_current` */
             422: {
                 headers: {
                     [name: string]: unknown;

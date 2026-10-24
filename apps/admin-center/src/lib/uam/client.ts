@@ -2,7 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { getConfig } from "@/lib/config";
 import { logUamMisconfigured } from "@/lib/logging";
-import { UamError, type FieldError } from "./errors";
+import { parseProblemReason, UamError, type FieldError } from "./errors";
 import type { components } from "./types.generated";
 
 export type VerifyResponse = components["schemas"]["VerifyResponse"];
@@ -45,6 +45,8 @@ export interface UamResponse<T> {
 
 interface Problem {
   code?: string;
+  /** 原样读出，使用前必须经 `parseProblemReason` 校验。 */
+  reason?: unknown;
   errors?: FieldError[];
 }
 
@@ -131,6 +133,8 @@ export async function uamRequest<T = unknown>(init: UamRequestInit): Promise<Uam
   throw new UamError("problem", `UAM 业务错误：${code}`, {
     status: res.status,
     code,
+    // 只有 verify 的 401 session_invalid 才会带；其它响应里出现也不采信
+    reason: code === "session_invalid" ? parseProblemReason(problem.reason) : undefined,
     fieldErrors: problem.errors,
     retryAfter: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
   });
@@ -172,19 +176,31 @@ export interface ListUsersParams {
   size?: number;
 }
 
-/** 分页列出用户，含搜索（`GET /v1/users`）。读操作：不带操作人请求头。 */
-export async function listUsers({ query, page, size }: ListUsersParams = {}): Promise<UserPage> {
+/**
+ * 分页列出用户，含搜索（`GET /v1/users`）。
+ * 读操作，但要求调用方提供操作人（US13：类型层面堵死「页面不先确认会话就读数据」）；
+ * UAM 不强制读操作带操作人请求头，但带上可用于审计（contracts/uam/openapi.yaml 已声明为可选请求头）。
+ */
+export async function listUsers({ query, page, size }: ListUsersParams, operator: Operator): Promise<UserPage> {
   const { data } = await uamRequest<UserPage>({
     method: "GET",
     path: "/v1/users",
     query: { query: query || undefined, page, size },
+    operator,
   });
   return data;
 }
 
-/** 用户详情及其关联的全部账号（`GET /v1/users/{userId}`）；不存在时抛 `UamError`（problem `user_not_found`）。 */
-export async function getUser(userId: string): Promise<UserDetail> {
-  const { data } = await uamRequest<UserDetail>({ method: "GET", path: `/v1/users/${encodeURIComponent(userId)}` });
+/**
+ * 用户详情及其关联的全部账号（`GET /v1/users/{userId}`）；不存在时抛 `UamError`（problem `user_not_found`）。
+ * 读操作，但要求调用方提供操作人（US13，理由同 `listUsers`）。
+ */
+export async function getUser(userId: string, operator: Operator): Promise<UserDetail> {
+  const { data } = await uamRequest<UserDetail>({
+    method: "GET",
+    path: `/v1/users/${encodeURIComponent(userId)}`,
+    operator,
+  });
   return data;
 }
 
@@ -195,9 +211,17 @@ export interface ListOnlineUsersParams {
   size?: number;
 }
 
-/** 分页列出当前在线用户，按最近活动倒序（`GET /v1/online-users`）。读操作：不带操作人请求头。 */
-export async function listOnlineUsers({ page, size }: ListOnlineUsersParams = {}): Promise<OnlineUserPage> {
-  const { data } = await uamRequest<OnlineUserPage>({ method: "GET", path: "/v1/online-users", query: { page, size } });
+/**
+ * 分页列出当前在线用户，按最近活动倒序（`GET /v1/online-users`）。
+ * 读操作，但要求调用方提供操作人（US13，理由同 `listUsers`）。
+ */
+export async function listOnlineUsers({ page, size }: ListOnlineUsersParams, operator: Operator): Promise<OnlineUserPage> {
+  const { data } = await uamRequest<OnlineUserPage>({
+    method: "GET",
+    path: "/v1/online-users",
+    query: { page, size },
+    operator,
+  });
   return data;
 }
 

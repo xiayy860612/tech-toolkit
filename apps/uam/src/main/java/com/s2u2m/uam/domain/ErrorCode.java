@@ -9,6 +9,8 @@ public enum ErrorCode {
   CLIENT_UNAUTHENTICATED("client_unauthenticated"),
   CLIENT_FORBIDDEN("client_forbidden"),
   OPERATOR_REQUIRED("operator_required"),
+  /** 请求本身无法解析或类型不符（坏 JSON、路径 / 查询参数类型不符）；与 422 {@code validation_failed} 区分。 */
+  BAD_REQUEST("bad_request"),
   THROTTLED("throttled"),
   ACCOUNT_NAME_TAKEN("account_name_taken"),
   /** 同一个 {@code Idempotency-Key} 的请求仍在处理中，等待超时。 */

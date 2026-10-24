@@ -275,6 +275,13 @@ describe("changePassword 动作：UAM 的结论", () => {
     expect(await changePassword({}, form())).toEqual({ formError: "操作未生效" });
   });
 
+  it("400 bad_request（Admin Center 不会发出读不懂的请求，属意外拒绝）：「操作未生效」，不当作字段错误（不会跳转登出），不含密码", async () => {
+    rejected(400, "bad_request");
+    const state = await changePassword({}, form());
+    expect(state).toEqual({ formError: "操作未生效" });
+    noPasswordIn(state);
+  });
+
   it("非 UAM 错误是程序问题：原样抛出，不伪装成提示", async () => {
     process.env.UAM_BASE_URL = "not-a-url";
     await expect(changePassword({}, form())).rejects.toThrow();

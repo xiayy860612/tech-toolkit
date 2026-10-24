@@ -6,11 +6,12 @@ import java.util.List;
 /**
  * 密码强度策略（FR-022）：默认至少 10 位且同时含字母与数字，最短长度可配置。
  *
- * <p>上限 256：与登录请求的 {@code password} 上限一致，更长的密码永远无法登录，也避免超长输入拖慢哈希。
+ * <p>上限 128 个码点：登录 / 改密请求的 {@code password} 按 UTF-16 字符数限制为 256，而一个码点最多占 2 个字符，所以 128
+ * 个码点的任何密码都一定能提交； 创建时不拦住更长的密码，它就永远无法登录。同时避免超长输入拖慢哈希。
  */
 public final class PasswordPolicy {
 
-  public static final int MAX_LENGTH = 256;
+  public static final int MAX_LENGTH = 128;
 
   private final int minLength;
 

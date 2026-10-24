@@ -30,11 +30,13 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
@@ -183,6 +185,11 @@ public final class Fakes {
     public void updatePasswordHash(UUID accountId, String passwordHash) {
       hashes.put(accountId, passwordHash);
     }
+
+    @Override
+    public boolean upgradePasswordHash(UUID accountId, String expectedHash, String passwordHash) {
+      return hashes.replace(accountId, expectedHash, passwordHash);
+    }
   }
 
   /** 事务假实现：快照三个仓储，抛异常就整体还原，模拟回滚。 */
@@ -226,7 +233,7 @@ public final class Fakes {
   }
 
   /** 假哈希：{@code fake$<明文>}；记录每次比对，用来断言「先做一次哈希比对」。 */
-  public static final class FakePasswordHasher implements PasswordHasher {
+  public static class FakePasswordHasher implements PasswordHasher {
     public static final String DUMMY = "fake$\u0000dummy-never-a-password";
     public final List<String> comparedHashes = new ArrayList<>();
     public boolean upgradeNeeded;
@@ -259,6 +266,13 @@ public final class Fakes {
   public static class FakeSessionStore implements SessionStore {
     public final Map<String, Session> byHash = new LinkedHashMap<>();
     public final List<SessionRef> terminated = new ArrayList<>();
+
+    /** 每次 {@link #terminateByRef} 是否要求留下墓碑，与 {@link #terminated} 一一对应。 */
+    public final List<Boolean> terminatedMarks = new ArrayList<>();
+
+    /** 墓碑：被管理员强制下线的会话哈希。 */
+    public final Set<String> tombstones = new HashSet<>();
+
     public final List<Session> touched = new ArrayList<>();
 
     /** 每次 {@link #terminateAllForUser} 传入的账号标识。 */
@@ -318,9 +332,24 @@ public final class Fakes {
     }
 
     @Override
-    public boolean terminateByRef(SessionRef ref) {
+    public boolean terminateByRef(SessionRef ref, boolean markTerminated) {
       terminated.add(ref);
-      return byHash.values().removeIf(s -> s.ref().equals(ref));
+      terminatedMarks.add(markTerminated);
+      List<String> hashes =
+          byHash.entrySet().stream()
+              .filter(e -> e.getValue().ref().equals(ref))
+              .map(Map.Entry::getKey)
+              .toList();
+      hashes.forEach(byHash::remove);
+      if (markTerminated) {
+        tombstones.addAll(hashes);
+      }
+      return !hashes.isEmpty();
+    }
+
+    @Override
+    public boolean wasTerminated(String tokenHash) {
+      return tombstones.contains(tokenHash);
     }
   }
 
@@ -352,15 +381,10 @@ public final class Fakes {
     }
 
     @Override
-    public OptionalLong blockedFor(String subject) {
-      return failures.getOrDefault(subject, 0) >= maxFailures
+    public OptionalLong admit(String subject) {
+      return failures.merge(subject, 1, Integer::sum) > maxFailures
           ? OptionalLong.of(retryAfterSeconds)
           : OptionalLong.empty();
-    }
-
-    @Override
-    public void recordFailure(String subject) {
-      failures.merge(subject, 1, Integer::sum);
     }
 
     @Override
@@ -383,15 +407,10 @@ public final class Fakes {
     }
 
     @Override
-    public OptionalLong changeBlockedFor(String subject) {
-      return failures.getOrDefault(subject, 0) >= maxFailures
+    public OptionalLong admitChange(String subject) {
+      return failures.merge(subject, 1, Integer::sum) > maxFailures
           ? OptionalLong.of(retryAfterSeconds)
           : OptionalLong.empty();
-    }
-
-    @Override
-    public void recordChangeFailure(String subject) {
-      failures.merge(subject, 1, Integer::sum);
     }
 
     @Override
@@ -412,7 +431,7 @@ public final class Fakes {
   }
 
   /** 内存幂等存储：按「范围 + 键」保存进行中标记或完成快照；{@code onInFlight} 在每次返回「进行中」时回调（参数为第几次）， 用来模拟占位方在等待期间完成或放弃。 */
-  public static final class FakeIdempotencyStore implements IdempotencyStore {
+  public static class FakeIdempotencyStore implements IdempotencyStore {
     private record Entry(String fingerprint, String response) {}
 
     private final Map<String, Entry> entries = new HashMap<>();

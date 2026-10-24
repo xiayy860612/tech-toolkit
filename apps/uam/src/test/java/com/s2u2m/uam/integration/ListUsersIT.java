@@ -335,6 +335,16 @@ class ListUsersIT extends IntegrationTestBase {
     assertThat(response.json().get("errors").get(0).get("reason").asString()).isEqualTo("too_long");
   }
 
+  @Test
+  void aQueryWithNulIsAValidationErrorNotAServerError() {
+    Response response = list("query=%00");
+
+    assertValidationFailed(response, "query");
+    assertThat(response.json().get("errors").get(0).get("reason").asString())
+        .isEqualTo("invalid_chars");
+    assertThat(list("query=a%00b").status()).isEqualTo(422);
+  }
+
   /**
    * 搜索走 {@code pg_trgm} GIN 索引。用仓储真正使用的匹配 SQL 做 {@code EXPLAIN}；数据量小时规划器会偏向顺序扫描，所以在<b>同一条连接</b>上
    * {@code SET enable_seqscan = off} 后再取计划，随后 {@code RESET}：只要谓词写法让索引<b>不可用</b>（如 {@code

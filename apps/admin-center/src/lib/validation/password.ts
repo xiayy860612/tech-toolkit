@@ -3,12 +3,14 @@ import { z } from "zod";
 import { fieldReasonMessage } from "@/lib/uam/errors";
 
 /** 规则与 UAM 契约（ChangePasswordRequest）、spec FR-022 / FR-027 一致；UAM 仍会再校验一次（它是权威）。 */
-const PASSWORD_MAX = 256;
+const PASSWORD_MAX = 256; // 当前密码：UAM 请求 DTO 的 @Size 上限
+const NEW_PASSWORD_MAX = 128; // 新密码：UAM PasswordPolicy.MAX_LENGTH，按 Unicode 码点计（代理对算一个）
 
 const CURRENT_REQUIRED = "请填写当前密码";
 const NEW_REQUIRED = "请填写新密码";
 const CONFIRM_REQUIRED = "请再次输入新密码";
 const PASSWORD_TOO_LONG = `密码最长 ${PASSWORD_MAX} 个字符`;
+const NEW_PASSWORD_TOO_LONG = `密码最长 ${NEW_PASSWORD_MAX} 个字符`;
 export const NEW_PASSWORD_RULE = "新密码至少 10 位，且同时包含字母和数字";
 export const SAME_AS_CURRENT = "新密码不能与当前密码相同";
 export const CURRENT_PASSWORD_INCORRECT = "当前密码不正确";
@@ -20,7 +22,7 @@ const changePasswordSchema = z.object({
   newPassword: z
     .string()
     .min(1, NEW_REQUIRED)
-    .max(PASSWORD_MAX, PASSWORD_TOO_LONG)
+    .refine((s) => Array.from(s).length <= NEW_PASSWORD_MAX, NEW_PASSWORD_TOO_LONG)
     .refine((s) => s.length >= 10 && /[A-Za-z]/.test(s) && /\d/.test(s), NEW_PASSWORD_RULE),
   confirmPassword: z.string().min(1, CONFIRM_REQUIRED),
 });
@@ -85,7 +87,7 @@ export function parseChangePasswordForm(formData: FormData): ParsedChangePasswor
 
 const REASONS: Record<"currentPassword" | "newPassword", Record<string, string>> = {
   currentPassword: { required: CURRENT_REQUIRED, too_long: PASSWORD_TOO_LONG },
-  newPassword: { required: NEW_REQUIRED, too_short: NEW_PASSWORD_RULE, too_weak: NEW_PASSWORD_RULE, too_long: PASSWORD_TOO_LONG },
+  newPassword: { required: NEW_REQUIRED, too_short: NEW_PASSWORD_RULE, too_weak: NEW_PASSWORD_RULE, too_long: NEW_PASSWORD_TOO_LONG },
 };
 
 /** UAM `validation_failed` 的字段错误 → 字段旁文案（不认识的字段忽略，不认识的原因用通用文案；同一字段取第一条）。 */

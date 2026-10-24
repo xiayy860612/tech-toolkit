@@ -3,6 +3,7 @@ package com.s2u2m.uam.application;
 import com.s2u2m.uam.domain.DomainException;
 import com.s2u2m.uam.domain.DomainException.FieldError;
 import com.s2u2m.uam.domain.model.UserWithAccountCount;
+import com.s2u2m.uam.domain.policy.TextChars;
 import com.s2u2m.uam.domain.port.UserRepository;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +49,8 @@ public class ListUsersUseCase {
     }
     if (query != null && query.length() > MAX_QUERY_LENGTH) {
       errors.add(new FieldError("query", "too_long"));
+    } else if (query != null && TextChars.hasUnsafeChars(query)) {
+      errors.add(new FieldError("query", "invalid_chars"));
     }
     if (!errors.isEmpty()) {
       throw DomainException.validationFailed(errors);

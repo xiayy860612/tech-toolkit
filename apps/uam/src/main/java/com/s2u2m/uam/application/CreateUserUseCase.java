@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -37,7 +39,7 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>幂等：只缓存 201 成功。同键重放（10 分钟内）返回原响应；同键的另一个请求正在执行时短暂等待它完成（占位方失败放弃则接手）， 等不到就 {@code
  * idempotency_in_progress}（409），绝不建第二个用户；同键但请求不同（用户名 / 账号名不同）为 422 {@code Idempotency-Key reused}。
- * 被拒绝或失败的尝试会释放占位，同键的修正重试可以重新执行。指纹与快照都不含密码或哈希（同键只换密码的重放按原结果返回）。
+ * 被拒绝或在提交前失败的尝试会释放占位，同键的修正重试可以重新执行；提交之后的任何问题（重读、保存快照）都不会释放占位或让请求失败，快照保存不了就让进行中标记自行过期。指纹与快照都不含密码或哈希（同键只换密码的重放按原结果返回）。
  */
 @Component
 @Profile("!cli")
@@ -45,6 +47,10 @@ public class CreateUserUseCase {
 
   /** 幂等键字段名（请求头名）。 */
   public static final String KEY_FIELD = "Idempotency-Key";
+
+  private static final Logger log = LoggerFactory.getLogger(CreateUserUseCase.class);
+  private static final String READ_BACK_FAILED = "uam.user.create.read_back_failed";
+  private static final String COMPLETE_FAILED = "uam.user.create.idempotency_complete_failed";
 
   static final int KEY_MIN_LENGTH = 16;
   static final int KEY_MAX_LENGTH = 64;
@@ -192,18 +198,46 @@ public class CreateUserUseCase {
 
   private GetUserUseCase.Result createAndRemember(
       CreateUserCommand command, String scope, String key, String fingerprint) {
+    Provisioned created;
     try {
-      Provisioned created =
+      created =
           provisioning.createUserWithAccount(
               command.userName(), command.accountName(), command.password());
-      GetUserUseCase.Result result = getUser.get(created.userId());
-      idempotency.complete(scope, key, fingerprint, json.writeValueAsString(Snapshot.of(result)));
-      record(command, Outcome.SUCCESS, created.userId().toString(), null);
-      return result;
     } catch (RuntimeException e) {
+      // 只有提交之前的失败才释放占位，同键的修正重试可以重新执行
       idempotency.release(scope, key);
       throw e;
     }
+    // 已提交：之后的任何问题都不能释放占位，也不能让请求失败（否则同键重试会再建一个用户）
+    GetUserUseCase.Result result = resultAfterCommit(created);
+    remember(scope, key, fingerprint, result);
+    record(command, Outcome.SUCCESS, created.userId().toString(), null);
+    return result;
+  }
+
+  /** 尽力重新读取；读取失败就用刚创建的实体拼出同样的结果。 */
+  private GetUserUseCase.Result resultAfterCommit(Provisioned created) {
+    try {
+      return getUser.get(created.userId());
+    } catch (RuntimeException e) {
+      warn(READ_BACK_FAILED, e);
+      return new GetUserUseCase.Result(created.user(), List.of(created.account()));
+    }
+  }
+
+  /** 尽力保存响应快照；失败时保留「进行中」标记让它自然过期（30 秒），不释放。 */
+  private void remember(
+      String scope, String key, String fingerprint, GetUserUseCase.Result result) {
+    try {
+      idempotency.complete(scope, key, fingerprint, json.writeValueAsString(Snapshot.of(result)));
+    } catch (RuntimeException e) {
+      warn(COMPLETE_FAILED, e);
+    }
+  }
+
+  /** 一条结构化警告：只含事件名与异常类型，不含标识、幂等键与密码。 */
+  private static void warn(String event, RuntimeException e) {
+    log.atWarn().addKeyValue("exception", e.getClass().getSimpleName()).log(event);
   }
 
   private static String validKey(String key) {

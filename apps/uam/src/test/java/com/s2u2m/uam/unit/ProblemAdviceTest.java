@@ -26,7 +26,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultMatcher;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -47,6 +46,7 @@ class ProblemAdviceTest {
           "client_unauthenticated",
           "client_forbidden",
           "operator_required",
+          "bad_request",
           "throttled",
           "account_name_taken",
           "validation_failed",
@@ -67,7 +67,6 @@ class ProblemAdviceTest {
       String password) {}
 
   @RestController
-  @Validated
   static class ThrowingController {
     @GetMapping("/domain/{code}")
     String domain(@PathVariable String code) {
@@ -78,6 +77,11 @@ class ProblemAdviceTest {
     String fields() {
       throw DomainException.validationFailed(
           List.of(new FieldError("accountName", "taken"), new FieldError("password", "too_weak")));
+    }
+
+    @GetMapping("/terminated")
+    String terminated() {
+      throw DomainException.sessionTerminated();
     }
 
     @GetMapping("/throttled")
@@ -92,6 +96,31 @@ class ProblemAdviceTest {
 
     @PostMapping("/body")
     String body(@RequestBody @jakarta.validation.Valid Body body) {
+      return "ok";
+    }
+
+    @GetMapping("/typed/{id}")
+    String typed(@PathVariable java.util.UUID id) {
+      return "ok";
+    }
+
+    @GetMapping("/paged")
+    String paged(@org.springframework.web.bind.annotation.RequestParam int page) {
+      return "ok";
+    }
+
+    @GetMapping("/violation")
+    String violation() {
+      var violations =
+          jakarta.validation.Validation.buildDefaultValidatorFactory()
+              .getValidator()
+              .validate(new Body("", "toolong-hunter2", "ab", "A1", "x"));
+      throw new jakarta.validation.ConstraintViolationException(violations);
+    }
+
+    @GetMapping("/constrained")
+    String constrained(
+        @org.springframework.web.bind.annotation.RequestParam @Size(max = 3) String q) {
       return "ok";
     }
   }
@@ -115,6 +144,7 @@ class ProblemAdviceTest {
         Arguments.of("client_unauthenticated", 401),
         Arguments.of("client_forbidden", 403),
         Arguments.of("operator_required", 400),
+        Arguments.of("bad_request", 400),
         Arguments.of("throttled", 429),
         Arguments.of("account_name_taken", 409),
         Arguments.of("validation_failed", 422),
@@ -166,6 +196,21 @@ class ProblemAdviceTest {
   }
 
   @Test
+  void sessionTerminatedCarriesTheOptionalReasonOnA401SessionInvalid() throws Exception {
+    mvc.perform(get("/terminated"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("session_invalid"))
+        .andExpect(jsonPath("$.reason").value("terminated"))
+        .andExpect(jsonPath("$.errors").doesNotExist());
+  }
+
+  @Test
+  void problemsWithoutAReasonOmitTheReasonMember() throws Exception {
+    mvc.perform(get("/domain/session_invalid")).andExpect(jsonPath("$.reason").doesNotExist());
+    mvc.perform(get("/boom")).andExpect(jsonPath("$.reason").doesNotExist());
+  }
+
+  @Test
   void problemsWithoutFieldErrorsOmitTheErrorsMember() throws Exception {
     mvc.perform(get("/domain/session_invalid")).andExpect(jsonPath("$.errors").doesNotExist());
   }
@@ -188,8 +233,9 @@ class ProblemAdviceTest {
             .formatted(secret);
     String response =
         mvc.perform(post("/body").contentType(MediaType.APPLICATION_JSON).content(json))
-            .andExpect(status().isBadRequest())
+            .andExpect(status().isUnprocessableEntity())
             .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
+            .andExpect(jsonPath("$.status").value(422))
             .andExpect(jsonPath("$.code").value("validation_failed"))
             .andExpect(reason("accountName", "required"))
             .andExpect(reason("shortName", "too_long"))
@@ -207,11 +253,78 @@ class ProblemAdviceTest {
   }
 
   @Test
-  void malformedJsonIsAValidationFailure() throws Exception {
-    mvc.perform(post("/body").contentType(MediaType.APPLICATION_JSON).content("{not json"))
+  void unparseableBodiesAreBadRequestsWithoutEchoingTheInput() throws Exception {
+    for (String json : List.of("{not json hunter2-secret", "", "{\"accountName\":{\"x\":1}}")) {
+      String response =
+          mvc.perform(post("/body").contentType(MediaType.APPLICATION_JSON).content(json))
+              .andExpect(status().isBadRequest())
+              .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
+              .andExpect(jsonPath("$.status").value(400))
+              .andExpect(jsonPath("$.code").value("bad_request"))
+              .andExpect(jsonPath("$.errors").doesNotExist())
+              .andReturn()
+              .getResponse()
+              .getContentAsString();
+      assertThat(response).doesNotContain("hunter2");
+    }
+  }
+
+  @Test
+  void typeMismatchesAreBadRequestsWithoutEchoingTheValue() throws Exception {
+    String pathResponse =
+        mvc.perform(get("/typed/not-a-uuid-hunter2"))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("bad_request"))
+            .andExpect(jsonPath("$.errors").doesNotExist())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertThat(pathResponse).doesNotContain("hunter2");
+
+    mvc.perform(get("/paged").param("page", "abc"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("bad_request"));
+  }
+
+  @Test
+  void constraintViolationExceptionsAre422WithFieldReasons() throws Exception {
+    String response =
+        mvc.perform(get("/violation"))
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("validation_failed"))
+            .andExpect(reason("accountName", "required"))
+            .andExpect(reason("shortName", "too_long"))
+            .andExpect(reason("longName", "too_short"))
+            .andExpect(reason("letters", "invalid_chars"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertThat(response).doesNotContain("hunter2");
+  }
+
+  @Test
+  void aMissingRequiredParameterIsABadRequest() throws Exception {
+    mvc.perform(get("/paged"))
         .andExpect(status().isBadRequest())
         .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
-        .andExpect(jsonPath("$.code").value("validation_failed"));
+        .andExpect(jsonPath("$.code").value("bad_request"));
+  }
+
+  @Test
+  void constraintViolationsOnParametersAre422ValidationFailed() throws Exception {
+    String response =
+        mvc.perform(get("/constrained").param("q", "toolong-hunter2"))
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("validation_failed"))
+            .andExpect(jsonPath("$.status").value(422))
+            .andExpect(reason("q", "too_long"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertThat(response).doesNotContain("hunter2");
   }
 
   @Test

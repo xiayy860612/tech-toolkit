@@ -14,6 +14,8 @@
 #               每个写入口都用「外站 Origin / Sec-Fetch-Site: cross-site / 两者都没有」各打一次，必须被拒且状态不变；
 #               同源请求作为对照必须成功（证明脚本真的驱动了这个入口）
 #            R9 响应与日志里没有密码、哈希、会话标识、服务密钥（SC-014）；运行中栈提供的浏览器包里没有服务密钥
+#            R10 RSC 局部渲染不能绕过登录：不带 cookie（及带失效 cookie）发 `RSC: 1` + 含 (shell) 段的 Next-Router-State-Tree，
+#               请求 /users、/users/<guid>、/sessions、/sessions/<guid>，响应里不得出现本脚本造的标记用户名（有效会话作对照）
 #   all      先 static，再 runtime；栈原本没启动则自己 up，结束时 down（原本已启动则保持原样）。
 #
 # 环境变量（均有默认值）：
@@ -47,7 +49,7 @@ STACK_FILE="$local_dir/docker-compose.stack.yml"
 E2E_ENV="$local_dir/e2e.env"
 COOKIE_NAME="$(sed -n 's/^SESSION_COOKIE_NAME=//p' "$E2E_ENV")"
 COOKIE_NAME="${COOKIE_NAME:-asid}"
-stack_compose() { docker compose -f "$STACK_FILE" --env-file "$E2E_ENV" "$@"; }
+stack_compose() { docker compose -p uam-e2e -f "$STACK_FILE" --env-file "$E2E_ENV" "$@"; }
 
 work="$(mktemp -d)"
 mkdir -p "$work/http" "$work/static"
@@ -130,9 +132,13 @@ s3_worktree() {
 #   quick-starter/be-spring-mvc-h2/src/main/resources/jwt-rsa-key.pem
 #     —— 早期遗留示例项目的占位 PEM（正文只有一行 24 个字符，不是有效私钥），只存在于 quick-starter / fix-deploy /
 #        sb3-migrate-to-sb4 等旧分支，不在 main 与本特性分支的历史里，工作区也没有；与本特性无关，改写历史由仓库所有者决定。
+#   specs/002-admin-center-uam/tasks.md
+#     —— 提交 7e12020 的 T185 说明里写过私钥头标记的字面文字（只是解释上面那两个遗留占位，不是私钥）；已提交的历史改不了，
+#        该文件现在的版本已改成不含该字面文字（工作区扫描会照常失败来保证这一点）。只放行私钥特征，不放行 uamk_ 密钥。
 LEGACY_PEM_ALLOW="
 b/sb3-jdk17/examples/service-example-h2/src/main/resources/jwt-rsa-key.pem
 b/quick-starter/be-spring-mvc-h2/src/main/resources/jwt-rsa-key.pem
+b/specs/002-admin-center-uam/tasks.md
 "
 # history_hits <正则> [允许的路径（换行分隔）]：输出「提交 路径」（内容永远不打印）；允许名单里的路径不输出
 history_hits() {
@@ -351,6 +357,18 @@ get_page() { # <路径> [会话标识]：结果在 $LAST / $LAST_STATUS
   [ -z "${2:-}" ] || args+=(-H "Cookie: $COOKIE_NAME=$2")
   next_capture
   curl -sS --max-time 20 -i ${args[@]+"${args[@]}"} "$BASE$1" >"$LAST"
+  LAST_STATUS="$(status_of)"
+}
+
+# 带 `RSC: 1` 与 Next-Router-State-Tree 的请求（Next 的客户端导航就是这样发的）；状态树里已含 (shell) 段时，
+# Next 的局部渲染会跳过 (shell)/layout.tsx——受保护页面必须自己拦住匿名访问者（US13）。
+# 结果在 $LAST / $LAST_STATUS；第三个参数是 cookie 值（空表示不带 cookie）。
+RSC_TREE_SHELL='["",{"children":["(shell)",{"children":["__PAGE__",{}]}]},null,null,true]'
+rsc_page() { # <路径> <状态树原文> [cookie 值]
+  local args=(-H "RSC: 1" -H "Next-Router-State-Tree: $(node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$2")")
+  [ -z "${3:-}" ] || args+=(-H "Cookie: $COOKIE_NAME=$3")
+  next_capture
+  curl -sS --max-time 20 -i "${args[@]}" "$BASE$1" >"$LAST"
   LAST_STATUS="$(status_of)"
 }
 
@@ -579,6 +597,29 @@ run_runtime() {
   LAST_STATUS="$(status_of)"
   assert_eq "同源 POST /logout（对照）：303" "$LAST_STATUS" "303"
   assert_eq "同源退出之后会话失效" "$(page_state "$BASE" "$sid_out" /users)" "loggedout"
+
+  echo "R10 RSC 局部渲染不能绕过登录（US13）"
+  # 标记：R3 造的用户名（只有已登录才读得到）与管理员显示名（管理员此刻在线，/sessions 里有它）。
+  # 搜索词用账号名 $acct 而不是用户名：Next 会把查询串回显进响应的段键，标记不能出现在请求里。
+  local rsc_path rsc_tree rsc_label rsc_cookie leaked_any
+  local shell_tree="$RSC_TREE_SHELL"
+  local page_tree='["",{"children":["(shell)",{"children":["users",{"children":["__PAGE__",{}]}]}]},null,null,true]'
+  for rsc_cookie in "" "stale-cookie-value"; do
+    if [ -n "$rsc_cookie" ]; then rsc_label="带失效 cookie"; else rsc_label="无 cookie"; fi
+    for rsc_path in "/users?q=$acct" "/users/$t_id" "/sessions" "/sessions/$t_id"; do
+      leaked_any=0
+      for rsc_tree in "$shell_tree" "$page_tree" "not-json"; do
+        rsc_page "$rsc_path" "$rsc_tree" "$rsc_cookie"
+        if last_has "$uname" || last_has "$ADMIN_NAME"; then leaked_any=1; fi
+      done
+      if [ "$leaked_any" -eq 0 ]; then ok "$rsc_label 的 RSC 局部渲染请求 $rsc_path：响应里没有标记用户名（3 种状态树）"; else bad "$rsc_label 的 RSC 局部渲染请求 $rsc_path：响应里出现了标记用户名（绕过了登录）"; fi
+    done
+  done
+  # 对照：带有效会话的同一请求（同一棵树）确实带数据，证明上面的「没有标记」不是因为标记本来就读不到
+  rsc_page "/users?q=$acct" "$shell_tree" "$sid_admin"
+  if [ "$LAST_STATUS" = "200" ] && last_has "$uname"; then ok "对照：带有效会话的 RSC 请求 /users?q=… 含标记用户名（标记可被检出）"; else bad "对照：带有效会话的 RSC 请求读不到标记用户名（HTTP $LAST_STATUS）"; fi
+  rsc_page "/sessions" "$shell_tree" "$sid_admin"
+  if [ "$LAST_STATUS" = "200" ] && last_has "$ADMIN_NAME"; then ok "对照：带有效会话的 RSC 请求 /sessions 含管理员显示名"; else bad "对照：带有效会话的 RSC 请求 /sessions 读不到管理员显示名（HTTP $LAST_STATUS）"; fi
 
   echo "R9 泄露扫描（SC-014）"
   # 管理员会话在最后才退出，让上面所有请求都用得到

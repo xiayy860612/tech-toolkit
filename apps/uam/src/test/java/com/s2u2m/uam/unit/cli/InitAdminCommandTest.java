@@ -36,6 +36,7 @@ class InitAdminCommandTest {
               new FakePasswordHasher(),
               new PasswordPolicy(10),
               new FakeTransactionRunner(users, accounts, credentials),
+              () -> {},
               new FakeClock(Instant.parse("2026-10-24T08:00:00Z"))));
 
   private final ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -143,6 +144,33 @@ class InitAdminCommandTest {
         .isEqualTo(2);
     assertThat(run(PASSWORD + "\n", "--account-name", "admin", "--user-name", "x", "stray"))
         .isEqualTo(2);
+  }
+
+  @Test
+  void aStrayArgumentIsNeverEchoedSoAMistypedPasswordCannotReachTheLogs() {
+    int code = run(PASSWORD + "\n", "--account-name", "admin", "--user-name", "x", "Leak-1234567");
+
+    assertThat(code).isEqualTo(2);
+    assertThat(users.byId).isEmpty();
+    assertThat(err()).contains("多余的参数").doesNotContain("Leak-1234567");
+    assertThat(out()).doesNotContain("Leak-1234567");
+  }
+
+  @Test
+  void unknownOptionsDoNotEchoTheirValues() {
+    int code =
+        run(
+            PASSWORD + "\n",
+            "--account-name",
+            "admin",
+            "--user-name",
+            "x",
+            "--bogus=Leak-1234567",
+            "--other",
+            "Leak-7654321");
+
+    assertThat(code).isEqualTo(2);
+    assertThat(err()).doesNotContain("Leak-1234567").doesNotContain("Leak-7654321");
   }
 
   @Test

@@ -98,17 +98,21 @@ class AccountPasswordContractIT extends IntegrationTestBase {
   }
 
   @Test
-  void aMalformedBodyIs400ValidationFailedWithFieldReasons() {
+  void aBodyThatBreaksRulesIs422ValidationFailedWithFieldReasons() {
     Response missingIp =
         change(Map.of("currentPassword", CURRENT, "newPassword", NEW), operator(accountId));
-    assertProblem(missingIp, 400, "validation_failed");
+    assertProblem(missingIp, 422, "validation_failed");
     assertThat(missingIp.json().get("errors").get(0).get("field").asString()).isEqualTo("clientIp");
 
     Response missingCurrent =
         change(Map.of("newPassword", NEW, "clientIp", IP), operator(accountId));
-    assertProblem(missingCurrent, 400, "validation_failed");
+    assertProblem(missingCurrent, 422, "validation_failed");
+  }
 
-    assertProblem(change("{not json", operator(accountId)), 400, "validation_failed");
+  @Test
+  void anUnparseableRequestIs400BadRequest() {
+    assertProblem(change("{not json", operator(accountId)), 400, "bad_request");
+    assertProblem(change("", operator(accountId)), 400, "bad_request");
   }
 
   @Test

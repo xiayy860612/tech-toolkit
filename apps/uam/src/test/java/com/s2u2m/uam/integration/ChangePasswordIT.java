@@ -228,14 +228,13 @@ class ChangePasswordIT extends IntegrationTestBase {
     LoginThrottlePolicy shortBlock = new LoginThrottlePolicy(2, Duration.ofSeconds(1));
     RedisGuards guards = new RedisGuards(redis, shortBlock);
     String subject = shortBlock.accountSubject(accountId, IP);
-    guards.recordChangeFailure(subject);
-    guards.recordChangeFailure(subject);
-    assertThat(guards.changeBlockedFor(subject)).hasValue(1L);
+    guards.admitChange(subject);
+    guards.admitChange(subject);
+    assertThat(guards.admitChange(subject)).hasValue(1L);
 
     Thread.sleep(1_300);
 
-    assertThat(guards.changeBlockedFor(subject)).isEmpty();
-    guards.recordChangeFailure(subject);
+    assertThat(guards.admitChange(subject)).isEmpty();
     guards.resetChange(subject);
     assertThat(redis.hasKey("uam:throttle:pwchg:" + subject)).isFalse();
   }

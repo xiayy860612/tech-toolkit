@@ -46,6 +46,19 @@ describe("/login 页面", () => {
     expect(screen.getByRole("status")).toHaveTextContent("会话已结束，请重新登录。");
   });
 
+  it("reason=session_terminated：提示「你的会话已被管理员强制下线」（role=status）", async () => {
+    jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: true });
+    render(await LoginPage(props({ reason: "session_terminated" })));
+    expect(screen.getByRole("status")).toHaveTextContent("你的会话已被管理员强制下线");
+    expect(screen.queryByText("会话已结束，请重新登录。")).not.toBeInTheDocument();
+  });
+
+  it.each([["constructor"], ["toString"], [["session_terminated", "session_ended"]]])("原型链上的名字或重复参数 %j 不产生提示", async (reason) => {
+    jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: false });
+    render(await LoginPage({ searchParams: Promise.resolve({ reason }) }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("其它 reason 不产生提示", async () => {
     jest.mocked(getSession).mockResolvedValue({ status: "anonymous", hadCookie: false });
     render(await LoginPage(props({ reason: "whatever" })));

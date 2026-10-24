@@ -10,7 +10,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.OptionalLong;
-import java.util.concurrent.TimeUnit;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -18,8 +17,9 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 /**
- * 基于 Redis 的防护（限流、幂等）。登录失败限制：键 {@code uam:throttle:login:{sha256(规范化账号名|来源地址)}}，字符串计数；每次失败自增并把 TTL
- * 刷新为封锁时长， 达到阈值后该来源被拒绝，{@code Retry-After} 取剩余 TTL；成功即删除。只限来源，不锁账号。
+ * 基于 Redis 的防护（限流、幂等）。登录失败限制：键 {@code uam:throttle:login:{sha256(规范化账号名|来源地址)}}，字符串计数；闸门在哈希比对之前由一个
+ * Lua 脚本原子完成「自增 → 首次设窗口 TTL → 计数达到上限时把 TTL 重置为封锁时长 → 超过上限则拒绝」，并发的错误尝试不会同时通过； 前 {@code max}
+ * 次放行，之后的被拒绝，{@code Retry-After} 取剩余 TTL；成功即删除。只限来源，不锁账号。
  *
  * <p>改密限流（当前密码连续错误）口径相同，键为 {@code uam:throttle:pwchg:{sha256(账号标识|来源地址)}}，与登录计数互不影响。
  *
@@ -38,55 +38,36 @@ public class RedisGuards implements LoginThrottle, PasswordChangeThrottle, Idemp
 
   private final StringRedisTemplate redis;
   private final LoginThrottlePolicy policy;
-  private final DefaultRedisScript<Long> failScript = new DefaultRedisScript<>();
+  private final DefaultRedisScript<Long> admitScript = new DefaultRedisScript<>();
 
   public RedisGuards(StringRedisTemplate redis, LoginThrottlePolicy policy) {
     this.redis = redis;
     this.policy = policy;
-    failScript.setLocation(new ClassPathResource("redis/throttle-fail.lua"));
-    failScript.setResultType(Long.class);
+    admitScript.setLocation(new ClassPathResource("redis/throttle-admit.lua"));
+    admitScript.setResultType(Long.class);
   }
 
   @Override
-  public OptionalLong blockedFor(String subject) {
-    return blockedFor(LOGIN_PREFIX, subject);
+  public OptionalLong admit(String subject) {
+    return admit(LOGIN_PREFIX, subject);
   }
 
   @Override
-  public OptionalLong changeBlockedFor(String subject) {
-    return blockedFor(PASSWORD_CHANGE_PREFIX, subject);
+  public OptionalLong admitChange(String subject) {
+    return admit(PASSWORD_CHANGE_PREFIX, subject);
   }
 
-  private OptionalLong blockedFor(String prefix, String subject) {
-    String key = prefix + subject;
-    String value = redis.opsForValue().get(key);
-    if (value == null || !policy.isBlocked(Long.parseLong(value))) {
+  private OptionalLong admit(String prefix, String subject) {
+    Long remainingMillis =
+        redis.execute(
+            admitScript,
+            List.of(prefix + subject),
+            Integer.toString(policy.maxFailures()),
+            Long.toString(policy.block().toMillis()));
+    if (remainingMillis == null || remainingMillis <= 0) {
       return OptionalLong.empty();
     }
-    Long ttlMillis = redis.getExpire(key, TimeUnit.MILLISECONDS);
-    if (ttlMillis == null || ttlMillis == -2) {
-      return OptionalLong.empty();
-    }
-    if (ttlMillis < 0) {
-      // 理论上不会出现（失败计数脚本总会设置 TTL）；兜底补上，避免永久封锁
-      redis.expire(key, policy.block());
-      return OptionalLong.of(policy.block().toSeconds());
-    }
-    return OptionalLong.of(Math.max(1, (ttlMillis + 999) / 1000));
-  }
-
-  @Override
-  public void recordFailure(String subject) {
-    recordFailure(LOGIN_PREFIX, subject);
-  }
-
-  @Override
-  public void recordChangeFailure(String subject) {
-    recordFailure(PASSWORD_CHANGE_PREFIX, subject);
-  }
-
-  private void recordFailure(String prefix, String subject) {
-    redis.execute(failScript, List.of(prefix + subject), Long.toString(policy.block().toMillis()));
+    return OptionalLong.of(Math.max(1, (remainingMillis + 999) / 1000));
   }
 
   @Override

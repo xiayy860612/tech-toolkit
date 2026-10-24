@@ -147,6 +147,34 @@ class JdbcRepositoriesIT extends IntegrationTestBase {
   }
 
   @Test
+  void upgradePasswordHashOnlyReplacesTheExpectedHash() throws InterruptedException {
+    Account account = insertAccount(insertUser("张三"), "zhangsan");
+    credentials.insert(new Credential(account.id(), "{argon2}$hash-1"));
+    OffsetDateTime first =
+        jdbc.queryForObject(
+            "SELECT updated_at FROM credential WHERE account_id = ?",
+            OffsetDateTime.class,
+            account.id());
+    Thread.sleep(20);
+
+    assertThat(credentials.upgradePasswordHash(account.id(), "{argon2}$hash-1", "{argon2}$hash-2"))
+        .isTrue();
+    assertThat(credentials.findPasswordHash(account.id())).contains("{argon2}$hash-2");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT updated_at FROM credential WHERE account_id = ?",
+                OffsetDateTime.class,
+                account.id()))
+        .isAfter(first);
+
+    // 期间被别处改过：升级是空操作，不覆盖
+    assertThat(credentials.upgradePasswordHash(account.id(), "{argon2}$hash-1", "{argon2}$hash-3"))
+        .isFalse();
+    assertThat(credentials.findPasswordHash(account.id())).contains("{argon2}$hash-2");
+    assertThat(credentials.upgradePasswordHash(UUID.randomUUID(), "x", "y")).isFalse();
+  }
+
+  @Test
   void countActiveCountsOnlyActiveUsers() {
     insertUser("甲");
     User b = insertUser("乙");

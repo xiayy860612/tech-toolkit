@@ -57,6 +57,7 @@ describe("UAM 桩本身忠于 OpenAPI 契约", () => {
     stub.respond("verifySession", { status: 200, body: verifyResponseBody() });
     await expect(uamRequest({ method: "POST", path: "/v1/auth/sessions/verify", body: { wrong: 1 } })).rejects.toMatchObject({
       kind: "problem",
+      status: 422,
       code: "validation_failed",
     });
     expect(stub.violations).toHaveLength(1);
@@ -103,15 +104,21 @@ describe("UAM 桩本身忠于 OpenAPI 契约", () => {
 
   it("校验路径参数 / 查询参数 / 声明的响应头", async () => {
     stub.respond("getUser", { status: 404, body: problemBody(404, "user_not_found") });
-    await uamRequest({ method: "GET", path: "/v1/users/not-a-uuid" }).catch(() => undefined);
+    // 读不懂的请求（非 UUID 路径变量）：桩像真实 UAM 一样回 400 bad_request
+    await expect(uamRequest({ method: "GET", path: "/v1/users/not-a-uuid" })).rejects.toMatchObject({
+      kind: "problem",
+      status: 400,
+      code: "bad_request",
+    });
     expect(stub.violations[0]).toContain("路径参数 userId");
     stub.violations.length = 0;
 
     stub.respond("listUsers", { status: 200, body: { items: [], page: 1, size: 20, total: 0 } });
-    await uamRequest({ method: "GET", path: "/v1/users", query: { page: 0 } }).catch(() => undefined);
+    await expect(uamRequest({ method: "GET", path: "/v1/users", query: { page: 0 } })).rejects.toMatchObject({ status: 422, code: "validation_failed" });
+    await expect(uamRequest({ method: "GET", path: "/v1/users", query: { page: "abc" } })).rejects.toMatchObject({ status: 400, code: "bad_request" });
     await uamRequest({ method: "GET", path: "/v1/users", query: { bogus: "x" } }).catch(() => undefined);
     expect(stub.violations.map((v) => v.split("：")[1])).toEqual(
-      expect.arrayContaining([expect.stringContaining("page"), expect.stringContaining("bogus")]),
+      expect.arrayContaining([expect.stringContaining("page"), expect.stringContaining("page"), expect.stringContaining("bogus")]),
     );
     stub.violations.length = 0;
 

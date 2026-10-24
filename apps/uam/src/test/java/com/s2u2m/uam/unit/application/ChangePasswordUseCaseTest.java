@@ -96,8 +96,8 @@ class ChangePasswordUseCaseTest {
 
   @Test
   void successResetsTheThrottleForThatAccountAndSource() {
-    throttle.recordChangeFailure(subject());
-    throttle.recordChangeFailure(subject());
+    throttle.admitChange(subject());
+    throttle.admitChange(subject());
 
     useCase.change(command(CURRENT, NEW));
 
@@ -148,7 +148,7 @@ class ChangePasswordUseCaseTest {
   @Test
   void aBlockedSourceIsRefusedBeforeAnyHashComparisonEvenWithTheRightPassword() {
     for (int i = 0; i < 5; i++) {
-      throttle.recordChangeFailure(subject());
+      throttle.admitChange(subject());
     }
 
     DomainException e = rejection(command(CURRENT, NEW));
@@ -157,7 +157,7 @@ class ChangePasswordUseCaseTest {
     assertThat(e.retryAfterSeconds()).hasValue(900);
     assertThat(hasher.comparedHashes).isEmpty();
     assertThat(credentials.hashes.get(accountId)).isEqualTo("fake$" + CURRENT);
-    assertThat(throttle.failures).containsEntry(subject(), 5);
+    assertThat(throttle.failures).containsEntry(subject(), 6);
     assertThat(onlyEvent().outcome()).isEqualTo(Outcome.REJECTED);
     assertThat(onlyEvent().reason()).isEqualTo("throttled");
   }
@@ -165,7 +165,7 @@ class ChangePasswordUseCaseTest {
   @Test
   void anotherSourceIsNotBlocked() {
     for (int i = 0; i < 5; i++) {
-      throttle.recordChangeFailure(throttlePolicy.accountSubject(accountId, "198.51.100.9"));
+      throttle.admitChange(throttlePolicy.accountSubject(accountId, "198.51.100.9"));
     }
 
     useCase.change(command(CURRENT, NEW));
@@ -244,6 +244,11 @@ class ChangePasswordUseCaseTest {
 
           @Override
           public void updatePasswordHash(UUID id, String passwordHash) {}
+
+          @Override
+          public boolean upgradePasswordHash(UUID id, String expectedHash, String passwordHash) {
+            return false;
+          }
         };
     ChangePasswordUseCase failing =
         new ChangePasswordUseCase(

@@ -21,6 +21,12 @@ source "$here/../../local/scripts/scale-lib.sh"
 users="${USERS:-100000}"
 sessions="${SESSIONS:-10000}"
 seed_vus="${SEED_VUS:-48}"
+# 先校验是纯数字：USERS 会原样进 SQL，`[ -gt ]` 对非数字也只是报错而不一定中止
+for v in users sessions seed_vus; do
+  case "${!v}" in
+    '' | *[!0-9]*) echo "$v 必须是非负整数，收到：${!v}" >&2; exit 2 ;;
+  esac
+done
 if [ "$sessions" -gt "$users" ]; then
   echo "SESSIONS（$sessions）不能大于 USERS（$users）" >&2
   exit 2
@@ -29,12 +35,18 @@ stack_is_up || { echo "多实例栈未启动：先运行 infra/local/scripts/sca
 
 psql_run() { compose exec -T postgres psql -U uam -d uam -v ON_ERROR_STOP=1 -q "$@"; }
 
-admin_hash="$(psql_run -At -c "SELECT c.password_hash FROM credential c JOIN account a ON a.id = c.account_id WHERE a.login_name_norm = lower('$ADMIN_ACCOUNT')")"
+# 管理员账号名经 psql 变量（:'acct' 自动加引号转义）传入，不拼进 SQL 文本；变量替换只对标准输入生效，对 -c 无效，所以用 heredoc
+admin_hash="$(psql_run -At -v acct="$ADMIN_ACCOUNT" <<'SQL'
+SELECT c.password_hash FROM credential c JOIN account a ON a.id = c.account_id WHERE a.login_name_norm = lower(:'acct')
+SQL
+)"
 [ -n "$admin_hash" ] || { echo "找不到管理员 $ADMIN_ACCOUNT 的凭据（先运行 scale-checks.sh up 建首个用户）" >&2; exit 2; }
 
 log "生成用户：目标 $users 个（只补缺的）"
 started="$(date +%s)"
+# 整段放在一个事务里：中途失败（ON_ERROR_STOP）整体回滚，不留下只有用户没有账号 / 凭据的孤儿行，重跑也不会重复补
 psql_run -v n="$users" -v hash="$admin_hash" <<'SQL'
+BEGIN;
 CREATE TEMP TABLE seed_new AS
   SELECT i, gen_random_uuid() AS uid, gen_random_uuid() AS aid, 'load' || lpad(i::text, 6, '0') AS login
   FROM generate_series(1, :n) AS i
@@ -45,6 +57,7 @@ INSERT INTO account (id, user_id, kind, login_name, login_name_norm, status, cre
   SELECT aid, uid, 'PASSWORD', login, login, 'ACTIVE', now() - (i || ' seconds')::interval FROM seed_new;
 INSERT INTO credential (account_id, password_hash, updated_at)
   SELECT aid, :'hash', now() FROM seed_new;
+COMMIT;
 ANALYZE app_user;
 ANALYZE account;
 ANALYZE credential;

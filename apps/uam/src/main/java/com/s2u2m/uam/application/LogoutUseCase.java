@@ -31,6 +31,6 @@ public class LogoutUseCase {
     }
     sessions
         .find(SessionToken.hashOf(sessionId))
-        .ifPresent(session -> sessions.terminateByRef(session.ref()));
+        .ifPresent(session -> sessions.terminateByRef(session.ref(), false));
   }
 }

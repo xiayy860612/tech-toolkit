@@ -24,6 +24,19 @@ const TARGET_RATIO = Number(__ENV.TARGET_RATIO || 3.2);
 const INSTANCES = Number(__ENV.INSTANCES || 0);
 const PAGE_SIZE = 20;
 
+// 把 k6 的时长写法（120s、2m、1m30s、1h）换算成秒，用来算 rps；其他写法（如 ms、纯数字）直接报错，避免 NaN 静默进入结果
+function durationSeconds(text) {
+  const value = String(text);
+  if (!/^(\d+(\.\d+)?[hms])+$/.test(value)) {
+    throw new Error(`DURATION 只支持 s / m / h 单位（如 120s、2m、1m30s），收到：${value}`);
+  }
+  const unit = { h: 3600, m: 60, s: 1 };
+  let total = 0;
+  for (const m of value.matchAll(/(\d+(?:\.\d+)?)([hms])/g)) total += Number(m[1]) * unit[m[2]];
+  return total;
+}
+const DURATION_SECONDS = durationSeconds(DURATION);
+
 function scenario(startTime, duration, phase) {
   return { executor: "constant-vus", vus: VUS, duration, startTime, exec: "iteration", env: { PHASE: phase }, tags: { phase } };
 }
@@ -80,7 +93,7 @@ export function handleSummary(data) {
   const reqs = data.metrics["http_reqs{phase:measure}"];
   const dur = data.metrics["http_req_duration{phase:measure}"];
   const failed = data.metrics["http_req_failed{phase:measure}"];
-  const seconds = Number(String(DURATION).replace(/s$/, ""));
+  const seconds = DURATION_SECONDS;
   const rps = reqs ? reqs.values.count / seconds : 0;
   const result = {
     instances: INSTANCES,

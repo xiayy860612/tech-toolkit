@@ -234,7 +234,7 @@ class UserSessionsIT extends IntegrationTestBase {
     Created one = sessions.live(user, "多账号用户", firstAccount, "Multi.One", now);
     assertThat(sessionsOf(user).json().get("items")).hasSize(1);
 
-    store.terminateByRef(one.ref());
+    store.terminateByRef(one.ref(), false);
 
     assertThat(sessionsOf(user).json().get("items")).isEmpty();
   }

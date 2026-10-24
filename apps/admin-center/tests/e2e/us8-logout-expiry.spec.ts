@@ -10,6 +10,8 @@ import { expect, liveSessions, login, test } from "./support/fixtures";
  * 每种之后都断言：用**旧的会话 cookie 值**发起的下一次请求被视为未登录（在全新的浏览器上下文里重放旧值，
  * 以及不经浏览器的裸 HTTP 请求），并且在线用户列表刷新后不再显示该会话（被取代时用户仍在线，但旧会话引用已不在）。
  * 同时用「仍有效的 cookie 值返回 200」作对照，证明断言能区分有效与失效。
+ * 重放旧值落到登录页时还断言提示文案：被管理员强制下线 → 「你的会话已被管理员强制下线」（`reason=session_terminated`）；
+ * 退出、被取代、用户被停用 → 通用的「会话已结束，请重新登录。」（`reason=session_ended`）。强制下线标记的有效期（约 10 分钟）由 UAM 的集成测试覆盖，这里不测。
  *
  * 空闲到期与绝对到期无法在共享栈上测：栈的时限是 30 分钟 / 12 小时（infra/local/e2e.env），也不允许为此改栈配置。
  * 它们由 UAM 的 `SessionExpiryIT`（T144，测试 profile 把时限调到秒级）覆盖：到期后 `verify` → `session_invalid`，
@@ -87,8 +89,24 @@ const refsOf = (userId: string) => liveSessions().filter((s) => s.userId === use
 const protectedStatus = (request: APIRequestContext, cookieValue: string, path = "/users") =>
   request.get(path, { headers: { cookie: `${COOKIE_NAME}=${cookieValue}` }, maxRedirects: 0 });
 
-/** 断言「这个 cookie 值已不是登录状态」：裸请求被重定向走（不是 200），且在全新浏览器上下文里重放也回到登录页。 */
-async function expectCookieIsLoggedOut(browser: Browser, request: APIRequestContext, baseURL: string | undefined, like: Page, value: string) {
+/** 登录页提示（`reason` → 文案）：只有被管理员强制下线有专门的提示，其余结束原因（退出、被取代、用户被停用、到期）都是通用提示。 */
+const NOTICES = {
+  session_ended: "会话已结束，请重新登录。",
+  session_terminated: "你的会话已被管理员强制下线",
+} as const;
+
+/**
+ * 断言「这个 cookie 值已不是登录状态」：裸请求被重定向走（不是 200），且在全新浏览器上下文里重放也回到登录页，
+ * 并显示 `reason` 对应的提示（缺省为通用提示；被管理员强制下线的会话在通知窗口内重放则是专门的提示）。
+ */
+async function expectCookieIsLoggedOut(
+  browser: Browser,
+  request: APIRequestContext,
+  baseURL: string | undefined,
+  like: Page,
+  value: string,
+  reason: keyof typeof NOTICES = "session_ended",
+) {
   for (const path of ["/users", "/sessions"]) {
     const res = await protectedStatus(request, value, path);
     expect([303, 307, 308]).toContain(res.status());
@@ -98,8 +116,11 @@ async function expectCookieIsLoggedOut(browser: Browser, request: APIRequestCont
   const replay = await newContext(browser, baseURL, like);
   await replay.context.addCookies([{ name: COOKIE_NAME, value, url: baseURL ?? "http://localhost:3000", httpOnly: true, sameSite: "Strict" }]);
   await replay.page.goto("/users");
-  await expect(replay.page).toHaveURL(/\/login/);
+  await expect(replay.page).toHaveURL(new RegExp(`/login\\?.*reason=${reason}`));
   await expect(replay.page.getByLabel("账号名")).toBeVisible();
+  await expect(replay.page.getByRole("status").filter({ hasText: NOTICES[reason] })).toBeVisible();
+  const other = reason === "session_ended" ? NOTICES.session_terminated : NOTICES.session_ended;
+  await expect(replay.page.getByText(other)).toHaveCount(0);
   await replay.page.goto("/sessions");
   await expect(replay.page).toHaveURL(/\/login/);
 }
@@ -216,7 +237,8 @@ test.describe("S10：主动退出", () => {
     await expect(user.page).toHaveURL(/\/login/);
     await expect(user.page.getByLabel("账号名")).toBeVisible();
     expect(await sessionCookieOf(user.context)).toBeUndefined();
-    await expectCookieIsLoggedOut(browser, request, baseURL, page, user.cookieValue);
+    // 这个会话是被管理员强制下线的（随后的退出只是清 cookie）：旧值重放看到专门的提示
+    await expectCookieIsLoggedOut(browser, request, baseURL, page, user.cookieValue, "session_terminated");
   });
 });
 
@@ -263,7 +285,8 @@ test.describe("SC-013：会话因其它原因结束后，旧会话标识 100% �
     await forceTerminate(page, target);
 
     expect(refsOf(target.id)).toHaveLength(0);
-    await expectCookieIsLoggedOut(browser, request, baseURL, page, user.cookieValue);
+    // 被管理员强制下线：旧值重放看到专门的提示「你的会话已被管理员强制下线」（UAM 在通知窗口内给 verify 的 401 带 reason=terminated）
+    await expectCookieIsLoggedOut(browser, request, baseURL, page, user.cookieValue, "session_terminated");
     expect(await listedOnlineUserIds(page)).not.toContain(target.id);
   });
 

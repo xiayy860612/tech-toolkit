@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { redirect } from "next/navigation";
 import UserDetailPage from "@/app/(shell)/users/[userId]/page";
 import UsersPage from "@/app/(shell)/users/page";
-import { getOperator } from "@/lib/session/get-session";
+import { requireOperator } from "@/lib/session/get-session";
 import { getUser, listUsers } from "@/lib/uam/client";
 import { UamError } from "@/lib/uam/errors";
 import { makeAccount, makeDetail, makeSummary, USER_IDS } from "../../support/users-fixtures";
@@ -13,7 +13,7 @@ jest.mock("next/navigation", () => ({
   }),
 }));
 jest.mock("@/lib/uam/client", () => ({ listUsers: jest.fn(), getUser: jest.fn() }));
-jest.mock("@/lib/session/get-session", () => ({ getOperator: jest.fn() }));
+jest.mock("@/lib/session/get-session", () => ({ requireOperator: jest.fn() }));
 jest.mock("@/app/(shell)/users/[userId]/actions", () => ({ disableUser: jest.fn(), enableUser: jest.fn() }));
 const OPERATOR = { userId: USER_IDS.zhang, accountId: "a", sessionRef: "r" };
 
@@ -25,13 +25,26 @@ const detailProps = (userId: string, search: { created?: Param } = {}) => ({
 });
 const page = (items = [makeSummary()], total = items.length, p = 1) => ({ items, page: p, size: 20, total });
 
+beforeEach(() => jest.mocked(requireOperator).mockResolvedValue(OPERATOR));
 afterEach(() => jest.clearAllMocks());
 
 describe("/users 列表页", () => {
-  it("取第 1 页：h1「用户管理」、面包屑当前页、搜索框、列表", async () => {
+  it("requireOperator() 是第一步：unverified（返回 null）时不渲染任何内容，也不调用 UAM（US13）", async () => {
+    jest.mocked(requireOperator).mockResolvedValue(null);
+    expect(await UsersPage(listProps())).toBeNull();
+    expect(listUsers).not.toHaveBeenCalled();
+  });
+
+  it("anonymous（requireOperator 跳转）：错误原样抛出，不调用 UAM", async () => {
+    jest.mocked(requireOperator).mockRejectedValue(new Error("NEXT_REDIRECT:/login?next=%2Fusers"));
+    await expect(UsersPage(listProps())).rejects.toThrow("NEXT_REDIRECT:/login?next=%2Fusers");
+    expect(listUsers).not.toHaveBeenCalled();
+  });
+
+  it("取第 1 页：h1「用户管理」、面包屑当前页、搜索框、列表；带操作人读取", async () => {
     jest.mocked(listUsers).mockResolvedValue(page([makeSummary({ name: "张三" }), makeSummary({ id: USER_IDS.li, name: "李四" })]));
     render(await UsersPage(listProps()));
-    expect(listUsers).toHaveBeenCalledWith({ query: "", page: 1 });
+    expect(listUsers).toHaveBeenCalledWith({ query: "", page: 1 }, OPERATOR);
     expect(screen.getByRole("heading", { level: 1, name: "用户管理" })).toBeInTheDocument();
     expect(within(screen.getByRole("navigation", { name: "面包屑" })).getByText("用户管理")).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("searchbox")).toHaveValue("");
@@ -52,7 +65,7 @@ describe("/users 列表页", () => {
   it("q 与 page 传给 UAM，搜索框回填；q 去首尾空白", async () => {
     jest.mocked(listUsers).mockResolvedValue(page([makeSummary()], 45, 2));
     render(await UsersPage(listProps({ q: "  LiSi ", page: "2" })));
-    expect(listUsers).toHaveBeenCalledWith({ query: "LiSi", page: 2 });
+    expect(listUsers).toHaveBeenCalledWith({ query: "LiSi", page: 2 }, OPERATOR);
     expect(screen.getByRole("searchbox")).toHaveValue("LiSi");
     expect(screen.getByRole("navigation", { name: "分页" })).toHaveTextContent("第 2 / 3 页");
   });
@@ -61,7 +74,7 @@ describe("/users 列表页", () => {
     jest.mocked(listUsers).mockResolvedValue(page());
     render(await UsersPage(listProps({ page: raw })));
     const expected = Array.isArray(raw) ? 2 : 1;
-    expect(listUsers).toHaveBeenCalledWith({ query: "", page: expected });
+    expect(listUsers).toHaveBeenCalledWith({ query: "", page: expected }, OPERATOR);
   });
 
   it("q 过长截断到 64 字符、去掉控制字符；q 为数组取第一项", async () => {
@@ -115,7 +128,17 @@ describe("/users 列表页", () => {
 });
 
 describe("/users/[userId] 详情页", () => {
-  beforeEach(() => jest.mocked(getOperator).mockResolvedValue(OPERATOR));
+  it("requireOperator() 是第一步：unverified（返回 null）时不渲染任何内容，也不调用 UAM（US13）", async () => {
+    jest.mocked(requireOperator).mockResolvedValue(null);
+    expect(await UserDetailPage(detailProps(USER_IDS.li))).toBeNull();
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
+  it("anonymous（requireOperator 跳转）：错误原样抛出，不调用 UAM", async () => {
+    jest.mocked(requireOperator).mockRejectedValue(new Error("NEXT_REDIRECT:/login"));
+    await expect(UserDetailPage(detailProps(USER_IDS.li))).rejects.toThrow("NEXT_REDIRECT:/login");
+    expect(getUser).not.toHaveBeenCalled();
+  });
 
   it("目标用户就是当前登录的用户：「停用用户」入口禁用并说明原因", async () => {
     jest.mocked(getUser).mockResolvedValue(makeDetail({ id: USER_IDS.zhang }));
@@ -124,21 +147,16 @@ describe("/users/[userId] 详情页", () => {
     expect(screen.getByText("不能停用当前登录的用户。")).toBeVisible();
   });
 
-  it("目标是其他用户，或无法取得操作人：入口可用（服务端仍会拒绝停用自己）", async () => {
+  it("目标是其他用户：「停用用户」入口可用（服务端仍会拒绝停用自己）", async () => {
     jest.mocked(getUser).mockResolvedValue(makeDetail());
-    const other = render(await UserDetailPage(detailProps(USER_IDS.li)));
-    expect(screen.getByRole("button", { name: "停用用户" })).toBeEnabled();
-    other.unmount();
-
-    jest.mocked(getOperator).mockResolvedValue(null);
     render(await UserDetailPage(detailProps(USER_IDS.li)));
     expect(screen.getByRole("button", { name: "停用用户" })).toBeEnabled();
   });
 
-  it("渲染详情；面包屑「用户管理 / 用户名」", async () => {
+  it("渲染详情；面包屑「用户管理 / 用户名」；带操作人读取", async () => {
     jest.mocked(getUser).mockResolvedValue(makeDetail());
     render(await UserDetailPage(detailProps(USER_IDS.li)));
-    expect(getUser).toHaveBeenCalledWith(USER_IDS.li);
+    expect(getUser).toHaveBeenCalledWith(USER_IDS.li, OPERATOR);
     expect(screen.getByRole("heading", { level: 1, name: "李四" })).toBeInTheDocument();
     const crumbs = screen.getByRole("navigation", { name: "面包屑" });
     expect(within(crumbs).getByRole("link", { name: "用户管理" })).toHaveAttribute("href", "/users");

@@ -47,10 +47,21 @@ class PasswordPolicyTest {
   }
 
   @Test
-  void passwordsLongerThanTheLoginLimitAreRejected() {
-    assertThat(policy.validate("password", "a1".repeat(129)))
+  void passwordsLongerThan128CodePointsAreRejected() {
+    assertThat(policy.validate("password", "a1".repeat(65)))
         .containsExactly(new FieldError("password", "too_long"));
-    assertThat(policy.validate("password", "a1".repeat(128))).isEmpty();
+    assertThat(policy.validate("password", "a1".repeat(64))).isEmpty();
+  }
+
+  @Test
+  void everyAcceptedPasswordFitsTheLoginRequestLimitOf256Utf16Chars() {
+    // 登录请求按 UTF-16 字符数限 256；策略按码点数限制，最坏情形是每个码点占 2 个字符（如 emoji）
+    String widest = "\uD83D\uDE00".repeat(PasswordPolicy.MAX_LENGTH - 2) + "a1";
+
+    assertThat(policy.validate("password", widest)).isEmpty();
+    assertThat(widest.length()).isLessThanOrEqualTo(256);
+    assertThat(policy.validate("password", widest + "\uD83D\uDE00"))
+        .containsExactly(new FieldError("password", "too_long"));
   }
 
   @Test

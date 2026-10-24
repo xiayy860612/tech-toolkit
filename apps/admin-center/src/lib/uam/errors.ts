@@ -15,10 +15,22 @@ export interface FieldError {
   reason: string;
 }
 
+/**
+ * `session_invalid` 的可选补充原因（contracts/uam/openapi.yaml 的 `Problem.reason`）：
+ * 仅 verify 的 401，且仅当会话被管理员强制终止（`terminated`）时才有；其余结束原因都不带。
+ */
+export type ProblemReason = "terminated";
+
+/** 只认契约声明的字面量：其它取值（含类型不对）一律当作没有 reason。 */
+export function parseProblemReason(raw: unknown): ProblemReason | undefined {
+  return raw === "terminated" ? raw : undefined;
+}
+
 export class UamError extends Error {
   kind: UamErrorKind;
   status?: number;
   code?: string;
+  reason?: ProblemReason;
   fieldErrors?: FieldError[];
   retryAfter?: number;
 
@@ -37,7 +49,12 @@ const UNAVAILABLE: Record<MessageMode, string> = {
   write: "操作未生效",
 };
 
-/** UAM 问题码 → 界面文案（contracts/web-routes.md §5）。 */
+/**
+ * UAM 问题码 → 界面文案（contracts/web-routes.md §5）。
+ * `validation_failed`（HTTP 422，带 `errors[]`）按 `code` 识别，不看状态码。
+ * `bad_request`（HTTP 400，请求读不懂）故意不在表内：Admin Center 不会发出这样的请求，出现即视为意外拒绝，
+ * 与未知问题码一样按「服务暂不可用 / 操作未生效」呈现，不当作凭据或输入错误。
+ */
 const PROBLEM_MESSAGES: Record<string, string | ((error: UamError) => string)> = {
   invalid_credentials: "账号名或密码错误",
   throttled: (e) => (e.retryAfter ? `尝试过于频繁，请 ${e.retryAfter} 秒后再试` : "尝试过于频繁，请稍后再试"),

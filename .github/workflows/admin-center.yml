@@ -12,6 +12,10 @@ on:
       - "contracts/**"
       - ".github/workflows/admin-center.yml"
 
+# 最小权限：只读仓库内容
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest

@@ -38,6 +38,7 @@ class AddAccountCommandTest {
           new FakePasswordHasher(),
           new PasswordPolicy(10),
           new FakeTransactionRunner(users, accounts, credentials),
+          () -> {},
           new FakeClock(Instant.parse("2026-10-24T08:00:00Z")));
   private final AddAccountCommand command = new AddAccountCommand(service);
 

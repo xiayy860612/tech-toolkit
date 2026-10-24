@@ -17,7 +17,8 @@ ADMIN_NAME="${E2E_ADMIN_NAME:-系统管理员}"
 UAM_SERVICE_KEY="$(sed -n 's/^UAM_SERVICE_KEY=//p' "$local_dir/e2e.env")"
 
 compose() {
-  docker compose -f "$local_dir/docker-compose.scale.yml" --env-file "$local_dir/e2e.env" "$@"
+  # 显式 -p：COMPOSE_PROJECT_NAME 会盖过编排文件的 name，scale_down 的 `down -v` 可能误删别的项目
+  docker compose -p "$PROJECT" -f "$local_dir/docker-compose.scale.yml" --env-file "$local_dir/e2e.env" "$@"
 }
 
 pin_url() { printf 'http://127.0.0.1:%s' "$((PIN_BASE_PORT + $1))"; }

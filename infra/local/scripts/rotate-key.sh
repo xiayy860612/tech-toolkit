@@ -17,6 +17,7 @@
 #
 # 环境变量（均有默认值）：
 #   ROTATE_COMPOSE_FILE     编排文件，默认 infra/local/docker-compose.stack.yml（多实例栈用 docker-compose.scale.yml）
+#   ROTATE_COMPOSE_PROJECT  compose 项目名（-p），默认按编排文件取：docker-compose.scale.yml 为 uam-scale，其余为 uam-e2e
 #   ROTATE_UAM_SERVICES     UAM 服务名（空格分隔，逐个重建；多实例才是真正的滚动），默认 uam
 #   ROTATE_ADMIN_SERVICES   Admin Center 服务名（空格分隔），默认 admin-center
 #   ROTATE_CLIENT           客户端名，默认 admin-center
@@ -34,6 +35,12 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$here/service-key-lib.sh"
 
 compose_file="${ROTATE_COMPOSE_FILE:-$local_dir/docker-compose.stack.yml}"
+# 项目名显式传 -p（COMPOSE_PROJECT_NAME 会盖过编排文件的 name）：按编排文件取默认值，与文件里的 name 一致
+case "$(basename "$compose_file")" in
+  docker-compose.scale.yml) default_project=uam-scale ;;
+  *) default_project=uam-e2e ;;
+esac
+compose_project="${ROTATE_COMPOSE_PROJECT:-$default_project}"
 read -r -a uam_services <<<"${ROTATE_UAM_SERVICES:-uam}"
 read -r -a admin_services <<<"${ROTATE_ADMIN_SERVICES:-admin-center}"
 client="${ROTATE_CLIENT:-admin-center}"
@@ -45,7 +52,7 @@ current_step="准备"
 
 # 经 env -u 去掉调用方 shell 里可能存在的同名变量：compose 里 shell 环境优先于 --env-file，会让覆盖失效
 uam_compose() {
-  env -u UAM_CLIENTS -u UAM_SERVICE_KEY docker compose -f "$compose_file" \
+  env -u UAM_CLIENTS -u UAM_SERVICE_KEY docker compose -p "$compose_project" -f "$compose_file" \
     --env-file "$local_dir/e2e.env" ${extra_env[@]+"${extra_env[@]}"} "$@"
 }
 

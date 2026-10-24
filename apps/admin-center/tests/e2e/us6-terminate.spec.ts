@@ -13,9 +13,9 @@ import { uamCli } from "./support/stack";
  * （多账号用户、无账号用户、已停用用户、分页用户、在线者、离线者、建档员、停权对象、甲号、乙号、丙号），避免串到它们的搜索与计数。
  * 被强制下线的目标会话只会是本用例刚造的用户的会话，绝不是 ADMIN 的。
  *
- * 「被下线者的登录页提示」：契约（verify 的 401 `session_invalid`）不区分「被管理员强制下线」与其它会话结束原因，
- * 所以被下线的浏览器看到的是通用提示「会话已结束，请重新登录。」（`reason=session_ended`），不是「你的会话已被管理员强制下线」；
- * 在契约增加可区分的原因之前，这里断言通用提示。
+ * 「被下线者的登录页提示」：UAM 在 verify 的 401 `session_invalid` 上给被管理员强制下线的会话带 `reason: terminated`（通知窗口内），
+ * Admin Center 据此把被下线者带到 `/login?reason=session_terminated`，提示「你的会话已被管理员强制下线」；
+ * 其它结束原因（到期、退出、被取代、用户被停用）仍是通用的「会话已结束，请重新登录。」（见 us8-logout-expiry.spec.ts）。
  *
  * 「任一实例」：栈目前只有一个 Admin Center 实例，只对这一个实例断言「下一次请求被视为未登录」；多实例在 US10 的 E2E 里补。
  */
@@ -140,10 +140,11 @@ test.describe("S8：强制下线", () => {
     // Redis：只剩一个会话（B 的）
     expect(userSessions(target.id)).toHaveLength(1);
 
-    // A（被下线者）下一次请求被视为未登录：回登录页并提示会话已结束（通用提示，见文件头说明）
+    // A（被下线者）下一次请求被视为未登录：回登录页并提示「你的会话已被管理员强制下线」（专门的提示，不是通用的「会话已结束」）
     await a.page.goto("/users");
-    await expect(a.page).toHaveURL(/\/login\?.*reason=session_ended/);
-    await expect(a.page.getByText("会话已结束，请重新登录。")).toBeVisible();
+    await expect(a.page).toHaveURL(/\/login\?.*reason=session_terminated/);
+    await expect(a.page.getByRole("status").filter({ hasText: "你的会话已被管理员强制下线" })).toBeVisible();
+    await expect(a.page.getByText("会话已结束，请重新登录。")).toHaveCount(0);
     await a.page.goto("/sessions");
     await expect(a.page).toHaveURL(/\/login/);
 

@@ -14,11 +14,13 @@ import com.s2u2m.uam.domain.model.AccountStatus;
 import com.s2u2m.uam.domain.model.User;
 import com.s2u2m.uam.domain.model.UserStatus;
 import com.s2u2m.uam.domain.policy.PasswordPolicy;
+import com.s2u2m.uam.domain.port.UserStatusLock;
 import com.s2u2m.uam.support.Fakes.FakeAccounts;
 import com.s2u2m.uam.support.Fakes.FakeClock;
 import com.s2u2m.uam.support.Fakes.FakeCredentials;
 import com.s2u2m.uam.support.Fakes.FakePasswordHasher;
 import com.s2u2m.uam.support.Fakes.FakeTransactionRunner;
+import com.s2u2m.uam.support.Fakes.FakeUserStatusLock;
 import com.s2u2m.uam.support.Fakes.FakeUsers;
 import java.time.Instant;
 import java.util.List;
@@ -37,9 +39,17 @@ class AccountProvisioningServiceTest {
   private final FakeCredentials credentials = new FakeCredentials();
   private final FakePasswordHasher hasher = new FakePasswordHasher();
   private final FakeTransactionRunner tx = new FakeTransactionRunner(users, accounts, credentials);
+  private final FakeUserStatusLock lock = new FakeUserStatusLock(() -> tx.active);
   private final AccountProvisioningService service =
       new AccountProvisioningService(
-          users, accounts, credentials, hasher, new PasswordPolicy(10), tx, new FakeClock(T0));
+          users,
+          accounts,
+          credentials,
+          hasher,
+          new PasswordPolicy(10),
+          tx,
+          lock,
+          new FakeClock(T0));
 
   private DomainException failure(Runnable action) {
     try {
@@ -79,6 +89,19 @@ class AccountProvisioningServiceTest {
     assertThat(users.byId).isEmpty();
     assertThat(accounts.byId).isEmpty();
     assertThat(credentials.hashes).isEmpty();
+  }
+
+  @Test
+  void userNameWithNulOrAnUnpairedSurrogateIsInvalidCharsNotADatabaseError() {
+    for (String bad : List.of("a\u0000b", "\u0000", "ab\uD800", "\uDC00ab")) {
+      DomainException e = failure(() -> service.createUserWithAccount(bad, "zhangsan", PASSWORD));
+
+      assertThat(e.errorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+      assertThat(e.fieldErrors()).containsExactly(new FieldError("userName", "invalid_chars"));
+    }
+    assertThat(users.byId).isEmpty();
+    // 成对的代理项（如 emoji）是合法字符
+    assertThat(service.createUserWithAccount("小明\uD83D\uDE00", "xiaoming", PASSWORD)).isNotNull();
   }
 
   @Test
@@ -221,6 +244,33 @@ class AccountProvisioningServiceTest {
     service.createInitialUserWithAccount("系统管理员", "admin", PASSWORD);
 
     assertThat(tx.transactions).isEqualTo(1);
+  }
+
+  @Test
+  void initialUserTakesTheAdvisoryLockInsideTheTransactionBeforeTheExistenceCheck() {
+    // 等锁期间另一个 init-admin 已提交了首个用户：取锁之后的复查必须看到它
+    UserStatusLock otherCommitsWhileWeWait =
+        () -> {
+          lock.lockStatusChanges();
+          users.insert(new User(UUID.randomUUID(), "先到者", UserStatus.ACTIVE, T0));
+        };
+    AccountProvisioningService racing =
+        new AccountProvisioningService(
+            users,
+            accounts,
+            credentials,
+            hasher,
+            new PasswordPolicy(10),
+            tx,
+            otherCommitsWhileWeWait,
+            new FakeClock(T0));
+
+    Optional<Provisioned> created = racing.createInitialUserWithAccount("系统管理员", "admin", PASSWORD);
+
+    assertThat(created).isEmpty();
+    assertThat(users.byId).hasSize(1);
+    assertThat(accounts.byId).isEmpty();
+    assertThat(lock.acquiredInsideTransaction).containsExactly(true);
   }
 
   @Test

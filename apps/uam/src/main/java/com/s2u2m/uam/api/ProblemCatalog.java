@@ -12,7 +12,7 @@ final class ProblemCatalog {
     return switch (code) {
       case INVALID_CREDENTIALS, SESSION_INVALID, CLIENT_UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED;
       case CLIENT_FORBIDDEN -> HttpStatus.FORBIDDEN;
-      case OPERATOR_REQUIRED -> HttpStatus.BAD_REQUEST;
+      case OPERATOR_REQUIRED, BAD_REQUEST -> HttpStatus.BAD_REQUEST;
       case THROTTLED -> HttpStatus.TOO_MANY_REQUESTS;
       case ACCOUNT_NAME_TAKEN,
           IDEMPOTENCY_IN_PROGRESS,
@@ -20,7 +20,8 @@ final class ProblemCatalog {
           CANNOT_DISABLE_LAST_ACTIVE_USER,
           CANNOT_TERMINATE_OWN_SESSION ->
           HttpStatus.CONFLICT;
-      // 规则校验（账号名、密码强度等）为 422；请求结构不合法（缺字段、JSON 损坏）由 ProblemAdvice 给 400
+      // 一个错误码对应一个状态码：validation_failed 一律 422（规则校验与请求体 Bean Validation 失败）；
+      // 读不懂的请求（坏 JSON、类型不符）是 400 bad_request
       case VALIDATION_FAILED, CURRENT_PASSWORD_INCORRECT, WEAK_PASSWORD, SAME_AS_CURRENT ->
           HttpStatus.UNPROCESSABLE_ENTITY;
       case SESSION_NOT_FOUND, USER_NOT_FOUND -> HttpStatus.NOT_FOUND;

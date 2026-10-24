@@ -119,6 +119,21 @@ class UsersWriteContractIT extends IntegrationTestBase {
   }
 
   @Test
+  void aUserNameWithNulIsInvalidCharsNotAServerError() {
+    Response response =
+        api.postJson(
+            "/v1/users",
+            Map.of("userName", "a\u0000b", "accountName", "zhangsan", "password", PASSWORD),
+            headers(KEY));
+
+    assertProblem(response, 422, "validation_failed");
+    JsonNode errors = response.json().get("errors");
+    assertThat(errors).hasSize(1);
+    assertThat(errors.get(0).get("field").asString()).isEqualTo("userName");
+    assertThat(errors.get(0).get("reason").asString()).isEqualTo("invalid_chars");
+  }
+
+  @Test
   void missingFieldsAndMissingIdempotencyKeyAre422() {
     assertProblem(api.postJson("/v1/users", Map.of(), headers(KEY)), 422, "validation_failed");
     assertProblem(

@@ -158,7 +158,8 @@ services:
   # 压测（profile load，不随 up 启动）：与入口和 uam-lb 同网，用 grafana/k6 运行 infra/load/k6 下的脚本。
   #   docker compose -f 本文件 --env-file e2e.env --profile load run --rm k6 run /scripts/list-and-detail.js
   k6:
-    image: grafana/k6:latest
+    # 固定版本：infra/load/RESULTS.md 的数字都是 k6 v2.3.0 测得（不用 latest，免得换版本后结果不可比）
+    image: grafana/k6:2.3.0
     profiles: ["load"]
     volumes:
       - ../load/k6:/scripts:ro

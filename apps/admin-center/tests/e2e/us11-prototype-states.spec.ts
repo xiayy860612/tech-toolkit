@@ -18,7 +18,6 @@ import { startService, stopService, uamCli } from "./support/stack";
  * - 「不能停用最后一个正常用户」：真实栈上只会在并发操作时出现（原型也写明「仅为展示设计」）；由 `tests/unit/app/user-status-actions.test.ts` 与
  *   `tests/unit/components/users/status-actions.test.tsx` 覆盖。
  * - 「UAM 因服务密钥配置错误拒绝 Admin Center」同样呈现为「服务暂不可用」：该变体放在 US12（`us12-rotation.spec.ts`，T177）里测，这里只测停掉 UAM。
- * - 「被强制下线」的专用提示（契约缺口）：见「登录页」一组里的注释（tasks.md T127 的偏差说明）。
  *
  * 造数：用例经「新建用户」界面（US4）建全新的用户；名字都以「原型核对」开头并带本次运行与视口的后缀，
  * 刻意不含其它规格造数用户的子串（多账号用户、无账号用户、已停用用户、分页用户、在线者、离线者、建档员、停权对象、强退对象、改密者、
@@ -119,11 +118,10 @@ test.describe("README 行：登录页", () => {
     await page.getByRole("alertdialog", { name: "强制下线该会话？" }).getByRole("button", { name: "强制下线", exact: true }).click();
     await expect(statusWith(page, "会话已强制下线。")).toBeVisible();
     await second.goto("/users");
-    await expect(second).toHaveURL(/\/login\?.*reason=session_ended/);
-    // 已知的契约缺口（tasks.md T127 的偏差说明）：UAM 的 verify 401 不区分「被管理员强制下线」与到期 / 退出 / 被取代，
-    // 所以被强制下线者看到的是通用的「会话已结束，请重新登录。」，而不是原型里的「你的会话已被管理员强制下线」。
-    // 这里断言产品实际的行为；要显示专用提示需要先决定契约（openapi 给 `session_invalid` 加可选 `reason`），在那之前不在这里编造文案。
-    await expect(statusWith(second, "会话已结束，请重新登录。")).toBeVisible();
+    await expect(second).toHaveURL(/\/login\?.*reason=session_terminated/);
+    // 被管理员强制下线有专门的提示（UAM 在 verify 的 401 上带 reason=terminated）；上面被取代的是通用提示，两者互不串
+    await expect(statusWith(second, "你的会话已被管理员强制下线")).toBeVisible();
+    await expect(second.getByText("会话已结束，请重新登录。")).toHaveCount(0);
   });
 });
 

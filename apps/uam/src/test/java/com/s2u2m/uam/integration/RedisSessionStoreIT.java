@@ -2,6 +2,10 @@ package com.s2u2m.uam.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.s2u2m.uam.application.VerifySessionUseCase;
 import com.s2u2m.uam.domain.model.Account;
 import com.s2u2m.uam.domain.model.AccountKind;
@@ -28,9 +32,12 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 /** T048：Redis 会话存储——登录脚本原子完成「读旧 → 删旧 → 写新 → 更新索引」，只存 SHA-256，TTL 取较小者，续期只在超过 60 秒后写。 */
 class RedisSessionStoreIT extends IntegrationTestBase {
+
+  private static final Duration NOTICE_TTL = Duration.ofMinutes(10);
 
   private final FakeClock clock = new FakeClock(Instant.now().truncatedTo(ChronoUnit.MILLIS));
   private final SessionPolicy policy =
@@ -42,7 +49,7 @@ class RedisSessionStoreIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    store = new RedisSessionStore(redis, clock, new ReplicaWait(redis));
+    store = new RedisSessionStore(redis, clock, new ReplicaWait(redis), NOTICE_TTL);
     user = new User(UUID.randomUUID(), "张三", UserStatus.ACTIVE, clock.now());
     account =
         new Account(
@@ -245,11 +252,80 @@ class RedisSessionStoreIT extends IntegrationTestBase {
     SessionToken token = SessionToken.generate();
     store.create(session, token.hash());
 
-    assertThat(store.terminateByRef(session.ref())).isTrue();
+    assertThat(store.terminateByRef(session.ref(), false)).isTrue();
 
     assertThat(redis.keys("uam:*")).isEmpty();
     assertThat(store.find(token.hash())).isEmpty();
-    assertThat(store.terminateByRef(session.ref())).as("重复终止").isFalse();
+    assertThat(store.terminateByRef(session.ref(), false)).as("重复终止").isFalse();
+  }
+
+  @Test
+  void terminateWithTheMarkWritesATombstoneKeyedByTheHashWithTheNoticeTtl() {
+    Session session = newSession(policy);
+    SessionToken token = SessionToken.generate();
+    store.create(session, token.hash());
+    assertThat(store.wasTerminated(token.hash())).isFalse();
+
+    assertThat(store.terminateByRef(session.ref(), true)).isTrue();
+
+    assertThat(store.wasTerminated(token.hash())).isTrue();
+    assertThat(redis.keys("uam:*")).containsExactly("uam:term:" + token.hash());
+    assertThat(pttl("uam:term:" + token.hash()))
+        .as("TTL = 通知窗口（10 分钟）")
+        .isBetween(NOTICE_TTL.toMillis() - 5_000, NOTICE_TTL.toMillis());
+    assertThat(store.find(token.hash())).isEmpty();
+  }
+
+  @Test
+  void terminateWithoutTheMarkLeavesNoTombstone() {
+    Session session = newSession(policy);
+    SessionToken token = SessionToken.generate();
+    store.create(session, token.hash());
+
+    assertThat(store.terminateByRef(session.ref(), false)).isTrue();
+
+    assertThat(store.wasTerminated(token.hash())).isFalse();
+    assertThat(redis.hasKey("uam:term:" + token.hash())).isFalse();
+  }
+
+  @Test
+  void terminatingAnAlreadyMissingSessionWritesNoTombstone() {
+    assertThat(store.terminateByRef(SessionRef.random(), true)).isFalse();
+
+    assertThat(redis.keys("uam:*")).isEmpty();
+  }
+
+  @Test
+  void supersedingAndTerminateAllLeaveNoTombstone() {
+    Session first = newSession(policy);
+    SessionToken firstToken = SessionToken.generate();
+    store.create(first, firstToken.hash());
+    SessionToken secondToken = SessionToken.generate();
+    store.create(newSession(policy), secondToken.hash());
+
+    store.terminateAllForUser(List.of(account.id()));
+
+    assertThat(store.wasTerminated(firstToken.hash())).as("被取代").isFalse();
+    assertThat(store.wasTerminated(secondToken.hash())).as("停用").isFalse();
+    assertThat(redis.keys("uam:term:*")).isEmpty();
+  }
+
+  @Test
+  void theTombstoneIsWrittenAtomicallyWithTheDeletionAndExpiresByTtl() throws InterruptedException {
+    RedisSessionStore shortLived =
+        new RedisSessionStore(redis, clock, new ReplicaWait(redis), Duration.ofMillis(300));
+    Session session = newSession(policy);
+    SessionToken token = SessionToken.generate();
+    shortLived.create(session, token.hash());
+
+    shortLived.terminateByRef(session.ref(), true);
+
+    assertThat(shortLived.wasTerminated(token.hash())).isTrue();
+    long deadline = System.currentTimeMillis() + 5_000;
+    while (shortLived.wasTerminated(token.hash()) && System.currentTimeMillis() < deadline) {
+      Thread.sleep(50);
+    }
+    assertThat(shortLived.wasTerminated(token.hash())).as("墓碑按 TTL 过期").isFalse();
   }
 
   @Test
@@ -259,7 +335,7 @@ class RedisSessionStoreIT extends IntegrationTestBase {
     String accountKey = "uam:acct:" + account.id() + ":sess";
     redis.opsForValue().set(accountKey, "later-session-hash");
 
-    assertThat(store.terminateByRef(old.ref())).isTrue();
+    assertThat(store.terminateByRef(old.ref(), false)).isTrue();
 
     assertThat(redis.opsForValue().get(accountKey)).isEqualTo("later-session-hash");
     assertThat(redis.hasKey("uam:sref:" + old.ref())).isFalse();
@@ -306,6 +382,72 @@ class RedisSessionStoreIT extends IntegrationTestBase {
             "uam:online");
     assertThat(redis.opsForZSet().range("uam:online", 0, -1))
         .containsExactly(other.id() + "|" + otherSession.ref());
+  }
+
+  /** WAIT 总是失败的 {@link ReplicaWait}：撤销已在主节点生效，等待副本确认失败不能让撤销变成错误。 */
+  private RedisSessionStore storeWithFailingReplicaWait() {
+    return new RedisSessionStore(
+        redis,
+        clock,
+        new ReplicaWait(redis) {
+          @Override
+          public long await(Duration timeout) {
+            throw new IllegalStateException("等待 Redis 副本确认失败");
+          }
+        },
+        NOTICE_TTL);
+  }
+
+  private List<ILoggingEvent> captureStoreLogs(Runnable action) {
+    Logger logger = (Logger) LoggerFactory.getLogger(RedisSessionStore.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      action.run();
+    } finally {
+      logger.detachAppender(appender);
+    }
+    return List.copyOf(appender.list);
+  }
+
+  @Test
+  void aFailingReplicaWaitAfterTerminateByRefStillReportsTheRevocationAndLogsOneWarning() {
+    Session session = newSession(policy);
+    SessionToken token = SessionToken.generate();
+    store.create(session, token.hash());
+    RedisSessionStore failing = storeWithFailingReplicaWait();
+    boolean[] result = new boolean[1];
+
+    List<ILoggingEvent> logs =
+        captureStoreLogs(() -> result[0] = failing.terminateByRef(session.ref(), false));
+
+    assertThat(result[0]).isTrue();
+    assertThat(store.find(token.hash())).isEmpty();
+    assertThat(logs).hasSize(1);
+    assertThat(logs.get(0).getLevel()).isEqualTo(Level.WARN);
+    assertThat(logs.get(0).getFormattedMessage()).isEqualTo("uam.session.replica_wait_failed");
+    assertThat(logs.get(0).getKeyValuePairs())
+        .extracting(kv -> kv.key + "=" + kv.value)
+        .containsExactly("exception=IllegalStateException");
+    assertThat(logs.get(0).getThrowableProxy()).isNull();
+    assertThat(logs.get(0).toString()).doesNotContain(session.ref().toString());
+  }
+
+  @Test
+  void aFailingReplicaWaitAfterTerminateAllForUserStillReportsTheRevokedCount() {
+    SessionToken token = SessionToken.generate();
+    store.create(newSession(policy), token.hash());
+    RedisSessionStore failing = storeWithFailingReplicaWait();
+    int[] result = new int[1];
+
+    List<ILoggingEvent> logs =
+        captureStoreLogs(() -> result[0] = failing.terminateAllForUser(List.of(account.id())));
+
+    assertThat(result[0]).isEqualTo(1);
+    assertThat(store.find(token.hash())).isEmpty();
+    assertThat(logs).hasSize(1);
+    assertThat(logs.get(0).getFormattedMessage()).isEqualTo("uam.session.replica_wait_failed");
   }
 
   @Test

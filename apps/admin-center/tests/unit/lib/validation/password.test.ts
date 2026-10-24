@@ -58,18 +58,25 @@ describe("parseChangePasswordForm", () => {
     });
   });
 
-  it("超长（> 256）在本地拒绝；恰好 256 通过", () => {
-    const tooLong = `${"a1".repeat(128)}x`;
+  it("新密码按 UAM 口径（Unicode 码点）超过 128 在本地拒绝、恰好 128 通过；当前密码上限仍是 256", () => {
+    const tooLong = `${"a1".repeat(64)}x`;
     expect(parseChangePasswordForm(form({ newPassword: tooLong, confirmPassword: tooLong }))).toMatchObject({
       success: false,
-      fieldErrors: { newPassword: "密码最长 256 个字符" },
+      fieldErrors: { newPassword: "密码最长 128 个字符" },
     });
-    expect(parseChangePasswordForm(form({ currentPassword: tooLong }))).toMatchObject({
+    const exact = "a1".repeat(64);
+    expect(parseChangePasswordForm(form({ newPassword: exact, confirmPassword: exact })).success).toBe(true);
+    // 代理对（emoji）算一个字符：64 个 emoji + 字母数字补足仍是 128 个码点以内
+    const emoji = `${"😀".repeat(64)}${"a1".repeat(32)}`;
+    expect(parseChangePasswordForm(form({ newPassword: emoji, confirmPassword: emoji })).success).toBe(true);
+
+    const longCurrent = `${"a1".repeat(128)}x`;
+    expect(parseChangePasswordForm(form({ currentPassword: longCurrent }))).toMatchObject({
       success: false,
       fieldErrors: { currentPassword: "密码最长 256 个字符" },
     });
-    const exact = "a1".repeat(128);
-    expect(parseChangePasswordForm(form({ newPassword: exact, confirmPassword: exact })).success).toBe(true);
+    const currentOk = "a1".repeat(128);
+    expect(parseChangePasswordForm(form({ currentPassword: currentOk })).success).toBe(true);
   });
 
   it("密码不去首尾空白（空白也是密码的一部分）", () => {
@@ -91,7 +98,8 @@ describe("mapUamPasswordFieldErrors", () => {
         { field: "clientIp", reason: "required" },
       ]),
     ).toEqual({ newPassword: "新密码至少 10 位，且同时包含字母和数字", currentPassword: "请填写当前密码" });
-    expect(mapUamPasswordFieldErrors([{ field: "newPassword", reason: "too_long" }])).toEqual({ newPassword: "密码最长 256 个字符" });
+    expect(mapUamPasswordFieldErrors([{ field: "newPassword", reason: "too_long" }])).toEqual({ newPassword: "密码最长 128 个字符" });
+    expect(mapUamPasswordFieldErrors([{ field: "currentPassword", reason: "too_long" }])).toEqual({ currentPassword: "密码最长 256 个字符" });
     expect(mapUamPasswordFieldErrors([{ field: "currentPassword", reason: "brand_new" }])).toEqual({ currentPassword: "输入不合法" });
     expect(mapUamPasswordFieldErrors([])).toEqual({});
   });

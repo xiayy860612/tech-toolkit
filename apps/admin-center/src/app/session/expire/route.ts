@@ -20,7 +20,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const state = await getSession();
   if (state.status === "anonymous") {
     const params = new URLSearchParams();
-    if (state.hadCookie) params.set("reason", "session_ended");
+    // 被管理员强制下线（UAM 在 verify 的 401 上给出 reason=terminated）有专门的提示，其余结束原因保持通用提示
+    if (state.hadCookie) params.set("reason", state.reason === "terminated" ? "session_terminated" : "session_ended");
     if (next) params.set("next", next);
     const query = params.toString();
     const response = redirectTo(query ? `/login?${query}` : "/login");

@@ -158,11 +158,12 @@ describe("disableUser 动作：成功与 UAM 的结论", () => {
     expect(console.error).toHaveBeenCalledTimes(1);
   });
 
-  it("其它业务问题码（operator_required 或未知）：「操作未生效」", async () => {
-    for (const code of ["operator_required", "brand_new_code"]) {
+  it("其它业务问题码（operator_required、bad_request 或未知）：「操作未生效」，不刷新", async () => {
+    for (const code of ["operator_required", "bad_request", "brand_new_code"]) {
       stub.respond("disableUser", { status: 400, body: problemBody(400, code) });
       expect(await disableUser(TARGET)).toEqual({ ok: false, message: "操作未生效" });
     }
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
 

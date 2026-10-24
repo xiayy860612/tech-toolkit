@@ -44,4 +44,16 @@ public class JdbcCredentialRepository implements CredentialRepository {
         .param("hash", passwordHash)
         .update();
   }
+
+  @Override
+  public boolean upgradePasswordHash(UUID accountId, String expectedHash, String passwordHash) {
+    return jdbc.sql(
+                "UPDATE credential SET password_hash = :hash, updated_at = clock_timestamp()"
+                    + " WHERE account_id = :id AND password_hash = :expected")
+            .param("id", accountId)
+            .param("hash", passwordHash)
+            .param("expected", expectedHash)
+            .update()
+        > 0;
+  }
 }
