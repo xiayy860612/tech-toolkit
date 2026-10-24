@@ -6,7 +6,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -43,6 +45,7 @@ public final class ClientRegistry implements ClientAuthenticator {
       throw new IllegalArgumentException("UAM_CLIENTS 不是合法的客户端清单 JSON");
     }
     Set<String> ids = new HashSet<>();
+    Set<String> seenHashes = new HashSet<>();
     List<Entry> entries =
         definitions.stream()
             .map(
@@ -52,13 +55,13 @@ public final class ClientRegistry implements ClientAuthenticator {
                       || !ids.add(definition.id())) {
                     throw new IllegalArgumentException("UAM_CLIENTS 的客户端 id 必须非空且不重复");
                   }
-                  return toEntry(definition);
+                  return toEntry(definition, seenHashes);
                 })
             .toList();
     return new ClientRegistry(entries);
   }
 
-  private static Entry toEntry(ClientDefinition definition) {
+  private static Entry toEntry(ClientDefinition definition, Set<String> seenHashes) {
     List<String> keyHashes = definition.keyHashes() == null ? List.of() : definition.keyHashes();
     if (keyHashes.isEmpty() || keyHashes.size() > MAX_KEYS_PER_CLIENT) {
       throw new IllegalArgumentException(
@@ -72,11 +75,21 @@ public final class ClientRegistry implements ClientAuthenticator {
                     throw new IllegalArgumentException(
                         "客户端 " + definition.id() + " 的 keyHashes 必须是 sha256:<64 位十六进制>");
                   }
-                  return java.util.HexFormat.of().parseHex(hash.substring("sha256:".length()));
+                  String hex = hash.substring("sha256:".length()).toLowerCase(Locale.ROOT);
+                  // 同一个哈希只算一把钥匙：重复多半是复制粘贴错误，跨客户端重复则身份有歧义
+                  if (!seenHashes.add(hex)) {
+                    throw new IllegalArgumentException(
+                        "客户端 " + definition.id() + " 的 keyHashes 重复（同一个哈希不能出现两次，也不能分给两个客户端）");
+                  }
+                  return HexFormat.of().parseHex(hex);
                 })
             .toList();
     Set<String> permissions =
         definition.permissions() == null ? Set.of() : Set.copyOf(definition.permissions());
+    if (!ClientIdentity.KNOWN_PERMISSIONS.containsAll(permissions)) {
+      throw new IllegalArgumentException(
+          "客户端 " + definition.id() + " 的 permissions 含未知权限；可用：" + ClientIdentity.KNOWN_PERMISSIONS);
+    }
     return new Entry(new ClientIdentity(definition.id(), permissions), hashes);
   }
 

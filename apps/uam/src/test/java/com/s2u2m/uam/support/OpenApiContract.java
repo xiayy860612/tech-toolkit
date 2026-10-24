@@ -28,7 +28,8 @@ import tools.jackson.databind.node.ObjectNode;
 public final class OpenApiContract {
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
-  private static final JsonNode COMPONENTS = loadComponents();
+  private static final JsonNode DOCUMENT = loadDocument();
+  private static final JsonNode COMPONENTS = DOCUMENT.get("components");
   private static final SchemaRegistry REGISTRY =
       SchemaRegistry.withDefaultDialect(
           SpecificationVersion.DRAFT_2020_12,
@@ -38,17 +39,47 @@ public final class OpenApiContract {
 
   private OpenApiContract() {}
 
-  private static JsonNode loadComponents() {
+  private static JsonNode loadDocument() {
     Path file = Path.of("..", "..", "contracts", "uam", "openapi.yaml");
     try {
       var yaml = new com.fasterxml.jackson.databind.ObjectMapper(new YAMLFactory());
       String json =
           new com.fasterxml.jackson.databind.ObjectMapper()
               .writeValueAsString(yaml.readTree(Files.readString(file)));
-      return JSON.readTree(json).get("components");
+      return JSON.readTree(json);
     } catch (IOException e) {
       throw new IllegalStateException("读取 OpenAPI 契约失败: " + file.toAbsolutePath(), e);
     }
+  }
+
+  /** 契约里的一个接口（路径 × 方法）。 */
+  public record Operation(String method, String path, String operationId, boolean declares403) {}
+
+  /** 契约里的每一个接口，用来遍历断言（新增接口不会被漏掉）。 */
+  public static List<Operation> operations() {
+    List<Operation> operations = new ArrayList<>();
+    DOCUMENT
+        .get("paths")
+        .propertyNames()
+        .forEach(
+            path ->
+                DOCUMENT
+                    .get("paths")
+                    .get(path)
+                    .propertyNames()
+                    .forEach(
+                        method -> {
+                          JsonNode operation = DOCUMENT.get("paths").get(path).get(method);
+                          if (operation.isObject() && operation.has("operationId")) {
+                            operations.add(
+                                new Operation(
+                                    method.toUpperCase(java.util.Locale.ROOT),
+                                    path,
+                                    operation.get("operationId").asString(),
+                                    operation.get("responses").has("403")));
+                          }
+                        }));
+    return operations;
   }
 
   /** 校验 {@code instance} 符合 {@code components.schemas.<schemaName>}，且没有契约之外的字段。 */

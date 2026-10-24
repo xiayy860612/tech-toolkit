@@ -404,22 +404,22 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Tests for User Story 12 ⚠️
 
-- [ ] T172 [P] [US12] 单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/ClientRegistryRotationTest.java`：同一客户端至多两个有效哈希；撤销其一后旧密钥被拒、新密钥有效；三个哈希的配置被拒绝启动
-- [ ] T173 [P] [US12] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/ClientAuthContractIT.java`：遍历 `contracts/uam/openapi.yaml` 的**每个**接口——不带密钥、错密钥、已撤销密钥 → 401 `client_unauthenticated` 且响应不透露哪里不对；密钥有效但没有 `assert-end-user-context` 权限的客户端调用登录、校验会话、退出、修改密码与所有写操作 → 403 `client_forbidden`，只读查询仍 200
-- [ ] T174 [P] [US12] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/RejectedCallLogIT.java`：被拒绝的调用写结构化日志（来源、时间、原因类别），**永不含**密钥
-- [ ] T175 [P] [US12] 单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/cli/GenerateServiceKeyCommandTest.java`：密钥为 32 字节密码学安全随机数、base64url、前缀 `uamk_`；标准输出只输出密钥一次；标准错误输出对应的 `sha256:<hex>` 与 `UAM_CLIENTS` 配置片段；不连库、不连 Redis
-- [ ] T176 [P] [US12] 单元测试 `apps/admin-center/tests/unit/lib/session/misconfig.test.ts`：UAM 返回 401 `client_unauthenticated` / 403 `client_forbidden` 时按 `unverified` 处理——不登出用户、**不清 cookie**、显示「服务暂不可用」，并写运维告警日志（不含密钥）；写操作提示「操作未生效」
-- [ ] T177 [P] [US12] E2E `apps/admin-center/tests/e2e/us12-rotation.spec.ts`（S19）：持续访问下完成一次密钥轮换，0 个用户被登出、0 个请求因密钥失败；把 Admin Center 的密钥故意配错，已登录用户不被登出，改回后无需重新登录
+- [X] T172 [P] [US12] 单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/ClientRegistryRotationTest.java`：同一客户端至多两个有效哈希；撤销其一后旧密钥被拒、新密钥有效；三个哈希的配置被拒绝启动
+- [X] T173 [P] [US12] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/ClientAuthContractIT.java`：遍历 `contracts/uam/openapi.yaml` 的**每个**接口——不带密钥、错密钥、已撤销密钥 → 401 `client_unauthenticated` 且响应不透露哪里不对；密钥有效但没有 `assert-end-user-context` 权限的客户端调用登录、校验会话、退出、修改密码与所有写操作 → 403 `client_forbidden`，只读查询仍 200
+- [X] T174 [P] [US12] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/RejectedCallLogIT.java`：被拒绝的调用写结构化日志（来源、时间、原因类别），**永不含**密钥
+- [X] T175 [P] [US12] 单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/cli/GenerateServiceKeyCommandTest.java`：密钥为 32 字节密码学安全随机数、base64url、前缀 `uamk_`；标准输出只输出密钥一次；标准错误输出对应的 `sha256:<hex>` 与 `UAM_CLIENTS` 配置片段；不连库、不连 Redis
+- [X] T176 [P] [US12] 单元测试 `apps/admin-center/tests/unit/lib/session/misconfig.test.ts`：UAM 返回 401 `client_unauthenticated` / 403 `client_forbidden` 时按 `unverified` 处理——不登出用户、**不清 cookie**、显示「服务暂不可用」，并写运维告警日志（不含密钥）；写操作提示「操作未生效」
+- [X] T177 [P] [US12] E2E `apps/admin-center/tests/e2e/us12-rotation.spec.ts`（S19）：持续访问下完成一次密钥轮换，0 个用户被登出、0 个请求因密钥失败；把 Admin Center 的密钥故意配错，已登录用户不被登出，改回后无需重新登录
 
 ### Implementation for User Story 12
 
-- [ ] T178 [US12] 在 `ClientRegistry.java` 与 `ClientAuthFilter.java` 补全权限 `assert-end-user-context` 与 403 `client_forbidden`；使 T173（权限部分）通过
-- [ ] T179 [US12] 在 `ClientRegistry.java` 支持至多两个同时有效的密钥哈希并校验数量；使 T172 通过
-- [ ] T180 [US12] 在 `ClientAuthFilter.java` 写拒绝日志（来源、时间、原因类别，不含密钥）；使 T174 通过
-- [ ] T181 [US12] 部署期命令 `apps/uam/src/main/java/com/s2u2m/uam/cli/GenerateServiceKeyCommand.java`；使 T175 通过
-- [ ] T182 [US12] Admin Center：在 `apps/admin-center/src/lib/uam/errors.ts` 与 `apps/admin-center/src/lib/logging.ts` 实现 `misconfigured` → `unverified` 与告警日志；使 T176 通过
-- [ ] T183 [US12] `infra/local/scripts/rotate-key.sh`：新增第二个哈希 → 滚动发布 UAM → Admin Center 换新密钥 → 删旧哈希；`infra/local/scripts/bootstrap.sh` 改用 `generate-service-key`
-- [ ] T184 [US12] 验证：T172 ~ T177 通过（含 `infra/local/scripts/rotate-key.sh` 的轮换演练）；跑 quickstart S16、S19
+- [X] T178 [US12] 在 `ClientRegistry.java` 与 `ClientAuthFilter.java` 补全权限 `assert-end-user-context` 与 403 `client_forbidden`；使 T173（权限部分）通过
+- [X] T179 [US12] 在 `ClientRegistry.java` 支持至多两个同时有效的密钥哈希并校验数量；使 T172 通过
+- [X] T180 [US12] 在 `ClientAuthFilter.java` 写拒绝日志（来源、时间、原因类别，不含密钥）；使 T174 通过
+- [X] T181 [US12] 部署期命令 `apps/uam/src/main/java/com/s2u2m/uam/cli/GenerateServiceKeyCommand.java`；使 T175 通过
+- [X] T182 [US12] Admin Center：在 `apps/admin-center/src/lib/uam/errors.ts` 与 `apps/admin-center/src/lib/logging.ts` 实现 `misconfigured` → `unverified` 与告警日志；使 T176 通过
+- [X] T183 [US12] `infra/local/scripts/rotate-key.sh`：新增第二个哈希 → 滚动发布 UAM → Admin Center 换新密钥 → 删旧哈希；`infra/local/scripts/bootstrap.sh` 改用 `generate-service-key`
+- [X] T184 [US12] 验证：T172 ~ T177 通过（含 `infra/local/scripts/rotate-key.sh` 的轮换演练）；跑 quickstart S16、S19 （结果：UAM verify 364 单元 + 280 集成；E2E 轮换演练在单实例栈上 0 登出、0 密钥告警，UAM 重建的几秒内有 16/72 次「服务暂不可用」（单实例重建所致，非密钥失败）；在 3+3 多实例栈上持续访问下滚动轮换：341 次页面请求全部正常、0 登出、0 密钥告警，删旧哈希后旧密钥在三个 UAM 上均为 401；演练中发现并修复 rotate-key.sh 在多实例栈上硬编码服务名 uam 的缺陷）
 
 **Checkpoint**: 全部 12 个用户故事完成。
 

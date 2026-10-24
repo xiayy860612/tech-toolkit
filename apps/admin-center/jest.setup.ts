@@ -1,4 +1,8 @@
 import "@testing-library/jest-dom";
+import { resetUamMisconfiguredThrottle } from "@/lib/logging";
+
+// 运维告警按（错误码，操作）限流；每个用例从干净的限流状态开始，互不影响
+beforeEach(() => resetUamMisconfiguredThrottle());
 
 // jsdom 缺少的浏览器 API（Radix UI / shadcn 组件需要）。node 环境的测试没有 window，跳过。
 if (typeof window !== "undefined") {

@@ -45,10 +45,6 @@ function failureState(error: UamError): ChangePasswordFormState {
       }
     }
   }
-  if (error.kind === "misconfigured") {
-    // UAM 拒绝了 Admin Center 本身（通常是服务密钥或客户端权限配置错误）：用户只看到「操作未生效」，运维看到告警
-    console.error(`[change-password] UAM 拒绝了 Admin Center 的服务调用（HTTP ${error.status}），请检查 UAM_SERVICE_KEY 与客户端权限`);
-  }
   return { formError: uamErrorMessage(error, "write") };
 }
 

@@ -147,4 +147,15 @@ class ClientRegistryTest {
 
     assertThat(registry.toString()).doesNotContain(TestSecrets.sha256Hex(KEY_A));
   }
+
+  @Test
+  void unknownPermissionNamesFailFastInsteadOfSilentlyDenyingEverything() {
+    assertThatThrownBy(
+            () ->
+                registry(
+                    "[{\"id\":\"c\",\"keyHashes\":[\"%s\"],\"permissions\":[\"assert-end-user-contex\"]}]"
+                        .formatted(hash(KEY_A))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("未知权限");
+  }
 }

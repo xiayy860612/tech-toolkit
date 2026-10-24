@@ -57,7 +57,7 @@ mvn -f apps/uam/pom.xml spring-boot:run
 
 ## 部署期命令（不是运维入口）
 
-同一个 jar 以 `cli` profile 运行：不启动 Web、不连 Redis、先跑 Flyway、日志写标准错误。
+同一个 jar 以 `cli` profile 运行：不启动 Web、不连 Redis、先跑 Flyway、日志写标准错误。例外：`generate-service-key` 在启动 Spring 之前直接执行，不连 PostgreSQL / Redis、不跑 Flyway，镜像里不配数据库也能用（标准输出只有密钥一行，哈希与 `UAM_CLIENTS` 片段写标准错误）。
 
 ```bash
 java -jar apps/uam/target/uam.jar generate-service-key --client admin-center   # 密钥只在标准输出出现一次

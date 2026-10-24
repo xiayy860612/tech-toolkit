@@ -16,10 +16,6 @@ const UNAVAILABLE = "服务暂不可用，请稍后重试";
 
 /** UAM 失败 → 表单状态。`invalid_credentials` 一律统一文案，不透露是账号名还是密码错。 */
 function failureState(error: UamError, accountName: string): LoginFormState {
-  if (error.kind === "misconfigured") {
-    // UAM 拒绝了 Admin Center 本身（通常是服务密钥或客户端权限配置错误）：用户只看到「不可用」，运维看到告警
-    console.error(`[login] UAM 拒绝了 Admin Center 的服务调用（HTTP ${error.status}），请检查 UAM_SERVICE_KEY 与客户端权限`);
-  }
   if (error.kind === "problem" && error.code === "validation_failed") {
     const fieldErrors: LoginFieldErrors = {};
     for (const { field, reason } of error.fieldErrors ?? []) {

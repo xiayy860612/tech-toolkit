@@ -27,10 +27,24 @@ public abstract class IntegrationTestBase {
   public static final String TEST_SERVICE_KEY_HASH =
       "sha256:" + TestSecrets.sha256Hex(TEST_SERVICE_KEY);
 
+  /** 轮换期间的第二把假密钥：与 {@link #TEST_SERVICE_KEY} 同属 {@code admin-center}，两把同时有效。 */
+  public static final String TEST_SERVICE_KEY_NEXT = "uamk_test_fake_key_next_do_not_use_anywhere";
+
+  /** 只读客户端 {@code reporting} 的假密钥：有效，但没有 {@code assert-end-user-context} 权限。 */
+  public static final String READ_ONLY_SERVICE_KEY = "uamk_test_fake_key_read_only_do_not_use";
+
+  /** 曾经有效、已从配置里撤销的假密钥（它的哈希不在配置里）。 */
+  public static final String REVOKED_SERVICE_KEY = "uamk_test_fake_key_revoked_do_not_use";
+
   public static final String CLIENTS_JSON =
       "[{\"id\":\"admin-center\",\"keyHashes\":[\""
           + TEST_SERVICE_KEY_HASH
-          + "\"],\"permissions\":[\"assert-end-user-context\"]}]";
+          + "\",\"sha256:"
+          + TestSecrets.sha256Hex(TEST_SERVICE_KEY_NEXT)
+          + "\"],\"permissions\":[\"assert-end-user-context\"]},"
+          + "{\"id\":\"reporting\",\"keyHashes\":[\"sha256:"
+          + TestSecrets.sha256Hex(READ_ONLY_SERVICE_KEY)
+          + "\"],\"permissions\":[]}]";
 
   private static final PostgreSQLContainer POSTGRES =
       new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));

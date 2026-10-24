@@ -47,10 +47,6 @@ async function changeStatus(userId: string, write: UamWrite, success: (user: Use
     return { ok: true, message: success(updated) };
   } catch (error) {
     if (!(error instanceof UamError)) throw error; // 非 UAM 错误是程序问题，不要伪装成失败提示
-    if (error.kind === "misconfigured") {
-      // UAM 拒绝了 Admin Center 本身（通常是服务密钥或客户端权限配置错误）：用户只看到「操作未生效」，运维看到告警
-      console.error(`[user-status] UAM 拒绝了 Admin Center 的服务调用（HTTP ${error.status}），请检查 UAM_SERVICE_KEY 与客户端权限`);
-    }
     if (error.kind === "problem" && error.code === "user_not_found") revalidatePath(path);
     return { ok: false, message: uamErrorMessage(error, "write") };
   }

@@ -1,6 +1,7 @@
 import "server-only";
 import { headers } from "next/headers";
 import { getConfig } from "@/lib/config";
+import { logUamMisconfigured } from "@/lib/logging";
 import { UamError, type FieldError } from "./errors";
 import type { components } from "./types.generated";
 
@@ -120,6 +121,8 @@ export async function uamRequest<T = unknown>(init: UamRequestInit): Promise<Uam
   const rejectedClient =
     res.status === 403 || (res.status === 401 && code !== "session_invalid" && code !== "invalid_credentials");
   if (rejectedClient) {
+    // 运维告警的唯一出口：所有调用路径（页面读、会话校验、登录、写操作、退出）都经此，不在各处重复写
+    logUamMisconfigured({ method: init.method, path: init.path, status: res.status, code, traceparent });
     throw new UamError("misconfigured", `UAM 拒绝了服务调用（${res.status}）`, { status: res.status, code });
   }
   if (!problem) throw new UamError("unavailable", `UAM 返回 ${res.status}`, { status: res.status });

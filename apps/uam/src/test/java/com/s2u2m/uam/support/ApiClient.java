@@ -80,6 +80,25 @@ public final class ApiClient {
     return send(builder.build());
   }
 
+  /** 任意方法的请求（契约遍历用）；{@code body} 为 {@code null} 时不带请求体。 */
+  public Response request(String method, String path, String body, Map<String, String> headers) {
+    HttpRequest.Builder builder =
+        HttpRequest.newBuilder(URI.create(baseUrl + path))
+            .method(
+                method,
+                body == null
+                    ? HttpRequest.BodyPublishers.noBody()
+                    : HttpRequest.BodyPublishers.ofString(body));
+    if (body != null) {
+      builder.header("Content-Type", "application/json");
+    }
+    if (serviceKey != null) {
+      builder.header("Authorization", "Bearer " + serviceKey);
+    }
+    headers.forEach(builder::header);
+    return send(builder.build());
+  }
+
   public Response login(String accountName, String password, String clientIp) {
     return postJson(
         "/v1/auth/login",
