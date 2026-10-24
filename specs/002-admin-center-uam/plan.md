@@ -1,5 +1,7 @@
 # Implementation Plan: Admin Center 用户管理与会话管理（User Manager / Session Manager）
 
+> **归档状态**：本特性已交付并归档。当前真实状态以 [docs/achieve-specs/admin-center-uam.md](../../docs/achieve-specs/admin-center-uam.md)（需求与领域，含实现与本计划的偏差清单 §9）与 [docs/system-design/admin-center-uam.md](../../docs/system-design/admin-center-uam.md)（架构与实现；图已迁至 `docs/system-design/diagrams/`）为准。本文保留为**过程记录**：与归档文档冲突时以归档文档和代码为准。
+
 **Branch**: `feature/admin-and-uam`（规格目录 `specs/002-admin-center-uam`） | **Date**: 2026-10-23 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/002-admin-center-uam/spec.md`
@@ -66,19 +68,19 @@
 
 ## Design
 
-采用 **C4 模型**：L1 系统上下文、L2 容器、L3 组件，并在 L3 里描述领域模型；关键流程用动态视图（时序图）补充。图用 **PlantUML**（C4-PlantUML 标准库）绘制，**源文件（`.puml`）与渲染好的 SVG 都在 [`diagrams/`](./diagrams/)**。GitHub 不渲染 PlantUML，所以 SVG 要和源文件一起提交；改图后重新渲染：
+采用 **C4 模型**：L1 系统上下文、L2 容器、L3 组件，并在 L3 里描述领域模型；关键流程用动态视图（时序图）补充。图用 **PlantUML**（C4-PlantUML 标准库）绘制，**源文件（`.puml`）与渲染好的 SVG 都在 [`docs/system-design/diagrams/`](../../docs/system-design/diagrams/)（已随归档迁出本目录）**。GitHub 不渲染 PlantUML，所以 SVG 要和源文件一起提交；改图后重新渲染：
 
 ```bash
-java -jar plantuml.jar -tsvg -charset UTF-8 specs/002-admin-center-uam/diagrams/*.puml
+java -jar plantuml.jar -tsvg -charset UTF-8 docs/system-design/diagrams/*.puml
 ```
 
-> 图与设计在实现落地后，按根 AGENTS.md 迁入 `docs/system-design/`；在此之前本节是图的唯一图源。
+> 图已在归档时迁入 `docs/system-design/diagrams/`（见 [docs/system-design/admin-center-uam.md](../../docs/system-design/admin-center-uam.md)）；归档后以那里的图为准，本节保留为过程记录。
 
 ### L1 系统上下文
 
-![L1 系统上下文](diagrams/c4-l1-context.svg)
+![L1 系统上下文](../../docs/system-design/diagrams/c4-l1-context.svg)
 
-源文件：[c4-l1-context.puml](diagrams/c4-l1-context.puml)
+源文件：[c4-l1-context.puml](../../docs/system-design/diagrams/c4-l1-context.puml)
 
 | 元素 | 类型 | 说明 |
 |---|---|---|
@@ -90,9 +92,9 @@ java -jar plantuml.jar -tsvg -charset UTF-8 specs/002-admin-center-uam/diagrams/
 
 ### L2 容器
 
-![L2 容器](diagrams/c4-l2-container.svg)
+![L2 容器](../../docs/system-design/diagrams/c4-l2-container.svg)
 
-源文件：[c4-l2-container.puml](diagrams/c4-l2-container.puml)
+源文件：[c4-l2-container.puml](../../docs/system-design/diagrams/c4-l2-container.puml)
 
 | 容器 | 技术 | 职责 | 状态与扩展 |
 |---|---|---|---|
@@ -113,9 +115,9 @@ java -jar plantuml.jar -tsvg -charset UTF-8 specs/002-admin-center-uam/diagrams/
 
 #### UAM
 
-![L3 UAM 组件](diagrams/c4-l3-uam-component.svg)
+![L3 UAM 组件](../../docs/system-design/diagrams/c4-l3-uam-component.svg)
 
-源文件：[c4-l3-uam-component.puml](diagrams/c4-l3-uam-component.puml)
+源文件：[c4-l3-uam-component.puml](../../docs/system-design/diagrams/c4-l3-uam-component.puml)
 
 分层依赖是 `api → application → domain ← infrastructure`（依赖倒置：用例只依赖 domain 里的端口，基础设施实现这些端口；由 ArchUnit 测试守住）。
 
@@ -123,6 +125,7 @@ java -jar plantuml.jar -tsvg -charset UTF-8 specs/002-admin-center-uam/diagrams/
 |---|---|---|
 | api | `ClientAuthFilter` | 校验服务密钥与客户端权限（401 `client_unauthenticated` / 403 `client_forbidden`） |
 | api | `OperatorContextResolver` | 解析 `X-Operator-*`；写操作缺失 → 400 `operator_required` |
+| api | `ProblemAdvice` · `ProblemCatalog` | 统一 `problem+json` 错误体；**一个错误码对应一个状态码**：`validation_failed` 一律 422（含请求体 Bean Validation 失败，带 `errors[]`），无法解析 / 类型不符的请求 → 400 `bad_request`（不回显请求值），`operator_required` 仍为 400 |
 | api | `AuthController` · `UsersController` · `SessionsController` · `AccountsController` | 对应 OpenAPI 的四组接口，只做协议转换，不含业务规则 |
 | application | 认证 · 用户 · 会话 · 改密用例，以及 `AccountProvisioningService`（创建用户 / 追加账号，供「新建用户」用例与部署期命令共用） | 编排领域对象与端口；事务边界；写操作日志 |
 | domain | 领域模型与规则 | 见下面的「L3 领域模型」；纯 Java，不依赖框架 |
@@ -135,7 +138,7 @@ java -jar plantuml.jar -tsvg -charset UTF-8 specs/002-admin-center-uam/diagrams/
 |---|---|---|
 | `UserRepository` · `AccountRepository` · `CredentialRepository` | JDBC 仓储（PostgreSQL） | 登录（读账号、凭据、用户状态）· 用户列表 / 详情 / 新建 / 停用 / 启用 · 在线用户与用户会话（补全名称）· 改密 |
 | `UserStatusLock` | JDBC 仓储（`pg_advisory_xact_lock`） | 停用、启用（串行化，保证「最后一个正常用户」） |
-| `SessionStore` | `RedisSessionStore`（Lua） | 登录 · 校验 · 退出 · 停用后终止其全部会话 · 在线用户 · 用户会话 · 强制下线 |
+| `SessionStore` | `RedisSessionStore`（Lua） | 登录 · 校验 · 退出 · 停用后终止其全部会话 · 在线用户 · 用户会话 · 强制下线（同一脚本里原子留下短期墓碑 `uam:term:{sha}`，TTL `uam.session.terminated-notice-ttl` 默认 10 分钟；`verify` 找不到会话时据此回 `reason: terminated`） |
 | `LoginThrottle` · `PasswordChangeThrottle` | `RedisGuards` | 登录 · 改密 |
 | `IdempotencyStore` | `RedisGuards` | 新建用户 |
 | `PasswordHasher` | Argon2id | 登录（校验）· 新建（哈希）· 改密 |
@@ -144,9 +147,9 @@ java -jar plantuml.jar -tsvg -charset UTF-8 specs/002-admin-center-uam/diagrams/
 
 #### Admin Center
 
-![L3 Admin Center 组件](diagrams/c4-l3-admin-center-component.svg)
+![L3 Admin Center 组件](../../docs/system-design/diagrams/c4-l3-admin-center-component.svg)
 
-源文件：[c4-l3-admin-center-component.puml](diagrams/c4-l3-admin-center-component.puml)
+源文件：[c4-l3-admin-center-component.puml](../../docs/system-design/diagrams/c4-l3-admin-center-component.puml)
 
 | 组件 | 职责 |
 |---|---|
@@ -160,9 +163,9 @@ java -jar plantuml.jar -tsvg -charset UTF-8 specs/002-admin-center-uam/diagrams/
 
 #### L3 领域模型（UAM domain 层）
 
-源文件：[domain-class.puml](diagrams/domain-class.puml) · [domain-state-user.puml](diagrams/domain-state-user.puml) · [domain-state-session.puml](diagrams/domain-state-session.puml)
+源文件：[domain-class.puml](../../docs/system-design/diagrams/domain-class.puml) · [domain-state-user.puml](../../docs/system-design/diagrams/domain-state-user.puml) · [domain-state-session.puml](../../docs/system-design/diagrams/domain-state-session.puml)
 
-![L3 领域模型](diagrams/domain-class.svg)
+![L3 领域模型](../../docs/system-design/diagrams/domain-class.svg)
 
 **统一语言**（与 spec 一致）：
 
@@ -200,27 +203,27 @@ java -jar plantuml.jar -tsvg -charset UTF-8 specs/002-admin-center-uam/diagrams/
 
 **状态**：
 
-![User 状态](diagrams/domain-state-user.svg)
+![User 状态](../../docs/system-design/diagrams/domain-state-user.svg)
 
-![Session 生命周期](diagrams/domain-state-session.svg)
+![Session 生命周期](../../docs/system-design/diagrams/domain-state-session.svg)
 
 **策略**（无状态的领域规则，参数可配置）：`AccountNameRules`（3–32 位字母数字 `_` `.` `-`，大小写不敏感）、`PasswordPolicy`（≥ 10 位且含字母与数字，改密须不同于当前）、`SessionPolicy`（空闲 30 分钟 / 绝对 12 小时）、`LoginThrottlePolicy`（账号 + 来源地址，5 次 / 15 分钟，不锁账号）、`SelfProtectionRule`。
 
-**与存储的对应**：`User` → 表 `app_user`，`Account` → `account`，`Credential` → `credential`，`LoginName.normalized` → `account.login_name_norm`（唯一索引），`Session` → Redis 键 `uam:sess:*` / `uam:acct:*:sess` / `uam:sref:*` / `uam:online`；`Client` 在配置里。字段、索引与 Redis 键见 [data-model.md](./data-model.md)。
+**与存储的对应**：`User` → 表 `app_user`，`Account` → `account`，`Credential` → `credential`，`LoginName.normalized` → `account.login_name_norm`（唯一索引），`Session` → Redis 键 `uam:sess:*` / `uam:acct:*:sess` / `uam:sref:*` / `uam:online`（另有强制下线墓碑 `uam:term:*`）；`Client` 在配置里。字段、索引与 Redis 键见 [data-model.md](./data-model.md)。
 
 ### 动态视图（关键流程）
 
-**登录**（源文件：[seq-login.puml](diagrams/seq-login.puml)）
+**登录**（源文件：[seq-login.puml](../../docs/system-design/diagrams/seq-login.puml)）
 
-![登录](diagrams/seq-login.svg)
+![登录](../../docs/system-design/diagrams/seq-login.svg)
 
-**每个请求：校验会话并调用 UAM**（源文件：[seq-verify-and-call.puml](diagrams/seq-verify-and-call.puml)）
+**每个请求：校验会话并调用 UAM**（源文件：[seq-verify-and-call.puml](../../docs/system-design/diagrams/seq-verify-and-call.puml)）
 
-![每个请求：校验会话并调用 UAM](diagrams/seq-verify-and-call.svg)
+![每个请求：校验会话并调用 UAM](../../docs/system-design/diagrams/seq-verify-and-call.svg)
 
-**强制下线**（源文件：[seq-terminate-session.puml](diagrams/seq-terminate-session.puml)）
+**强制下线**（源文件：[seq-terminate-session.puml](../../docs/system-design/diagrams/seq-terminate-session.puml)）
 
-![强制下线](diagrams/seq-terminate-session.svg)
+![强制下线](../../docs/system-design/diagrams/seq-terminate-session.svg)
 
 ### 设计要点与对 spec 的对应
 
@@ -231,6 +234,7 @@ java -jar plantuml.jar -tsvg -charset UTF-8 specs/002-admin-center-uam/diagrams/
 | 撤销只有浏览器路径一层：每请求 `verify`，会话结束后窗口为 0 | FR-011、SC-013（research R6） |
 | 每个接口先过静态服务密钥校验（客户端独立、可轮换、带断言权限），网络边界只对客户端开放 | FR-008、FR-042 ~ FR-044（research R4） |
 | 账号与会话一对一由 Lua 原子保证；在线用户靠 `uam:online` 索引 | FR-004、FR-028 ~ FR-032（research R7、R9） |
+| 仅管理员强制下线留下 10 分钟墓碑（只存会话标识哈希）；`verify` 的 401 `session_invalid` 据此带可选 `reason: terminated`，Admin Center 的 `/session/expire` 把它转成登录页的 `reason=session_terminated` 提示；其余结束方式保持通用提示 | FR-030、US6 |
 | 停用：咨询锁 + 提交后终止会话 + 登录后复查状态 | FR-024、FR-025、SC-005 |
 | 新建用户：事务 + 唯一索引 + `Idempotency-Key` | FR-021 ~ FR-023、SC-004 |
 | 写操作应用日志（操作人、对象、动作、时间、结果） | FR-034、SC-014 |
@@ -251,7 +255,7 @@ specs/002-admin-center-uam/
 ├── contracts/
 │   ├── uam/README.md    # 指向仓库根 contracts/uam/openapi.yaml（UAM 的 OpenAPI 3.1 契约，已迁出）
 │   └── web-routes.md    # Admin Center 的页面、路由、cookie 与错误文案契约
-├── diagrams/            # Design 章节的图：PlantUML 源文件（.puml）与渲染好的 SVG
+├── (diagrams/ 已迁至 docs/system-design/diagrams/：PlantUML 源文件与渲染好的 SVG)
 ├── prototype/           # Phase 1：界面设计原型（静态、可点击、三种视口）——须经用户确认
 │   ├── README.md  index.html  app.html  styles.css  app.js
 ├── checklists/

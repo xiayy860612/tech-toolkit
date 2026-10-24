@@ -23,6 +23,13 @@ Admin Center 是接入层 Web Server（Next.js SSR）：浏览器对它的访问
 - 受保护页面共用外壳：顶栏（品牌、手机菜单按钮、用户菜单含「修改密码」「退出登录」）+ 左侧边栏 + 面包屑 + 内容区。侧边栏导航项：**用户管理**（`/users`）、**会话管理**（`/sessions`）；桌面展开、平板图标条、手机抽屉；展开偏好存非敏感 UI cookie `sidebar_state`。
 - 不存在的 `userId`：渲染「用户不存在」（FR-019）；格式非法的 `userId` 同样处理。
 
+**登录页提示（`/login?reason=`）**：`/session/expire` 清除失效 cookie 前重新 `verify`，据结果 303 到带 `reason` 的登录页；`reason` 只取下表的固定值，其余值忽略，页面不回显任何会话数据。
+
+| `reason` | 由谁设置 | 文案 |
+|---|---|---|
+| `session_ended` | `/session/expire` 带过 cookie 且 `verify` 为 401 `session_invalid`（不带 `reason`：退出、到期、被取代、用户被停用，或强制下线已超过 10 分钟） | 会话已结束，请重新登录。 |
+| `session_terminated` | `/session/expire` 的 `verify` 为 401 `session_invalid` 且 body `reason` = `terminated`（管理员强制下线后 10 分钟内） | 你的会话已被管理员强制下线 |
+
 ## 2. 会话 cookie
 
 | 项 | 约定 |
@@ -43,7 +50,7 @@ Admin Center 是接入层 Web Server（Next.js SSR）：浏览器对它的访问
 | 状态 | 判定 | 页面表现 |
 |---|---|---|
 | `authenticated` | `verify` 返回 200 | 正常渲染，顶栏显示用户名 |
-| `anonymous` | 无 cookie，或 `verify` 返回 401 `session_invalid` | 受保护页面 → `/login`；若带过 cookie 则经 `/session/expire` 清除，并在登录页提示「会话已结束，请重新登录」 |
+| `anonymous` | 无 cookie，或 `verify` 返回 401 `session_invalid` | 受保护页面 → `/login`；若带过 cookie 则经 `/session/expire` 清除，并在登录页提示「会话已结束，请重新登录」；若该 401 带 `reason: terminated`（管理员强制下线后 10 分钟内），改提示「你的会话已被管理员强制下线」 |
 | `unverified` | `verify` 超时（默认 1.5 秒）、5xx、连接失败，或 UAM 返回 401 `client_unauthenticated` / 403 `client_forbidden`（服务密钥配置错误） | 受保护页面显示「服务暂不可用，请稍后重试」，**保留 cookie** |
 
 ## 4. 写操作（Server Actions / POST）
@@ -65,9 +72,10 @@ Admin Center 是接入层 Web Server（Next.js SSR）：浏览器对它的访问
 |---|---|---|
 | `invalid_credentials` | 登录 | 账号名或密码错误 |
 | `throttled` | 登录 / 修改密码 | 尝试过于频繁，请 `{Retry-After}` 秒后再试 |
-| `session_invalid` | 任意受保护请求 | 会话已结束，请重新登录（跳登录页） |
+| `session_invalid` | 任意受保护请求 | 会话已结束，请重新登录（跳登录页）；带 `reason: terminated` 时为「你的会话已被管理员强制下线」 |
 | `account_name_taken` | 新建用户 | 账号名已被使用（字段旁，保留已填内容，不含密码） |
-| `validation_failed` | 新建用户 / 修改密码 | 按 `errors[].field` 与 `reason` 在字段旁给出明确原因 |
+| `validation_failed`（UAM 一律 422） | 新建用户 / 修改密码 | 按 `errors[].field` 与 `reason` 在字段旁给出明确原因 |
+| `bad_request`（UAM 400，请求无法解析） | 任意 | 按「服务暂不可用 / 操作未生效」处理（Admin Center 自己构造请求，出现即为缺陷；不显示字段错误） |
 | `cannot_disable_self` | 停用 | 不能停用当前登录的用户（入口已禁用并说明，服务端同样拒绝） |
 | `cannot_disable_last_active_user` | 停用 | 不能停用最后一个正常用户（同上） |
 | `cannot_terminate_own_session` | 强制下线 | 这是你当前使用的会话，请改用「退出登录」 |

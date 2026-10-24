@@ -242,7 +242,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T111 [P] [US5] 并发测试 `apps/uam/src/test/java/com/s2u2m/uam/concurrency/ConcurrentDisableIT.java`：两个运维人员同时停用对方、或并发停用最后两个正常用户，始终至少留一个 `ACTIVE` 用户（`pg_advisory_xact_lock` 串行化）
 - [X] T112 [P] [US5] 竞态测试 `apps/uam/src/test/java/com/s2u2m/uam/concurrency/DisableVsLoginRaceIT.java`：停用与登录两种交错顺序，都不会留下已停用用户的有效会话（登录写入会话后复查用户状态）
 - [X] T113 [P] [US5] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/UserStatusContractIT.java`：`POST /v1/users/{userId}/disable`、`/enable` 的 200 / 400 / 404 / 409
-- [X] T114 [P] [US5] 组件与动作测试 `apps/admin-center/tests/unit/components/users/status-actions.test.tsx`、`apps/admin-center/tests/unit/app/user-status-actions.test.ts`：停用 / 启用需二次确认（说明后果）；停用自己、最后一个正常用户时入口禁用并说明原因；UAM 不可用时提示「操作未生效」，不显示成功 （偏差：「最后一个正常用户」无法由客户端预知，UserDetail 不含活跃用户数，界面改为尝试后展示 UAM 的 409 `cannot_disable_last_active_user` 文案；若要预先禁用入口，需在 openapi 增加 `activeUserCount` 之类字段，待用户确认）
+- [X] T114 [P] [US5] 组件与动作测试 `apps/admin-center/tests/unit/components/users/status-actions.test.tsx`、`apps/admin-center/tests/unit/app/user-status-actions.test.ts`：停用 / 启用需二次确认（说明后果）；停用自己、最后一个正常用户时入口禁用并说明原因；UAM 不可用时提示「操作未生效」，不显示成功 （说明：「最后一个正常用户」不需要单独预先禁用入口——能发起停用的运维人员自己必定是正常用户，所以目标不是其本人时至少还剩运维本人；目标是最后一个正常用户就只能是运维本人，这已由「不能停用自己」的禁用入口覆盖。UAM 的 409 `cannot_disable_last_active_user` 只是服务端兜底：两个运维同时互相停用的竞态，以及其他调用方）
 - [X] T115 [P] [US5] E2E `apps/admin-center/tests/e2e/us5-disable.spec.ts`（S6）：断言停用后该用户全部会话在任一实例的下一次请求都被视为未登录、登录被拒（SC-005）
 
 ### Implementation for User Story 5
@@ -271,7 +271,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T124 [P] [US6] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/TerminateSessionUseCaseTest.java`：目标等于 `X-Operator-Session-Ref` → `cannot_terminate_own_session`；目标不存在 → `session_not_found`；成功与被拒都写日志（`session.terminate`）
 - [X] T125 [P] [US6] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/TerminateSessionIT.java`：只终止目标会话，同用户其他会话、账号与用户状态不变；下线后可再次登录
 - [X] T126 [P] [US6] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/SessionTerminateContractIT.java`：`DELETE /v1/sessions/{sessionRef}` 的 204 / 400 / 404 / 409
-- [X] T127 [P] [US6] 组件与动作测试 `apps/admin-center/tests/unit/components/sessions/terminate-dialog.test.tsx`、`apps/admin-center/tests/unit/app/terminate-actions.test.ts`：二次确认；自己的当前会话入口禁用并提示改用「退出登录」；`session_not_found` 提示「该会话已结束」并刷新；被下线者登录页提示「你的会话已被管理员强制下线」 （偏差：UAM verify 的 401 不区分「被管理员强制下线」与到期 / 退出 / 被取代，登录页只能显示通用的「会话已结束」；若要显示「你的会话已被管理员强制下线」，需在 openapi 给 `session_invalid` 增加可选 `reason`，UAM 在 terminate.lua 写短期 tombstone，待用户确认）
+- [X] T127 [P] [US6] 组件与动作测试 `apps/admin-center/tests/unit/components/sessions/terminate-dialog.test.tsx`、`apps/admin-center/tests/unit/app/terminate-actions.test.ts`：二次确认；自己的当前会话入口禁用并提示改用「退出登录」；`session_not_found` 提示「该会话已结束」并刷新；被下线者登录页提示「你的会话已被管理员强制下线」 （说明：已按用户决定补齐，见 T194–T197）
 - [X] T128 [P] [US6] E2E `apps/admin-center/tests/e2e/us6-terminate.spec.ts`（S8）：断言从在线用户列表出发不超过 4 次点击 / 触控（含确认）完成强制下线，同用户其他会话不受影响（SC-006）
 
 ### Implementation for User Story 6
@@ -281,6 +281,14 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T131 [US6] 在 `SessionsController.java` 增加 `DELETE /v1/sessions/{sessionRef}`；使 T126 通过
 - [X] T132 [US6] Admin Center：`client.ts` 增加 `terminateSession`；`apps/admin-center/src/app/(shell)/sessions/[userId]/actions.ts`；`apps/admin-center/src/components/sessions/terminate-dialog.tsx`；登录页对「被强制下线」「会话已结束」的提示；使 T127 通过
 - [X] T133 [US6] 验证：T124 ~ T128 通过（`apps/admin-center/tests/e2e/us6-terminate.spec.ts`）；跑 quickstart S8
+
+
+### 补充：强制下线专属提示（用户决定，2026-10-24）
+
+- [X] T194 [US6] UAM 墓碑与 verify 的 `reason`（写测试先行）：`contracts/uam/openapi.yaml` 的 `Problem` 增加可选 `reason`（枚举 `terminated`）；`terminate.lua` 增加可选标记与 TTL，仅管理员强制下线（`TerminateSessionUseCase` → `terminateByRef(ref, true)`）在删除会话的同一脚本里写 `uam:term:{sha}`（TTL `uam.session.terminated-notice-ttl`，默认 `10m`，`WAIT` 后返回）；退出、停用、被取代、登录回滚不写；`VerifySessionUseCase` 找不到会话时查墓碑，命中则 401 `session_invalid` 带 `reason: terminated`（`DomainException` / `ProblemAdvice` / `Problem` 仅在非空时序列化）；单元、集成、契约测试覆盖（FR-030）
+- [X] T195 [US6] Admin Center 把 `reason` 贯通：重新生成 `types.generated.ts`；`verify` 的 401 带 `reason: terminated` 时 `/session/expire` 重定向到 `/login?reason=session_terminated`，登录页显示「你的会话已被管理员强制下线」；其余仍为 `session_ended` 的通用提示；单元测试先行
+- [X] T196 [US6] E2E：`us6-terminate.spec.ts` 断言被强制下线的浏览器看到「你的会话已被管理员强制下线」；`us8-logout-expiry.spec.ts`、`us11-prototype-states.spec.ts` 更新为：退出、到期、被取代、停用仍显示通用「会话已结束，请重新登录。」
+- [X] T197 [US6] 文档同步：`contracts/uam/openapi.yaml`、`data-model.md`（`uam:term:{sha}`）、`plan.md`、`contracts/web-routes.md`、`spec.md`（FR-030、US6、Clarifications），归档文档 `docs/achieve-specs/admin-center-uam.md` 与 `docs/system-design/admin-center-uam.md`
 
 **Checkpoint**: US6 可独立验证。
 
@@ -348,7 +356,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T153 [P] [US9] E2E `apps/admin-center/tests/e2e/us9-responsive.spec.ts`：在 `playwright.config.ts` 的六个视口 project 上走完整旅程；断言 `document.documentElement.scrollWidth <= innerWidth`；断言桌面侧边栏展开、平板图标条、手机抽屉；手机上列表为卡片
 - [X] T154 [P] [US9] E2E `apps/admin-center/tests/e2e/us9-a11y.spec.ts`：`@axe-core/playwright` 无严重违规；仅键盘完成全部功能；对话框打开时焦点留在对话框内、关闭后回到触发元素；`Esc` 关闭
 - [X] T155 [P] [US9] E2E `apps/admin-center/tests/e2e/us9-touch-and-content.spec.ts`：可交互元素的触控目标 ≥ 44 × 44 CSS 像素，破坏性按钮与相邻按钮留有间距；很长的用户名 / 账号名在窄屏换行或截断，不撑破布局
-- [X] T156 [US9] 修复 T153 ~ T155 暴露的全部问题（`apps/admin-center/src/components/**`、`apps/admin-center/src/app/globals.css`），不改变行为；重跑直至通过 （说明：用户菜单改为 `modal={false}` 以消除 axe 的 aria-hidden-focus（serious）；唯一的行为差异是点击菜单外区域时既关闭菜单、也会点到下面的元素，待用户确认可接受）
+- [X] T156 [US9] 修复 T153 ~ T155 暴露的全部问题（`apps/admin-center/src/components/**`、`apps/admin-center/src/app/globals.css`），不改变行为；重跑直至通过 （说明：用户菜单改为 `modal={false}` 以消除 axe 的 aria-hidden-focus（serious）；唯一的行为差异是点击菜单外区域时既关闭菜单、也会点到下面的元素；**用户已确认保持非模态**）
 - [X] T157 [US9] 验证：T153 ~ T155 在 `apps/admin-center/playwright.config.ts` 的六个视口 project 上全部通过；跑 quickstart S12
 
 **Checkpoint**: US9 可独立验证。
@@ -429,15 +437,21 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 **Purpose**: 跨故事的收尾、门禁与归档
 
-- [X] T185 [P] 安全检查脚本 `infra/local/scripts/security-check.sh`：没有被跟踪的 `.env`；`apps/admin-center/package.json` 不含数据库驱动或 ORM 依赖（FR-013：Admin Center 不持久化数据）；仓库与历史里没有 `uamk_` 密钥或私钥特征（`infra/local/e2e.env` 里标注为仅测试用的固定密钥除外）；`apps/admin-center/src/lib` 的服务端模块都有 `import "server-only"`；浏览器包（`.next/static`）里没有服务密钥；运行期响应与 UAM、Admin Center 日志里没有密码、密码哈希、会话标识、服务密钥（SC-014）；跨站伪造的写请求 100% 被拒 （说明：`git log --all` 里有三个来自旧演示项目的 `BEGIN PRIVATE KEY` 占位（`jwt-rsa-key.pem`，正文只有 24 个字符、不是有效密钥，不在 main 与本特性分支），脚本对这两个路径在历史扫描里做了允许；清除需要改写历史，未做）
+- [X] T185 [P] 安全检查脚本 `infra/local/scripts/security-check.sh`：没有被跟踪的 `.env`；`apps/admin-center/package.json` 不含数据库驱动或 ORM 依赖（FR-013：Admin Center 不持久化数据）；仓库与历史里没有 `uamk_` 密钥或私钥特征（`infra/local/e2e.env` 里标注为仅测试用的固定密钥除外）；`apps/admin-center/src/lib` 的服务端模块都有 `import "server-only"`；浏览器包（`.next/static`）里没有服务密钥；运行期响应与 UAM、Admin Center 日志里没有密码、密码哈希、会话标识、服务密钥（SC-014）；跨站伪造的写请求 100% 被拒 （说明：`git log --all` 里有三个来自旧演示项目的 PEM 私钥头标记 占位（`jwt-rsa-key.pem`，正文只有 24 个字符、不是有效密钥，不在 main 与本特性分支），脚本对这两个路径在历史扫描里做了允许；清除需要改写历史，未做）
 - [X] T186 [P] 覆盖率门禁核对：`mvn -f apps/uam/pom.xml verify` 行覆盖率 ≥ 90%；`npm --prefix apps/admin-center run test:cov` ≥ 90%；排除路径只含不含业务逻辑的代码，并写进两个 `AGENTS.md`
 - [X] T187 [P] 补充 `apps/uam/AGENTS.md` 与 `apps/admin-center/AGENTS.md` 的最终命令、环境变量与排障说明（含 `UAM_CLIENTS` 示例、`generate-service-key`、`init-admin`、`add-account`、轮换步骤）
-- [ ] T188 对触及的两个应用（`apps/uam/pom.xml`、`apps/admin-center/package.json`）执行质量门禁：UAM 的 `spotless:check`、`compile`、`verify`；Admin Center 的 `lint`、`typecheck`、`test:cov`、`build`；全部通过
-- [ ] T189 按 `specs/002-admin-center-uam/quickstart.md` 完整跑一遍 S1 ~ S19，把结果与未达标项写入归档文档的「验证记录」
-- [ ] T190 [P] 归档需求与领域现状到 `docs/achieve-specs/admin-center-uam.md`（统一语言、领域模型、核心流程、需求对照表、验证记录、已知限制）
-- [ ] T191 [P] 归档架构到 `docs/system-design/admin-center-uam.md`：把 `specs/002-admin-center-uam/diagrams/` 用 `git mv` 迁到 `docs/system-design/diagrams/`，修正文档中的图片与源文件链接
-- [ ] T192 在 `specs/002-admin-center-uam/{spec,plan}.md` 顶部加「归档状态」说明，指向 `docs/achieve-specs/` 与 `docs/system-design/`；更新根 `README.md` 的项目入口
-- [ ] T193 最终评审：对 `apps/`、`contracts/`、`infra/` 下本特性的全部改动运行代码评审与安全评审，修复发现的问题后重跑 T188
+- [X] T188 对触及的两个应用（`apps/uam/pom.xml`、`apps/admin-center/package.json`）执行质量门禁：UAM 的 `spotless:check`、`compile`、`verify`；Admin Center 的 `lint`、`typecheck`、`test:cov`、`build`；全部通过
+- [X] T189 按 `specs/002-admin-center-uam/quickstart.md` 完整跑一遍 S1 ~ S19，把结果与未达标项写入归档文档的「验证记录」
+- [X] T190 [P] 归档需求与领域现状到 `docs/achieve-specs/admin-center-uam.md`（统一语言、领域模型、核心流程、需求对照表、验证记录、已知限制）
+- [X] T191 [P] 归档架构到 `docs/system-design/admin-center-uam.md`：把 `specs/002-admin-center-uam/diagrams/` 用 `git mv` 迁到 `docs/system-design/diagrams/`，修正文档中的图片与源文件链接
+- [X] T192 在 `specs/002-admin-center-uam/{spec,plan}.md` 顶部加「归档状态」说明，指向 `docs/achieve-specs/` 与 `docs/system-design/`；更新根 `README.md` 的项目入口
+- [X] T193 最终评审：对 `apps/`、`contracts/`、`infra/` 下本特性的全部改动运行代码评审与安全评审，修复发现的问题后重跑 T188
+
+### 状态码统一：一个错误码对应一个状态码（用户决定，选项 A；见 `spec.md` Clarifications 2026-10-24）
+
+- [X] T198 [P] UAM：`validation_failed` 一律 422、不可解析请求 400 `bad_request`（OpenAPI、错误映射、契约测试）：`contracts/uam/openapi.yaml` 增加可复用响应 `BadRequest`，各接口按规则标注 400 / 422；`ErrorCode.BAD_REQUEST`；`ProblemAdvice` 把请求体 Bean Validation 失败（`MethodArgumentNotValidException`、约束违反）映射为 422 `validation_failed`（`errors[]` 形状不变），JSON 格式错误 / 为空、JSON 类型不对、路径变量与查询参数类型不符、缺少必需绑定映射为 400 `bad_request`（不回显请求值）；`operator_required` 仍为 400；已有测试改为新状态码，并补各接口「缺字段 → 422」「坏 JSON → 400」「非 UUID 路径 id → 400」「`page=abc` → 400」「`page=0` → 422」及响应符合契约的用例（测试先行）
+- [X] T199 [P] Admin Center：契约桩与单元测试跟随新状态码（`tests/` 下的 UAM 契约桩对 `validation_failed` 返回 422、对不可解析请求返回 400 `bad_request`；`lib/uam/` 的错误分类与单元测试同步；不改变界面文案）
+- [X] T200 归档文档同步：`docs/achieve-specs/admin-center-uam.md`（4.3 错误码与状态码对照）、`docs/system-design/admin-center-uam.md`、`apps/uam/AGENTS.md`、`specs/002-admin-center-uam/{spec,plan}.md`、`contracts/web-routes.md`
 
 ---
 

@@ -1,5 +1,5 @@
 @startuml c4-l1-context
-' C4 L1 系统上下文。渲染：java -jar plantuml.jar -tsvg diagrams/*.puml
+' C4 L1 系统上下文。渲染：java -jar plantuml.jar -tsvg -charset UTF-8 docs/system-design/diagrams/*.puml
 !include <C4/C4_Context>
 LAYOUT_WITH_LEGEND()
 

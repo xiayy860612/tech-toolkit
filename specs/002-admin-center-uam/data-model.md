@@ -71,6 +71,7 @@ session ──(经 account)──> app_user                    （会话通过�
 | `uam:acct:{accountId}:sess` | STRING | 当前有效会话的 `{sha}` | **一对一**：每账号至多一个；登录脚本据此顶掉旧会话 |
 | `uam:sref:{ref}` | STRING | 对应的 `{sha}` | 按会话引用终止、自检（对照 `X-Operator-Session-Ref`）用 |
 | `uam:online` | ZSET | 成员 `{userId}\|{ref}`，分数 = 空闲到期（epoch 秒，取空闲与绝对到期较小者） | 在线用户列表的索引（research R9） |
+| `uam:term:{sha}` | STRING | 常量标记（不含任何会话数据） | **强制下线墓碑**：仅管理员强制下线（`DELETE /v1/sessions/{ref}`）与会话删除在同一 Lua 脚本里原子写入；TTL = `uam.session.terminated-notice-ttl`（默认 10 分钟）；`verify` 在会话不存在时按所呈现标识的哈希查它，命中则 401 `session_invalid` 带 `reason: terminated`；退出、停用、被取代、到期**不写** |
 | `uam:throttle:login:{sha256(规范化账号名\|来源地址)}` | STRING（计数） | 连续失败次数 | 5 次后锁该来源 15 分钟（`Retry-After` 取剩余 TTL） |
 | `uam:throttle:pwchg:{sha256(accountId\|来源地址)}` | STRING（计数） | 当前密码连续错误次数 | 口径同登录 |
 | `uam:idem:{sha256(客户端id\|键)}` | STRING | 创建用户的响应快照（`D\|指纹\|快照`），或进行中标记（`P\|指纹`） | 快照 TTL 10 分钟、进行中标记 30 秒；`SET NX` 抢占，重放返回原响应；按客户端隔离；快照与指纹都不含密码 |
@@ -80,8 +81,8 @@ session ──(经 account)──> app_user                    （会话通过�
 | 事件 | 动作 |
 |---|---|
 | **登录成功** | 读 `uam:acct:{id}:sess` → 若有旧会话，删其 `sess` / `sref` / `online` 条目 → 写新 `sess`、`acct`、`sref`、`online` → 返回新会话 |
-| **校验（verify）** | 读 `sess`；不存在或已过期 → 无效；距 `lastActiveAt` > 60 秒才更新 `lastActiveAt`、刷新 TTL 与 `online` 分数 |
-| **退出 / 强制下线 / 停用 / 被取代** | 删除 `sess`、`sref`，`acct` 若仍指向该会话则删除，并 `ZREM online`；撤销类写入后 `WAIT 1 <短超时>` |
+| **校验（verify）** | 读 `sess`；不存在或已过期 → 无效（再查 `uam:term:{sha}`，命中则 401 的 `reason` 为 `terminated`，否则不带 `reason`）；距 `lastActiveAt` > 60 秒才更新 `lastActiveAt`、刷新 TTL 与 `online` 分数 |
+| **退出 / 强制下线 / 停用 / 被取代** | 删除 `sess`、`sref`，`acct` 若仍指向该会话则删除，并 `ZREM online`；撤销类写入后 `WAIT 1 <短超时>`。**仅管理员强制下线**在同一脚本里额外 `SET uam:term:{sha} 1 EX <通知窗口>`（墓碑）；退出、停用、登录取代旧会话、登录与停用竞态的回滚都不写墓碑 |
 | **过期** | Redis TTL 删除 `sess` / `acct` / `sref`；`online` 条目靠列表接口的 `ZREMRANGEBYSCORE` 与到期分数保证不被计入 |
 
 ## 4. 状态转换

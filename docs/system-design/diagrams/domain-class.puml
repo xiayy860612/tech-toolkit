@@ -21,8 +21,7 @@ package "User 聚合（PostgreSQL）" {
     status : UserStatus  {ACTIVE | DISABLED}
     createdAt : Instant
     --
-    disable(operator)
-    enable()
+    isActive() : boolean
   }
   class Account <<实体>> {
     id : AccountId
@@ -34,10 +33,10 @@ package "User 聚合（PostgreSQL）" {
     canLogin(user) : boolean
   }
   class Credential <<实体>> {
-    passwordHash : PasswordHash
+    accountId : AccountId
+    passwordHash : String  (Argon2id，toString 不输出)
     --
-    verify(raw) : boolean
-    change(current, new)
+    比对与哈希由 PasswordHasher 端口完成
   }
   class LoginName <<值对象>> {
     raw : String  (3–32)
@@ -50,11 +49,13 @@ package "Session 聚合（Redis）" {
     ref : SessionRef  (非机密)
     accountId : AccountId
     userId : UserId
+    userName / loginName / kind : 登录时的快照
     loginAt : Instant
     lastActiveAt : Instant
-    expiresAt : Instant
+    absoluteExpiresAt : Instant
+    expiresAt : Instant  (空闲与绝对到期的较小者)
     --
-    isActive(now) : boolean
+    start(...) / touched(now) / isActive(now)
   }
 }
 
@@ -66,12 +67,12 @@ package "请求上下文与配置（不是业务数据）" {
     --
     请求级：由客户端传入，UAM 信任
   }
-  class Client <<配置>> {
+  class ClientIdentity <<配置>> {
     id : String
-    keyHashes : sha256[1..2]
-    permissions : Set
+    permissions : Set  {assert-end-user-context}
     --
-    部署配置，不入库
+    来自部署配置 UAM_CLIENTS（keyHashes：sha256 × 1..2，
+    只在 ClientRegistry 里），不入库
   }
 }
 
@@ -90,7 +91,7 @@ package "策略（无状态的领域规则）" {
   }
   class SelfProtectionRule <<策略>> {
     不能停用自己 / 最后一个正常用户
-    不能终止自己的会话
+    不能终止自己的会话（静态方法）
   }
 }
 
@@ -100,9 +101,17 @@ Account *-- LoginName
 Account "1" -- "0..1" Session : 一对一\n（同一账号至多一个有效会话）
 Session ..> User : 经账号隶属于唯一用户
 
-Client ..> OperatorContext : 被授予「断言权限」\n才能传入操作人
+ClientIdentity ..> OperatorContext : 被授予「断言权限」\n才能传入操作人
 
 ' 布局提示：策略与请求上下文放在聚合下方，保持版面紧凑
 Account -[hidden]down- AccountNameRules
 Session -[hidden]down- SessionPolicy
+
+note bottom of SelfProtectionRule
+  domain 层的端口（接口，由 infrastructure 实现）：
+  UserRepository · AccountRepository · CredentialRepository · SessionStore
+  UserStatusLock · TransactionRunner · LoginThrottle · PasswordChangeThrottle
+  IdempotencyStore · PasswordHasher · ClientAuthenticator · ClientRejectionLog
+  WriteOperationLog · Clock
+end note
 @enduml
