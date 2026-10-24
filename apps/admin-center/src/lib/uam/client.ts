@@ -144,6 +144,14 @@ export async function verifySession(sessionId: string): Promise<VerifyResponse> 
 }
 
 /**
+ * 终止会话（`POST /v1/auth/logout`，幂等：会话不存在也是 204）。只带服务密钥，不带操作人请求头；
+ * 会话标识只出现在请求体里。失败抛 `UamError`（调用方决定是否容忍，见 `POST /logout`）。
+ */
+export async function logout(sessionId: string): Promise<void> {
+  await uamRequest({ method: "POST", path: "/v1/auth/logout", body: { sessionId } });
+}
+
+/**
  * 账号名 / 密码登录（`POST /v1/auth/login`）。`clientIp` 是终端来源地址（登录失败限制的来源维度），
  * 由调用方从可信代理头取得。响应里的 `sessionId` 只用来写 cookie，不得进入日志或浏览器端组件。
  */

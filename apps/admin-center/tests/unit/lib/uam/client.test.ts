@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { headers } from "next/headers";
-import { changePassword, createUser, disableUser, enableUser, getUser, listOnlineUsers, listUserSessions, listUsers, terminateSession, uamRequest, verifySession } from "@/lib/uam/client";
+import { changePassword, createUser, disableUser, enableUser, getUser, listOnlineUsers, listUserSessions, listUsers, logout, terminateSession, uamRequest, verifySession } from "@/lib/uam/client";
 import { UamError, uamErrorMessage, fieldReasonMessage } from "@/lib/uam/errors";
 import {
   createUamStub,
@@ -465,6 +465,29 @@ describe("terminateSession（T132）", () => {
     await terminateSession("../x?y=1", operator).catch(() => undefined);
     expect(String(spy.mock.calls[0][0])).toContain("/v1/sessions/..%2Fx%3Fy%3D1");
     spy.mockRestore();
+  });
+});
+
+describe("logout", () => {
+  it("POST /v1/auth/logout：只带服务密钥（无操作人请求头）与 { sessionId }；204 无返回值", async () => {
+    stub.respond("logout", { status: 204 });
+    await expect(logout("sid-123")).resolves.toBeUndefined();
+    const [sent] = stub.calls;
+    expect(sent.method).toBe("POST");
+    expect(sent.path).toBe("/v1/auth/logout");
+    expect(sent.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(sent.headers.get("x-operator-user-id")).toBeNull();
+    expect(sent.body).toEqual({ sessionId: "sid-123" });
+  });
+
+  it("UAM 不可用或拒绝服务调用时抛 UamError，信息不含会话标识", async () => {
+    stub.respond("logout", { status: 503, body: undefined });
+    const unavailable = await logout("sid-secret").catch((e) => e);
+    stub.violations.length = 0; // 契约没声明 5xx：这里只测归类，清掉桩记录的违约
+    expect(unavailable).toMatchObject({ kind: "unavailable" });
+    expect(unavailable.message).not.toContain("sid-secret");
+    stub.respond("logout", { status: 403, body: problemBody(403, "client_forbidden") });
+    await expect(logout("sid-secret")).rejects.toMatchObject({ kind: "misconfigured", code: "client_forbidden" });
   });
 });
 

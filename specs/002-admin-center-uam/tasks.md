@@ -320,18 +320,18 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Tests for User Story 8 ⚠️
 
-- [ ] T144 [P] [US8] 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/LogoutUseCaseTest.java` 与集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/SessionExpiryIT.java`（测试 profile 把空闲与绝对时限调到秒级）：退出幂等；空闲到期、绝对到期后 `verify` → `session_invalid`；到期会话不出现在在线用户里
-- [ ] T145 [P] [US8] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/AuthLogoutContractIT.java`：`POST /v1/auth/logout` 返回 204（会话不存在也一样）
-- [ ] T146 [P] [US8] 测试 `apps/admin-center/tests/unit/app/logout-route.test.ts`（`POST /logout`：调 UAM、清 cookie、回 `/login`；同源校验）与 `apps/admin-center/tests/unit/components/sessions/stale-session.test.tsx`（会话详情页停留期间该会话结束，刷新后显示最新状态与友好提示）
-- [ ] T147 [P] [US8] E2E `apps/admin-center/tests/e2e/us8-logout-expiry.spec.ts`（S10）：会话因退出、到期、被取代、被强制下线、停用结束后，用其会话标识发起的下一次请求 100% 被视为未登录，在线列表刷新后不再显示（SC-013）
+- [X] T144 [P] [US8] 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/LogoutUseCaseTest.java` 与集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/SessionExpiryIT.java`（测试 profile 把空闲与绝对时限调到秒级）：退出幂等；空闲到期、绝对到期后 `verify` → `session_invalid`；到期会话不出现在在线用户里
+- [X] T145 [P] [US8] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/AuthLogoutContractIT.java`：`POST /v1/auth/logout` 返回 204（会话不存在也一样）
+- [X] T146 [P] [US8] 测试 `apps/admin-center/tests/unit/app/logout-route.test.ts`（`POST /logout`：调 UAM、清 cookie、回 `/login`；同源校验）与 `apps/admin-center/tests/unit/components/sessions/stale-session.test.tsx`（会话详情页停留期间该会话结束，刷新后显示最新状态与友好提示）
+- [X] T147 [P] [US8] E2E `apps/admin-center/tests/e2e/us8-logout-expiry.spec.ts`（S10）：会话因退出、到期、被取代、被强制下线、停用结束后，用其会话标识发起的下一次请求 100% 被视为未登录，在线列表刷新后不再显示（SC-013）
 
 ### Implementation for User Story 8
 
-- [ ] T148 [US8] `apps/uam/src/main/java/com/s2u2m/uam/application/LogoutUseCase.java` 与 `AuthController.java` 增加 `POST /v1/auth/logout`；使 T144（退出部分）、T145 通过
-- [ ] T149 [US8] 让 `SessionExpiryIT` 通过：时限由 `uam.session.idle`、`uam.session.absolute` 配置，Redis TTL 取两者剩余的较小值，`online` 分数同步
-- [ ] T150 [US8] `apps/admin-center/src/app/logout/route.ts` 与 `client.ts` 增加 `logout`；使 T146 通过
-- [ ] T151 [US8] 会话详情与用户详情在目标已结束时的友好提示与刷新（`apps/admin-center/src/components/sessions/session-list.tsx`）
-- [ ] T152 [US8] 验证：T144 ~ T147 通过（`apps/admin-center/tests/e2e/us8-logout-expiry.spec.ts`）；跑 quickstart S10
+- [X] T148 [US8] `apps/uam/src/main/java/com/s2u2m/uam/application/LogoutUseCase.java` 与 `AuthController.java` 增加 `POST /v1/auth/logout`；使 T144（退出部分）、T145 通过
+- [X] T149 [US8] 让 `SessionExpiryIT` 通过：时限由 `uam.session.idle`、`uam.session.absolute` 配置，Redis TTL 取两者剩余的较小值，`online` 分数同步 （说明：空闲 / 绝对到期与 TTL 逻辑在 US1 已具备，本阶段以 SessionExpiryIT 固化并经变异检查证明非空转；E2E 栈的时限为 30 分钟 / 12 小时，到期只由该 IT 覆盖）
+- [X] T150 [US8] `apps/admin-center/src/app/logout/route.ts` 与 `client.ts` 增加 `logout`；使 T146 通过
+- [X] T151 [US8] 会话详情与用户详情在目标已结束时的友好提示与刷新（`apps/admin-center/src/components/sessions/session-list.tsx`） （说明：US6 的「该会话已结束」处理已满足，本阶段只补 stale-session 测试，无生产代码改动）
+- [X] T152 [US8] 验证：T144 ~ T147 通过（`apps/admin-center/tests/e2e/us8-logout-expiry.spec.ts`）；跑 quickstart S10
 
 **Checkpoint**: US8 可独立验证。
 

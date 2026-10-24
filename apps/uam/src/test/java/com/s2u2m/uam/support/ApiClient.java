@@ -90,6 +90,10 @@ public final class ApiClient {
     return postJson("/v1/auth/sessions/verify", Map.of("sessionId", sessionId));
   }
 
+  public Response logout(String sessionId) {
+    return postJson("/v1/auth/logout", Map.of("sessionId", sessionId));
+  }
+
   private static Response send(HttpRequest request) {
     try {
       HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
