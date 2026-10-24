@@ -15,6 +15,7 @@ export type Account = components["schemas"]["Account"];
 export type OnlineUser = components["schemas"]["OnlineUser"];
 export type OnlineUserPage = components["schemas"]["OnlineUserPage"];
 export type UserSession = components["schemas"]["Session"];
+export type ChangePasswordRequest = components["schemas"]["ChangePasswordRequest"];
 
 /** 操作人上下文：作为 X-Operator-* 请求头传给 UAM（写操作必带）。 */
 export interface Operator {
@@ -248,4 +249,19 @@ export async function enableUser(userId: string, operator: Operator): Promise<Us
  */
 export async function terminateSession(sessionRef: string, operator: Operator): Promise<void> {
   await uamRequest({ method: "DELETE", path: `/v1/sessions/${encodeURIComponent(sessionRef)}`, operator });
+}
+
+/**
+ * 修改账号的密码（`POST /v1/accounts/{accountId}/password`，自助，需当前密码）：只改该账号，当前会话保持有效。
+ * `accountId` 必须是操作人自己的账号（调用方取自会话，绝不取自表单或 URL）；`clientIp` 是当前密码连续错误限制的来源维度。
+ * 写操作：带操作人请求头。失败抛 `UamError`：422 `current_password_incorrect` / `weak_password` / `same_as_current` / `validation_failed`、
+ * 429 `throttled`（`retryAfter`）等；错误信息不含密码。
+ */
+export async function changePassword(accountId: string, request: ChangePasswordRequest, operator: Operator): Promise<void> {
+  await uamRequest({
+    method: "POST",
+    path: `/v1/accounts/${encodeURIComponent(accountId)}/password`,
+    body: request,
+    operator,
+  });
 }

@@ -3,6 +3,7 @@ package com.s2u2m.uam.infrastructure.redis;
 import com.s2u2m.uam.domain.policy.LoginThrottlePolicy;
 import com.s2u2m.uam.domain.port.IdempotencyStore;
 import com.s2u2m.uam.domain.port.LoginThrottle;
+import com.s2u2m.uam.domain.port.PasswordChangeThrottle;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -20,14 +21,17 @@ import org.springframework.stereotype.Component;
  * 基于 Redis 的防护（限流、幂等）。登录失败限制：键 {@code uam:throttle:login:{sha256(规范化账号名|来源地址)}}，字符串计数；每次失败自增并把 TTL
  * 刷新为封锁时长， 达到阈值后该来源被拒绝，{@code Retry-After} 取剩余 TTL；成功即删除。只限来源，不锁账号。
  *
+ * <p>改密限流（当前密码连续错误）口径相同，键为 {@code uam:throttle:pwchg:{sha256(账号标识|来源地址)}}，与登录计数互不影响。
+ *
  * <p>幂等（新建用户）：键 {@code uam:idem:{sha256(客户端|幂等键)}}，值为字符串：进行中 {@code P|<指纹>}（TTL 30 秒）或完成 {@code
  * D|<指纹>|<响应快照>}（TTL 10 分钟）；{@code SET NX} 抢占，按客户端隔离，原始键不进 Redis 键名。
  */
 @Component
 @Profile("!cli")
-public class RedisGuards implements LoginThrottle, IdempotencyStore {
+public class RedisGuards implements LoginThrottle, PasswordChangeThrottle, IdempotencyStore {
 
   private static final String LOGIN_PREFIX = "uam:throttle:login:";
+  private static final String PASSWORD_CHANGE_PREFIX = "uam:throttle:pwchg:";
   private static final String IDEMPOTENCY_PREFIX = "uam:idem:";
   private static final String IN_FLIGHT = "P|";
   private static final String DONE = "D|";
@@ -45,7 +49,16 @@ public class RedisGuards implements LoginThrottle, IdempotencyStore {
 
   @Override
   public OptionalLong blockedFor(String subject) {
-    String key = LOGIN_PREFIX + subject;
+    return blockedFor(LOGIN_PREFIX, subject);
+  }
+
+  @Override
+  public OptionalLong changeBlockedFor(String subject) {
+    return blockedFor(PASSWORD_CHANGE_PREFIX, subject);
+  }
+
+  private OptionalLong blockedFor(String prefix, String subject) {
+    String key = prefix + subject;
     String value = redis.opsForValue().get(key);
     if (value == null || !policy.isBlocked(Long.parseLong(value))) {
       return OptionalLong.empty();
@@ -64,13 +77,26 @@ public class RedisGuards implements LoginThrottle, IdempotencyStore {
 
   @Override
   public void recordFailure(String subject) {
-    redis.execute(
-        failScript, List.of(LOGIN_PREFIX + subject), Long.toString(policy.block().toMillis()));
+    recordFailure(LOGIN_PREFIX, subject);
+  }
+
+  @Override
+  public void recordChangeFailure(String subject) {
+    recordFailure(PASSWORD_CHANGE_PREFIX, subject);
+  }
+
+  private void recordFailure(String prefix, String subject) {
+    redis.execute(failScript, List.of(prefix + subject), Long.toString(policy.block().toMillis()));
   }
 
   @Override
   public void reset(String subject) {
     redis.delete(LOGIN_PREFIX + subject);
+  }
+
+  @Override
+  public void resetChange(String subject) {
+    redis.delete(PASSWORD_CHANGE_PREFIX + subject);
   }
 
   @Override

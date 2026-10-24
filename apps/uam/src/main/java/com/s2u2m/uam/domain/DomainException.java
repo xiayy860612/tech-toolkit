@@ -30,6 +30,12 @@ public class DomainException extends RuntimeException {
     return new DomainException(ErrorCode.VALIDATION_FAILED, "请求校验失败", fieldErrors, null);
   }
 
+  /** 带字段级原因的业务错误（如 {@code weak_password}）。 */
+  public static DomainException withFieldErrors(
+      ErrorCode errorCode, String detail, List<FieldError> fieldErrors) {
+    return new DomainException(errorCode, detail, fieldErrors, null);
+  }
+
   /** 来源被暂时拒绝；{@code retryAfterSeconds} 为剩余秒数。 */
   public static DomainException throttled(String detail, long retryAfterSeconds) {
     return new DomainException(ErrorCode.THROTTLED, detail, List.of(), retryAfterSeconds);

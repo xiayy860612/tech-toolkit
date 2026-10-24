@@ -6,6 +6,7 @@ import com.s2u2m.uam.domain.model.LoginName;
 import com.s2u2m.uam.domain.policy.LoginThrottlePolicy;
 import com.s2u2m.uam.support.TestSecrets;
 import java.time.Duration;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /** T045：同一「账号 + 来源地址」连续失败 5 次后拒绝该来源 15 分钟，不锁账号。 */
@@ -52,5 +53,17 @@ class LoginThrottlePolicyTest {
   void sourceIsTrimmedAndLowerCased() {
     assertThat(policy.subject(LoginName.of("admin"), " 2001:DB8::1 "))
         .isEqualTo(policy.subject(LoginName.of("admin"), "2001:db8::1"));
+  }
+
+  @Test
+  void accountSubjectIsSha256OfAccountIdAndSource() {
+    UUID accountId = UUID.fromString("3f2b8c1e-6d7a-4b9e-8c11-0a1b2c3d4e5f");
+
+    assertThat(policy.accountSubject(accountId, " 2001:DB8::1 "))
+        .isEqualTo(TestSecrets.sha256Hex(accountId + "|2001:db8::1"));
+    assertThat(policy.accountSubject(accountId, "203.0.113.8"))
+        .isNotEqualTo(policy.accountSubject(accountId, "203.0.113.7"));
+    assertThat(policy.accountSubject(UUID.randomUUID(), "203.0.113.7"))
+        .isNotEqualTo(policy.accountSubject(accountId, "203.0.113.7"));
   }
 }

@@ -294,19 +294,19 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Tests for User Story 7 ⚠️
 
-- [ ] T134 [P] [US7] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/ChangePasswordUseCaseTest.java`：校验当前密码（`current_password_incorrect`）；新密码满足强度（`weak_password`）且不同于当前（`same_as_current`）；只改路径里的 `accountId`；写日志（`account.password.change`）
-- [ ] T135 [P] [US7] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/ChangePasswordIT.java`：成功后当前会话保持有效、同用户其他账号不受影响、旧密码不能登录；当前密码连续错误按 `uam:throttle:pwchg:{sha256(accountId|来源地址)}` 限制，口径同登录；日志与响应没有当前密码与新密码；`credential.updated_at` 随改密前进
-- [ ] T136 [P] [US7] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/AccountPasswordContractIT.java`：`POST /v1/accounts/{accountId}/password` 的 204 / 400 / 422 / 429
-- [ ] T137 [P] [US7] 单元与组件测试 `apps/admin-center/tests/unit/app/password-actions.test.ts`、`apps/admin-center/tests/unit/components/auth/change-password-form.test.tsx`：必填、两次输入一致、字段旁显示原因、不回填、`autocomplete` 为 `current-password` / `new-password`；成功提示「密码已修改」且当前会话保持有效；`throttled` 提示
-- [ ] T138 [P] [US7] E2E `apps/admin-center/tests/e2e/us7-password.spec.ts`（S9）：改密耗时记录（SC-007：90% ≤ 1 分钟），旧密码 100% 不能登录、新密码 100% 可登录
+- [X] T134 [P] [US7] 用例单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/application/ChangePasswordUseCaseTest.java`：校验当前密码（`current_password_incorrect`）；新密码满足强度（`weak_password`）且不同于当前（`same_as_current`）；只改路径里的 `accountId`；写日志（`account.password.change`）
+- [X] T135 [P] [US7] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/ChangePasswordIT.java`：成功后当前会话保持有效、同用户其他账号不受影响、旧密码不能登录；当前密码连续错误按 `uam:throttle:pwchg:{sha256(accountId|来源地址)}` 限制，口径同登录；日志与响应没有当前密码与新密码；`credential.updated_at` 随改密前进
+- [X] T136 [P] [US7] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/AccountPasswordContractIT.java`：`POST /v1/accounts/{accountId}/password` 的 204 / 400 / 422 / 429
+- [X] T137 [P] [US7] 单元与组件测试 `apps/admin-center/tests/unit/app/password-actions.test.ts`、`apps/admin-center/tests/unit/components/auth/change-password-form.test.tsx`：必填、两次输入一致、字段旁显示原因、不回填、`autocomplete` 为 `current-password` / `new-password`；成功提示「密码已修改」且当前会话保持有效；`throttled` 提示
+- [X] T138 [P] [US7] E2E `apps/admin-center/tests/e2e/us7-password.spec.ts`（S9）：改密耗时记录（SC-007：90% ≤ 1 分钟），旧密码 100% 不能登录、新密码 100% 可登录
 
 ### Implementation for User Story 7
 
-- [ ] T139 [US7] `PasswordChangeThrottle` 端口与 `RedisGuards.java` 实现；`CredentialRepository` 增加 `updateHash`（同时把 `credential.updated_at` 设为 `now()`）
-- [ ] T140 [US7] `apps/uam/src/main/java/com/s2u2m/uam/application/ChangePasswordUseCase.java`；使 T134、T135 通过
-- [ ] T141 [US7] `apps/uam/src/main/java/com/s2u2m/uam/api/AccountsController.java`：`POST /v1/accounts/{accountId}/password`；使 T136 通过
-- [ ] T142 [US7] Admin Center：`client.ts` 增加 `changePassword`（`accountId` 取自操作人自己的账号）；`apps/admin-center/src/app/(shell)/account/password/{page,actions}.tsx`；`apps/admin-center/src/components/auth/change-password-form.tsx`；用户菜单入口；`apps/admin-center/src/lib/validation/password.ts`；使 T137 通过
-- [ ] T143 [US7] 验证：T134 ~ T138 通过（`apps/admin-center/tests/e2e/us7-password.spec.ts`）；跑 quickstart S9
+- [X] T139 [US7] `PasswordChangeThrottle` 端口与 `RedisGuards.java` 实现；`CredentialRepository` 增加 `updateHash`（同时把 `credential.updated_at` 设为 `now()`） （说明：`CredentialRepository.updatePasswordHash` 已在 US1 具备并会推进 `credential.updated_at`，本阶段复用，未新增 `updateHash`）
+- [X] T140 [US7] `apps/uam/src/main/java/com/s2u2m/uam/application/ChangePasswordUseCase.java`；使 T134、T135 通过
+- [X] T141 [US7] `apps/uam/src/main/java/com/s2u2m/uam/api/AccountsController.java`：`POST /v1/accounts/{accountId}/password`；使 T136 通过
+- [X] T142 [US7] Admin Center：`client.ts` 增加 `changePassword`（`accountId` 取自操作人自己的账号）；`apps/admin-center/src/app/(shell)/account/password/{page,actions}.tsx`；`apps/admin-center/src/components/auth/change-password-form.tsx`；用户菜单入口；`apps/admin-center/src/lib/validation/password.ts`；使 T137 通过
+- [X] T143 [US7] 验证：T134 ~ T138 通过（`apps/admin-center/tests/e2e/us7-password.spec.ts`）；跑 quickstart S9
 
 **Checkpoint**: US7 可独立验证。
 

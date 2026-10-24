@@ -18,6 +18,7 @@ import com.s2u2m.uam.domain.port.Clock;
 import com.s2u2m.uam.domain.port.CredentialRepository;
 import com.s2u2m.uam.domain.port.IdempotencyStore;
 import com.s2u2m.uam.domain.port.LoginThrottle;
+import com.s2u2m.uam.domain.port.PasswordChangeThrottle;
 import com.s2u2m.uam.domain.port.PasswordHasher;
 import com.s2u2m.uam.domain.port.SessionStore;
 import com.s2u2m.uam.domain.port.TransactionRunner;
@@ -364,6 +365,37 @@ public final class Fakes {
 
     @Override
     public void reset(String subject) {
+      resets.add(subject);
+      failures.remove(subject);
+    }
+  }
+
+  /** 内存改密限流：按主体计数，达到阈值后拦截（口径同 {@link FakeLoginThrottle}）。 */
+  public static final class FakePasswordChangeThrottle implements PasswordChangeThrottle {
+    public final Map<String, Integer> failures = new HashMap<>();
+    public final List<String> resets = new ArrayList<>();
+    public final int maxFailures;
+    public final long retryAfterSeconds;
+
+    public FakePasswordChangeThrottle(int maxFailures, long retryAfterSeconds) {
+      this.maxFailures = maxFailures;
+      this.retryAfterSeconds = retryAfterSeconds;
+    }
+
+    @Override
+    public OptionalLong changeBlockedFor(String subject) {
+      return failures.getOrDefault(subject, 0) >= maxFailures
+          ? OptionalLong.of(retryAfterSeconds)
+          : OptionalLong.empty();
+    }
+
+    @Override
+    public void recordChangeFailure(String subject) {
+      failures.merge(subject, 1, Integer::sum);
+    }
+
+    @Override
+    public void resetChange(String subject) {
       resets.add(subject);
       failures.remove(subject);
     }

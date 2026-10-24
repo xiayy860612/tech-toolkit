@@ -7,6 +7,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * 登录失败限制（FR-006）：同一「账号 + 来源地址」连续失败达到阈值（默认 5 次）后拒绝该来源一段时间（默认 15 分钟）；只限来源，不锁账号。
@@ -36,11 +37,20 @@ public final class LoginThrottlePolicy {
   }
 
   public String subject(LoginName name, String sourceIp) {
+    return sha256(name.normalized(), sourceIp);
+  }
+
+  /** 改密限流（口径同登录）的计数主体：{@code SHA-256(账号标识 | 来源地址)}。 */
+  public String accountSubject(UUID accountId, String sourceIp) {
+    return sha256(accountId.toString(), sourceIp);
+  }
+
+  private static String sha256(String subject, String sourceIp) {
     String source = sourceIp.strip().toLowerCase(Locale.ROOT);
     try {
       byte[] digest =
           MessageDigest.getInstance("SHA-256")
-              .digest((name.normalized() + "|" + source).getBytes(StandardCharsets.UTF_8));
+              .digest((subject + "|" + source).getBytes(StandardCharsets.UTF_8));
       return HexFormat.of().formatHex(digest);
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException("JDK 必须提供 SHA-256", e);

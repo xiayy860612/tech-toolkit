@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 import { headers } from "next/headers";
-import { createUser, disableUser, enableUser, getUser, listOnlineUsers, listUserSessions, listUsers, terminateSession, uamRequest, verifySession } from "@/lib/uam/client";
+import { changePassword, createUser, disableUser, enableUser, getUser, listOnlineUsers, listUserSessions, listUsers, terminateSession, uamRequest, verifySession } from "@/lib/uam/client";
 import { UamError, uamErrorMessage, fieldReasonMessage } from "@/lib/uam/errors";
 import {
   createUamStub,
@@ -465,5 +465,38 @@ describe("terminateSession（T132）", () => {
     await terminateSession("../x?y=1", operator).catch(() => undefined);
     expect(String(spy.mock.calls[0][0])).toContain("/v1/sessions/..%2Fx%3Fy%3D1");
     spy.mockRestore();
+  });
+});
+
+describe("changePassword", () => {
+  const request = { currentPassword: "Old-Secret-pass1", newPassword: "New-Secret-pass2", clientIp: "203.0.113.7" };
+
+  it("POST /v1/accounts/{accountId}/password：带服务密钥、操作人请求头与请求体；204 无返回值", async () => {
+    stub.respond("changeOwnPassword", { status: 204 });
+    await expect(changePassword(FIXTURE_IDS.accountId, request, operator)).resolves.toBeUndefined();
+    const [sent] = stub.calls;
+    expect(sent.method).toBe("POST");
+    expect(sent.path).toBe(`/v1/accounts/${FIXTURE_IDS.accountId}/password`);
+    expect(sent.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(sent.headers.get("x-operator-user-id")).toBe(operator.userId);
+    expect(sent.headers.get("x-operator-account-id")).toBe(operator.accountId);
+    expect(sent.headers.get("x-operator-session-ref")).toBe(operator.sessionRef);
+    expect(sent.body).toEqual(request);
+  });
+
+  it("422 / 429 抛出带问题码的 UamError（含 Retry-After），错误信息不含密码", async () => {
+    stub.respond("changeOwnPassword", { status: 422, body: problemBody(422, "current_password_incorrect") });
+    const wrong = await changePassword(FIXTURE_IDS.accountId, request, operator).catch((e: unknown) => e);
+    expect(wrong).toBeInstanceOf(UamError);
+    expect(wrong).toMatchObject({ kind: "problem", status: 422, code: "current_password_incorrect" });
+
+    stub.respond("changeOwnPassword", { status: 429, body: problemBody(429, "throttled"), headers: { "Retry-After": "30" } });
+    const slow = await changePassword(FIXTURE_IDS.accountId, request, operator).catch((e: unknown) => e);
+    expect(slow).toMatchObject({ kind: "problem", status: 429, code: "throttled", retryAfter: 30 });
+
+    for (const error of [wrong, slow]) {
+      expect(JSON.stringify(error)).not.toContain(request.currentPassword);
+      expect(String((error as Error).message)).not.toContain(request.newPassword);
+    }
   });
 });
