@@ -387,10 +387,10 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 **Independent Test**: 实现后的每个原型页面与关键状态都能在真实界面里复现，且没有编辑、删除、重置他人密码、绑定账号、批量下线等入口。（FR-041；SC-015；quickstart S18）
 
-- [ ] T168 [US11] 在 `specs/002-admin-center-uam/spec.md` 的 Clarifications 记录「技术栈与界面设计原型已确认（2026-10-23）」，并在 `specs/002-admin-center-uam/prototype/README.md` 标注状态为已确认
-- [ ] T169 [P] [US11] E2E `apps/admin-center/tests/e2e/us11-prototype-states.spec.ts`：逐条覆盖原型 README 的关键状态——登录失败与限流、空列表、用户无账号、无在线会话、会话已失效与被强制下线的提示、UAM 暂不可用（停掉 UAM 或配错密钥）、新建与改密的表单校验与账号名冲突、停用与强制下线的确认、不可停用 / 不可下线的禁用说明
-- [ ] T170 [P] [US11] E2E `apps/admin-center/tests/e2e/us11-no-out-of-scope.spec.ts`：遍历所有页面，断言**不存在**编辑用户名、删除用户、重置他人密码、找回密码、绑定账号、批量或一键下线的入口
-- [ ] T171 [US11] 验证：T169、T170 通过；对照 `specs/002-admin-center-uam/prototype/README.md` 的「覆盖的页面与状态」表逐项核对
+- [X] T168 [US11] 在 `specs/002-admin-center-uam/spec.md` 的 Clarifications 记录「技术栈与界面设计原型已确认（2026-10-23）」，并在 `specs/002-admin-center-uam/prototype/README.md` 标注状态为已确认
+- [X] T169 [P] [US11] E2E `apps/admin-center/tests/e2e/us11-prototype-states.spec.ts`：逐条覆盖原型 README 的关键状态——登录失败与限流、空列表、用户无账号、无在线会话、会话已失效与被强制下线的提示、UAM 暂不可用（停掉 UAM 或配错密钥）、新建与改密的表单校验与账号名冲突、停用与强制下线的确认、不可停用 / 不可下线的禁用说明
+- [X] T170 [P] [US11] E2E `apps/admin-center/tests/e2e/us11-no-out-of-scope.spec.ts`：遍历所有页面，断言**不存在**编辑用户名、删除用户、重置他人密码、找回密码、绑定账号、批量或一键下线的入口
+- [X] T171 [US11] 验证：T169、T170 通过；对照 `specs/002-admin-center-uam/prototype/README.md` 的「覆盖的页面与状态」表逐项核对 （说明：「还没有用户」「当前没有在线用户」在共享栈上无法出现，由 user-list / online-user-list / users-pages / sessions-pages 的单元测试覆盖；「不能停用最后一个正常用户」原型本身标为仅设计，由 user-status-actions / status-actions 单元测试覆盖；UAM 暂不可用的「密钥配错」变体留给 US12）
 
 **Checkpoint**: US11 完成。
 

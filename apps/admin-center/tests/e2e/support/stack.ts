@@ -79,3 +79,19 @@ export function redisCli(args: string[]): string[] {
     .split("\n")
     .filter((line) => line.length > 0);
 }
+
+/** docker compose 的公共参数（栈文件与 E2E 环境文件）。 */
+const composeBase = () => ["compose", "-f", path.join(root, "infra/local/docker-compose.stack.yml"), "--env-file", path.join(root, "infra/local/e2e.env")];
+
+/**
+ * 停掉栈里的一个服务（不删容器与数据卷；US11 用它模拟「UAM 暂不可用」）。
+ * 调用方必须在 finally 里 `startService` 把它拉起来，否则后续用例都会失败。
+ */
+export function stopService(service: "uam"): void {
+  execFileSync("docker", [...composeBase(), "stop", service], { stdio: "inherit" });
+}
+
+/** 重新启动被停掉的服务，并等到它的健康检查通过（不重建、不重新构建镜像、不碰依赖服务）。 */
+export function startService(service: "uam"): void {
+  execFileSync("docker", [...composeBase(), "up", "-d", "--wait", "--no-build", "--no-recreate", "--no-deps", service], { stdio: "inherit" });
+}

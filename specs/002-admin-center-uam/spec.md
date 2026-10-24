@@ -45,6 +45,7 @@
 - Q: 账号级的停用与删除怎么处理？ → A: 本期没有接口，不在范围内；FR-016 与相关场景收窄到用户级停用（已确认）。会话校验只读 Redis，不回查账号状态。
 - Q: 调用 UAM 的服务用什么术语？ → A: 客户端（Client），不再用「调用方（Caller）」（已确认）。客户端指调用 UAM 的服务，不是浏览器；相应的标识符为 `client_unauthenticated`、`client_forbidden`、`UAM_CLIENTS`、`clientId`。
 - Q: Admin Center 与 UAM 各自是什么角色、访问方式是什么？ → A: Admin Center 是接入层中的 Web Server，登录成功后浏览器对它的访问基于会话；UAM 是 RESTful 的领域服务，对它的访问**不基于用户会话**，也不使用用户凭据（见 FR-008、FR-013）。
+- Q: 技术栈与界面设计原型是否已经确认（FR-041 的评审门禁）？ → A: 已确认（2026-10-23）：技术栈（见 plan.md）与界面设计原型（[prototype/](./prototype/README.md)）均已由用户确认，界面实现据此开展；实现须与原型一致，且不含范围外的入口（见 User Story 11、FR-041、SC-015）。
 
 ## User Scenarios & Testing *(mandatory)*
 
