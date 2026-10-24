@@ -363,19 +363,19 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Tests / Verification for User Story 10 ⚠️
 
-- [ ] T158 [P] [US10] 测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/TwoInstanceConsistencyIT.java`：两个 UAM 实例共享 PostgreSQL 与 Redis，A 签发的会话 B 立即能 `verify`；A 终止后 B 的下一次 `verify` 即 `session_invalid`；A 新建的用户 B 立即可见并可登录
-- [ ] T159 [P] [US10] 测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/GracefulShutdownIT.java`：优雅停机期间在途请求完成、就绪探针先变为未就绪
+- [X] T158 [P] [US10] 测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/TwoInstanceConsistencyIT.java`：两个 UAM 实例共享 PostgreSQL 与 Redis，A 签发的会话 B 立即能 `verify`；A 终止后 B 的下一次 `verify` 即 `session_invalid`；A 新建的用户 B 立即可见并可登录
+- [X] T159 [P] [US10] 测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/GracefulShutdownIT.java`：优雅停机期间在途请求完成、就绪探针先变为未就绪
 
 ### Implementation for User Story 10
 
-- [ ] T160 [P] [US10] `infra/local/docker-compose.scale.yml`：3 个 Admin Center + 3 个 UAM + nginx；UAM 不映射宿主机端口，只对 Admin Center 实例可达
-- [ ] T161 [P] [US10] `infra/local/nginx/nginx.conf`：轮询、**无会话粘滞**、到上游的长连接
-- [ ] T162 [P] [US10] `infra/local/scripts/scale-checks.sh`：登录一次后把请求分到全部 Admin Center 实例，断言都已登录；经一个实例新建用户 / 强制下线，断言其他实例立即一致
-- [ ] T163 [P] [US10] `infra/local/scripts/rolling-restart.sh`：持续访问下依次重启全部实例，统计意外登出数与失败请求数
-- [ ] T164 [P] [US10] `infra/load/k6/seed-data.sh`：生成 10 万用户（含账号与凭据）与 1 万个同时有效的会话
-- [ ] T165 [P] [US10] `infra/load/k6/list-and-detail.js`：用户与会话的列表和详情，阈值 95% ≤ 2 秒（SC-009）
-- [ ] T166 [P] [US10] `infra/load/k6/validate-throughput.js` 与方法说明 `infra/load/SC-011.md`：1 → 4 实例吞吐 ≥ 3.2 倍；独占机器、预热、多轮取中位数、判定口径
-- [ ] T167 [US10] 验证：T158、T159 通过；在多实例栈上跑 quickstart S13（SC-010）、S14（SC-012，滚动重启 0 次意外登出）、S15（SC-009、SC-011），结果记入 `infra/load/RESULTS.md`
+- [X] T160 [P] [US10] `infra/local/docker-compose.scale.yml`：3 个 Admin Center + 3 个 UAM + nginx；UAM 不映射宿主机端口，只对 Admin Center 实例可达
+- [X] T161 [P] [US10] `infra/local/nginx/nginx.conf`：轮询、**无会话粘滞**、到上游的长连接
+- [X] T162 [P] [US10] `infra/local/scripts/scale-checks.sh`：登录一次后把请求分到全部 Admin Center 实例，断言都已登录；经一个实例新建用户 / 强制下线，断言其他实例立即一致
+- [X] T163 [P] [US10] `infra/local/scripts/rolling-restart.sh`：持续访问下依次重启全部实例，统计意外登出数与失败请求数
+- [X] T164 [P] [US10] `infra/load/k6/seed-data.sh`：生成 10 万用户（含账号与凭据）与 1 万个同时有效的会话
+- [X] T165 [P] [US10] `infra/load/k6/list-and-detail.js`：用户与会话的列表和详情，阈值 95% ≤ 2 秒（SC-009）
+- [X] T166 [P] [US10] `infra/load/k6/validate-throughput.js` 与方法说明 `infra/load/SC-011.md`：1 → 4 实例吞吐 ≥ 3.2 倍；独占机器、预热、多轮取中位数、判定口径
+- [X] T167 [US10] 验证：T158、T159 通过；在多实例栈上跑 quickstart S13（SC-010）、S14（SC-012，滚动重启 0 次意外登出）、S15（SC-009、SC-011），结果记入 `infra/load/RESULTS.md` （结果见 `infra/load/RESULTS.md`：S13 31/31 通过、S14 滚动重启 0 次意外登出（最终配置 7 轮 44,306 个请求 0 失败）、SC-009 在 10 万用户 / 1 万会话下满足；**SC-011 未测量也未判定**（需要独占机器，本机只跑了脚本冒烟）；**发现**：`online.lua` 在 1 万会话时每次约 22 ms Redis 时间，在线用户列表约 45 次 / 秒即触顶（14.3% 页面触发 1.5 秒超时），提议改为只读 `uam:online` 的分数、由分数推出最近活动时间，待用户确认后再改）
 
 **Checkpoint**: US10 可独立验证。
 
