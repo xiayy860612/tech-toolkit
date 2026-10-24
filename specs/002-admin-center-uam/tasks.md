@@ -429,9 +429,9 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 **Purpose**: 跨故事的收尾、门禁与归档
 
-- [ ] T185 [P] 安全检查脚本 `infra/local/scripts/security-check.sh`：没有被跟踪的 `.env`；`apps/admin-center/package.json` 不含数据库驱动或 ORM 依赖（FR-013：Admin Center 不持久化数据）；仓库与历史里没有 `uamk_` 密钥或私钥特征（`infra/local/e2e.env` 里标注为仅测试用的固定密钥除外）；`apps/admin-center/src/lib` 的服务端模块都有 `import "server-only"`；浏览器包（`.next/static`）里没有服务密钥；运行期响应与 UAM、Admin Center 日志里没有密码、密码哈希、会话标识、服务密钥（SC-014）；跨站伪造的写请求 100% 被拒
-- [ ] T186 [P] 覆盖率门禁核对：`mvn -f apps/uam/pom.xml verify` 行覆盖率 ≥ 90%；`npm --prefix apps/admin-center run test:cov` ≥ 90%；排除路径只含不含业务逻辑的代码，并写进两个 `AGENTS.md`
-- [ ] T187 [P] 补充 `apps/uam/AGENTS.md` 与 `apps/admin-center/AGENTS.md` 的最终命令、环境变量与排障说明（含 `UAM_CLIENTS` 示例、`generate-service-key`、`init-admin`、`add-account`、轮换步骤）
+- [X] T185 [P] 安全检查脚本 `infra/local/scripts/security-check.sh`：没有被跟踪的 `.env`；`apps/admin-center/package.json` 不含数据库驱动或 ORM 依赖（FR-013：Admin Center 不持久化数据）；仓库与历史里没有 `uamk_` 密钥或私钥特征（`infra/local/e2e.env` 里标注为仅测试用的固定密钥除外）；`apps/admin-center/src/lib` 的服务端模块都有 `import "server-only"`；浏览器包（`.next/static`）里没有服务密钥；运行期响应与 UAM、Admin Center 日志里没有密码、密码哈希、会话标识、服务密钥（SC-014）；跨站伪造的写请求 100% 被拒 （说明：`git log --all` 里有三个来自旧演示项目的 `BEGIN PRIVATE KEY` 占位（`jwt-rsa-key.pem`，正文只有 24 个字符、不是有效密钥，不在 main 与本特性分支），脚本对这两个路径在历史扫描里做了允许；清除需要改写历史，未做）
+- [X] T186 [P] 覆盖率门禁核对：`mvn -f apps/uam/pom.xml verify` 行覆盖率 ≥ 90%；`npm --prefix apps/admin-center run test:cov` ≥ 90%；排除路径只含不含业务逻辑的代码，并写进两个 `AGENTS.md`
+- [X] T187 [P] 补充 `apps/uam/AGENTS.md` 与 `apps/admin-center/AGENTS.md` 的最终命令、环境变量与排障说明（含 `UAM_CLIENTS` 示例、`generate-service-key`、`init-admin`、`add-account`、轮换步骤）
 - [ ] T188 对触及的两个应用（`apps/uam/pom.xml`、`apps/admin-center/package.json`）执行质量门禁：UAM 的 `spotless:check`、`compile`、`verify`；Admin Center 的 `lint`、`typecheck`、`test:cov`、`build`；全部通过
 - [ ] T189 按 `specs/002-admin-center-uam/quickstart.md` 完整跑一遍 S1 ~ S19，把结果与未达标项写入归档文档的「验证记录」
 - [ ] T190 [P] 归档需求与领域现状到 `docs/achieve-specs/admin-center-uam.md`（统一语言、领域模型、核心流程、需求对照表、验证记录、已知限制）

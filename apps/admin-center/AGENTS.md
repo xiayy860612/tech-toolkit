@@ -9,10 +9,11 @@
 - 目录：
   - `src/app/`：路由（`(shell)` 带外壳、`(auth)` 极简外壳、`logout`、`session/expire`）
   - `src/components/`：`ui/`（shadcn 供应商代码，覆盖率排除）、`shell/`、`auth/`、`users/`、`sessions/`
-  - `src/lib/`：服务端模块一律 `import "server-only"`，含 `config`、`uam/`、`session/`、`security/`、`validation/`
+  - `src/lib/`：服务端模块一律 `import "server-only"`（纯函数 / 生成类型的例外见 `security-check.sh` 的允许名单），含 `config`、`logging`、`uam/`、`session/`、`security/`、`validation/`
   - `src/instrumentation.ts`：服务启动时校验环境变量（缺 `UAM_SERVICE_KEY` 即启动失败）
   - `tests/{unit,contract,e2e,support}/`
-- Admin Center **无状态**、不存密码、不连数据库；`UAM_SERVICE_KEY` 只在服务端使用，绝不进入浏览器包。它是 UAM 的**客户端**（Client）：每个请求带 `Authorization: Bearer <服务密钥>`，写操作与会话页另带 `X-Operator-*`。
+- Admin Center **无状态**、不存密码、不连数据库（`package.json` 不得出现数据库驱动 / ORM，由 `security-check.sh` 守住）；`UAM_SERVICE_KEY` 只在服务端使用，绝不进入浏览器包。它是 UAM 的**客户端**（Client）：每个请求带 `Authorization: Bearer <服务密钥>`，写操作与会话页另带 `X-Operator-*`。
+- 所有写入口（5 个 Server Action 文件与 `POST /logout`）第一步都是 `isSameOriginRequest` 同源校验（`src/lib/security/origin-check.ts`），再读会话、调 UAM。
 
 ## 命令（在 `apps/admin-center/` 下执行）
 
@@ -23,16 +24,16 @@ npm run lint           # lint
 npm run typecheck      # 类型检查
 npm run test           # 单元 / 契约测试
 npm run test:cov       # 带覆盖率（行覆盖率 < 90% 则失败）
-npm run build          # 生产构建
-npm run e2e            # Playwright E2E（需要先启动栈，见 infra/local/scripts/bootstrap.sh）
+npm run build          # 生产构建（不需要运行期环境变量）
+npm run e2e            # Playwright E2E（需要先启动栈，见下文「E2E 栈」）
 npm run gen:api        # 由 contracts/uam/openapi.yaml 重新生成 src/lib/uam/types.generated.ts
 ```
 
 ## 测试与覆盖率
 
 - 测试先行（red → green → refactor）：新行为或缺陷修复先写会失败的测试。
-- **覆盖率口径：行覆盖率 ≥ 90%**，工具 Jest 内置覆盖率（`coverageThreshold`），CI 同样执行。
-- **排除路径**（只允许放不含业务逻辑的代码，终审在 PR 评审）：`src/components/ui/**`（shadcn/ui 供应商代码）、`**/*.generated.ts`（由 OpenAPI 生成）、`src/**/*.d.ts`。
+- **覆盖率口径：行覆盖率 ≥ 90%**，工具 Jest 内置覆盖率（`jest.config.ts` 的 `coverageThreshold: { global: { lines: 90 } }`），CI（`.github/workflows/admin-center.yml`）同样执行。
+- **排除路径**（`jest.config.ts` 的 `collectCoverageFrom` 里的否定项，只允许放不含业务逻辑的代码，终审在 PR 评审）：`src/components/ui/**`（shadcn/ui 供应商代码）、`src/**/*.generated.ts`（由 OpenAPI 生成）、`src/**/*.d.ts`（类型声明）。其余 `src/**/*.{ts,tsx}`（含 `instrumentation.ts`、`middleware.ts`）都计入。
 
 ## 环境变量与示例配置
 
@@ -40,8 +41,43 @@ npm run gen:api        # 由 contracts/uam/openapi.yaml 重新生成 src/lib/uam
 
 | 变量 | 说明 | 默认 |
 |---|---|---|
-| `UAM_BASE_URL` | UAM 地址 | 必填 |
-| `UAM_SERVICE_KEY` | 调用 UAM 的服务密钥（`generate-service-key` 生成，仅输出一次） | 必填 |
+| `UAM_BASE_URL` | UAM 地址（只在内网可达） | 必填 |
+| `UAM_SERVICE_KEY` | 调用 UAM 的服务密钥（`generate-service-key` 生成，仅输出一次；UAM 侧的 `UAM_CLIENTS` 示例、权限表与轮换步骤见 [`apps/uam/AGENTS.md`](../uam/AGENTS.md)） | 必填 |
 | `UAM_TIMEOUT_MS` | 调用 UAM 的超时 | `1500` |
 | `SESSION_COOKIE_NAME` | 会话 cookie 名（本地 http 请用 `asid`） | `__Host-asid` |
-| `TRUSTED_PROXY_HOPS` | 取终端来源地址时信任的反向代理跳数 | `1` |
+| `TRUSTED_PROXY_HOPS` | 取终端来源地址时信任的反向代理跳数（`X-Forwarded-For` 从右数第几项） | `1` |
+
+容器镜像（`apps/admin-center/Dockerfile`，Next.js standalone）监听 `PORT=3000`、`HOSTNAME=0.0.0.0`，以非 root 运行。
+
+## E2E 栈与 Playwright
+
+```bash
+infra/local/scripts/bootstrap.sh up      # 构建并启动 PostgreSQL、Redis、UAM、Admin Center，建首个用户；Admin Center 在 http://127.0.0.1:3000
+cd apps/admin-center
+npx playwright install chromium          # 首次运行前
+npm run e2e                              # 全部视口 project（w320 w375 w768 w1024 w1440 w2560）
+npm run e2e -- --project=w1440 tests/e2e/us1-login.spec.ts   # 单个视口、单个用例文件
+infra/local/scripts/bootstrap.sh down    # 结束后关栈并清数据卷
+```
+
+- 配置来自 `infra/local/e2e.env`：**固定的测试密钥与哈希，仅限本地 E2E**，禁止用于其他环境；E2E 用例依赖这把固定密钥（`bootstrap.sh up --generated-key` 改用现生成的密钥，不要与这些用例混用）。首个用户账号与**假的**测试密码见 `tests/e2e/support/fixtures.ts` 的 `ADMIN`（与 `bootstrap.sh` 一致，可用 `E2E_ADMIN_ACCOUNT` / `E2E_ADMIN_PASSWORD` 覆盖）；它们只在本地 E2E 栈里有意义。
+- 栈前面没有反向代理，用例统一带 `X-Forwarded-For`（`playwright.config.ts` 的 `extraHTTPHeaders`）；换地址测试用 `E2E_BASE_URL`。部分用例经 `docker compose` 调栈里的 UAM CLI / PostgreSQL 造数（`tests/e2e/support/stack.ts`），需要本机 Docker。
+
+## 多实例、压测与安全检查
+
+- 多实例栈 `infra/local/docker-compose.scale.yml`（3 个 Admin Center + 3 个 UAM + nginx 入口，无会话粘滞）：`infra/local/scripts/scale-checks.sh up|check|down`（入口 `http://127.0.0.1:8088`，钉住实例用 8091 ~ 8093）、`infra/local/scripts/rolling-restart.sh`（持续访问下依次重启全部实例，意外登出必须为 0）。
+- 压测：`infra/load/k6/`（`seed-data.sh`、`list-and-detail.js`、`validate-throughput.js`，经 compose 的 `load` profile 运行，命令见 compose 文件里的注释）；结果与未测项见 `infra/load/RESULTS.md`，SC-011 的判定方法见 `infra/load/SC-011.md`（**尚未测量**）。
+- **安全检查** `infra/local/scripts/security-check.sh [static|runtime|all]`（默认 `all`；兼容 bash 3.2）：
+  - `static`（不需要 Docker）：无被跟踪的 `.env`（只允许 `*.example` 与 `infra/local/e2e.env`）；`package.json` 无数据库驱动 / ORM（FR-013）；工作区与全部历史里没有完整长度的 `uamk_` 密钥或私钥特征（允许名单与理由写在脚本里）；`src/lib` 服务端模块都有 `import "server-only"`；构建浏览器包（`npm run build`，不设环境变量）后 `.next/static` 里没有服务密钥；每个写入口先做同源校验，并跑相关「跨站 / 同源」单元测试。`SECURITY_CHECK_SKIP_BUILD=1` 复用已有构建。
+  - `runtime`（需要已启动的 E2E 栈，否则退出码 2）：用 curl 走真实流程，对 login、createUser、terminateSession、disableUser、enableUser、changePassword、`POST /logout` 各用「外站 Origin / `Sec-Fetch-Site: cross-site` / 无来源头」伪造一次，必须被拒且状态不变（同源请求作对照）；最后扫描全部响应、两个服务的日志与浏览器脚本，没有标记密码、`$argon2`、会话标识、服务密钥（SC-014）。
+  - `all`：先 static 再 runtime；栈原本没起则自己 `up`、结束 `down`，原本已启动则保持原样。退出码 0 全部通过、1 有失败项、2 用法 / 环境错误。
+
+## 运维告警与排障
+
+- **告警事件 `admin-center.uam.misconfigured`**（`src/lib/logging.ts`）：UAM 拒绝了 Admin Center 本身（401 `client_unauthenticated`：服务密钥缺失 / 无效 / 已撤销；403 `client_forbidden`：缺权限）时写出，只含错误码、HTTP 状态、泛化后的操作、trace id、时间戳，**不含密钥**；同一（错误码，操作）每 60 秒最多一条。用户侧按「服务暂不可用」处理，不登出、不清 cookie；修正配置后无需重新登录。UAM 侧对应的是 `uam.client.rejected`。
+- **启动失败**「环境变量缺失或不合法：…」：缺 `UAM_SERVICE_KEY` / `UAM_BASE_URL`（只列变量名，不回显值）。构建不受影响，所以 CI 的 `npm run build` 不需要这些变量。
+- **页面提示「服务暂不可用」**：UAM 不可达或超过 `UAM_TIMEOUT_MS`，或服务密钥 / 权限配置有误（看上面的告警日志）；写操作则显示「操作未生效」。这时用户没有被登出。
+- **本地 http 下登录后立刻回到登录页**：会话 cookie 带 `Secure`，`__Host-` 前缀还要求 HTTPS。本地 http 把 `SESSION_COOKIE_NAME` 设为 `asid`；Chrome / Firefox 对 `localhost`、`127.0.0.1` 放行 Secure cookie，Safari 通常不接受 http 下的 Secure cookie——用 HTTPS 入口或换浏览器。
+- **「无法确定终端来源地址，已拒绝登录 / 修改密码」**：`TRUSTED_PROXY_HOPS` 必须等于 Admin Center 前面可信代理的跳数，取 `X-Forwarded-For` 从右数第 N 项（左边用户自带的内容不采信）；直连（无代理）时没有可用来源地址，需要代理或测试里补请求头。入口在非默认端口（非 80 / 443）时，反向代理还必须透传**带端口的** `Host`（nginx 用 `$http_host`）并设 `X-Forwarded-Host`，否则 Server Action 的 Origin / Host 比较失败（见 `infra/load/RESULTS.md` 缺陷 C）。
+- **页面时间不是预期时区**：时间在服务端按 Node 进程的本地时区格式化，容器默认 UTC；需要时给 Admin Center 容器设 `TZ`。
+- **栈起不来或残留旧数据**：`infra/local/scripts/bootstrap.sh down`（带 `-v` 清卷）后重新 `up`；单实例栈做密钥轮换演练会让 UAM 有几秒不可达，不是密钥故障。
