@@ -33,25 +33,32 @@ const onlineItems = (page: Page): Locator =>
 
 const onlineItem = (page: Page, name: string) => onlineItems(page).filter({ hasText: name });
 
-/** 某个在线用户条目里的「有效会话数」。 */
-const sessionCountOf = (item: Locator, page: Page) => (isNarrow(page) ? item.locator("dd").nth(0) : item.getByRole("cell").nth(1));
-
 const sessionCards = (page: Page) => page.getByRole("list", { name: "会话列表" }).getByRole("listitem");
 const pager = (page: Page) => page.getByRole("navigation", { name: "分页" });
 
-/** 走完所有页，收集在线用户（标识取自链接、会话数取自条目）。 */
+/**
+ * 走完所有页，收集在线用户（标识取自链接、会话数取自条目）。
+ * 每页用一次 `evaluateAll` 取快照（逐个 `.all()` 的元素再 await，会在翻页时撞上换页而找不到元素），点「下一页」后等 URL 变到下一页再取。
+ */
 async function listedOnlineUsers(page: Page): Promise<Map<string, number>> {
   const listed = new Map<string, number>();
+  const narrow = isNarrow(page);
   await page.goto("/sessions");
-  for (;;) {
+  for (let pageNo = 1; ; pageNo++) {
     await expect(onlineItems(page).first()).toBeVisible();
-    for (const item of await onlineItems(page).all()) {
-      const href = await item.getByRole("link").getAttribute("href");
-      listed.set(href!.replace("/sessions/", ""), Number(await sessionCountOf(item, page).innerText()));
-    }
+    const rows = await onlineItems(page).evaluateAll(
+      (els, isCard) =>
+        els.map((el) => ({
+          href: el.querySelector("a")!.getAttribute("href")!,
+          count: Number((isCard ? el.querySelectorAll("dd")[0] : el.querySelectorAll("td")[1]).textContent),
+        })),
+      narrow,
+    );
+    for (const { href, count } of rows) listed.set(href.replace("/sessions/", ""), count);
     const next = pager(page).getByRole("link", { name: "下一页" });
     if ((await next.count()) === 0) return listed;
     await next.click();
+    await expect(page).toHaveURL(new RegExp(`/sessions\\?page=${pageNo + 1}$`));
   }
 }
 

@@ -58,7 +58,7 @@ export function UserList({ users, total, page, size, query }: UserListProps) {
                 <TableCell className="max-w-64 px-4 break-all whitespace-normal">
                   <Link
                     href={`/users/${user.id}`}
-                    className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline"
+                    className="inline-flex min-h-11 min-w-11 items-center font-medium text-primary underline-offset-4 hover:underline"
                   >
                     {user.name}
                   </Link>

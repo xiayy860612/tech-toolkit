@@ -117,4 +117,10 @@
   a.btn-touch {
     min-height: 2.75rem;
   }
+  /* 确认框在矮屏（横屏手机）上不超出视口：限高并自身滚动，确认与取消始终可达（spec FR-035） */
+  [data-slot="alert-dialog-content"] {
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }

@@ -124,6 +124,8 @@ test.describe("S9：入口与表单", () => {
 
     await expect(user).toHaveURL(/\/account\/password$/);
     await expect(user.getByRole("heading", { level: 1, name: "修改密码" })).toBeVisible();
+    // 菜单收起有淡出动画：等它从页面里消失再跑 axe（否则 axe 会按淡出中途的半透明颜色算对比度）
+    await expect(user.getByRole("menu")).toHaveCount(0);
     await expect(user.getByRole("main")).toContainText(subject.accountA);
     await expect(field(user, "当前密码")).toHaveAttribute("autocomplete", "current-password");
     await expect(field(user, "新密码")).toHaveAttribute("autocomplete", "new-password");

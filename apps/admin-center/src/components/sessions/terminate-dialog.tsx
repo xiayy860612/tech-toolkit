@@ -113,9 +113,9 @@ export function TerminateDialog({
             if (cardGone.current) event.preventDefault();
           }}
         >
-          <AlertDialogHeader>
-            <AlertDialogTitle>强制下线该会话？</AlertDialogTitle>
-            <AlertDialogDescription>
+          <AlertDialogHeader className="min-w-0">
+            <AlertDialogTitle className="[overflow-wrap:anywhere]">强制下线该会话？</AlertDialogTitle>
+            <AlertDialogDescription className="[overflow-wrap:anywhere]">
               {`账号「${accountName}」的这个会话将立即结束；该用户的其他会话不受影响，账号与用户状态也不会改变。对方下一次操作会被带到登录页。`}
             </AlertDialogDescription>
           </AlertDialogHeader>

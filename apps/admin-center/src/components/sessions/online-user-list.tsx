@@ -63,7 +63,7 @@ export function OnlineUserList({ users, total, page, size, currentUserId, now = 
                 <TableCell className="max-w-64 px-4 break-all whitespace-normal">
                   <Link
                     href={`/sessions/${user.userId}`}
-                    className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline"
+                    className="inline-flex min-h-11 min-w-11 items-center font-medium text-primary underline-offset-4 hover:underline"
                   >
                     {user.userName}
                   </Link>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -23,13 +23,16 @@ export interface AppShellProps {
  * - 匿名 / unverified：只有顶栏；unverified 显示「服务暂不可用」横幅并说明登录状态已保留，不渲染需要会话的内容。
  * 侧边栏：桌面 ≥ 1024 按偏好展开；平板 768–1023 固定为图标条；手机 < 768 为抽屉。
  */
+/** 图标条宽度：8px 内边距 + 44px 触控方块 + 8px 内边距 + 1px 分隔线，取 4rem（shadcn 默认 3rem 会把 44px 的方块裁掉约 5px，FR-036）。 */
+const SIDEBAR_ICON_STYLE = { "--sidebar-width-icon": "4rem" } as CSSProperties;
+
 export function AppShell({ status, userName, defaultSidebarOpen = true, children }: AppShellProps) {
   const [preferOpen, setPreferOpen] = useState(defaultSidebarOpen);
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const authenticated = status === "authenticated";
 
   return (
-    <SidebarProvider open={isDesktop && preferOpen} onOpenChange={setPreferOpen} className="flex-col">
+    <SidebarProvider open={isDesktop && preferOpen} onOpenChange={setPreferOpen} className="flex-col" style={SIDEBAR_ICON_STYLE}>
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-3 focus:shadow"

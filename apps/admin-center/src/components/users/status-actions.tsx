@@ -114,9 +114,9 @@ export function StatusActions({
           </p>
         )}
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{shown.title(userName)}</AlertDialogTitle>
-            <AlertDialogDescription>{shown.body}</AlertDialogDescription>
+          <AlertDialogHeader className="min-w-0">
+            <AlertDialogTitle className="[overflow-wrap:anywhere]">{shown.title(userName)}</AlertDialogTitle>
+            <AlertDialogDescription className="[overflow-wrap:anywhere]">{shown.body}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="h-11" disabled={pending}>

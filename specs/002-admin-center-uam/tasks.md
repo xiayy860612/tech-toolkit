@@ -345,11 +345,11 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Verification for User Story 9 ⚠️
 
-- [ ] T153 [P] [US9] E2E `apps/admin-center/tests/e2e/us9-responsive.spec.ts`：在 `playwright.config.ts` 的六个视口 project 上走完整旅程；断言 `document.documentElement.scrollWidth <= innerWidth`；断言桌面侧边栏展开、平板图标条、手机抽屉；手机上列表为卡片
-- [ ] T154 [P] [US9] E2E `apps/admin-center/tests/e2e/us9-a11y.spec.ts`：`@axe-core/playwright` 无严重违规；仅键盘完成全部功能；对话框打开时焦点留在对话框内、关闭后回到触发元素；`Esc` 关闭
-- [ ] T155 [P] [US9] E2E `apps/admin-center/tests/e2e/us9-touch-and-content.spec.ts`：可交互元素的触控目标 ≥ 44 × 44 CSS 像素，破坏性按钮与相邻按钮留有间距；很长的用户名 / 账号名在窄屏换行或截断，不撑破布局
-- [ ] T156 [US9] 修复 T153 ~ T155 暴露的全部问题（`apps/admin-center/src/components/**`、`apps/admin-center/src/app/globals.css`），不改变行为；重跑直至通过
-- [ ] T157 [US9] 验证：T153 ~ T155 在 `apps/admin-center/playwright.config.ts` 的六个视口 project 上全部通过；跑 quickstart S12
+- [X] T153 [P] [US9] E2E `apps/admin-center/tests/e2e/us9-responsive.spec.ts`：在 `playwright.config.ts` 的六个视口 project 上走完整旅程；断言 `document.documentElement.scrollWidth <= innerWidth`；断言桌面侧边栏展开、平板图标条、手机抽屉；手机上列表为卡片
+- [X] T154 [P] [US9] E2E `apps/admin-center/tests/e2e/us9-a11y.spec.ts`：`@axe-core/playwright` 无严重违规；仅键盘完成全部功能；对话框打开时焦点留在对话框内、关闭后回到触发元素；`Esc` 关闭
+- [X] T155 [P] [US9] E2E `apps/admin-center/tests/e2e/us9-touch-and-content.spec.ts`：可交互元素的触控目标 ≥ 44 × 44 CSS 像素，破坏性按钮与相邻按钮留有间距；很长的用户名 / 账号名在窄屏换行或截断，不撑破布局
+- [X] T156 [US9] 修复 T153 ~ T155 暴露的全部问题（`apps/admin-center/src/components/**`、`apps/admin-center/src/app/globals.css`），不改变行为；重跑直至通过 （说明：用户菜单改为 `modal={false}` 以消除 axe 的 aria-hidden-focus（serious）；唯一的行为差异是点击菜单外区域时既关闭菜单、也会点到下面的元素，待用户确认可接受）
+- [X] T157 [US9] 验证：T153 ~ T155 在 `apps/admin-center/playwright.config.ts` 的六个视口 project 上全部通过；跑 quickstart S12
 
 **Checkpoint**: US9 可独立验证。
 
