@@ -1,6 +1,6 @@
 # Data Model: Admin Center 用户管理与会话管理
 
-**Feature**: [spec.md](./spec.md) | **Research**: [research.md](./research.md) | **Date**: 2026-10-23
+**Feature**: [spec.md](../../achieve-specs/admin-center/spec.md) | **Research**: [research.md](../system/research.md) | **Date**: 2026-10-23
 
 权威状态存放：**PostgreSQL**（用户、账号、凭据，强一致）与 **Redis**（会话、限流计数、幂等键，低延迟）。Admin Center 不持久化任何数据。表结构以日后的 Flyway 迁移为准，本文件是设计依据。
 

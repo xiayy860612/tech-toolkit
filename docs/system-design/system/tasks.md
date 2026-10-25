@@ -5,9 +5,9 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 # Tasks: Admin Center 用户管理与会话管理（User Manager / Session Manager）
 
-**Input**: Design documents from `/specs/002-admin-center-uam/`
+**Input**: Design documents from `/specs/002-admin-center-uam/`（归档后：需求侧 `docs/achieve-specs/admin-center-uam/`，设计侧 `docs/system-design/{system,uam,admin-center}/`）
 
-**Prerequisites**: [plan.md](./plan.md)、[spec.md](./spec.md)、[research.md](./research.md)、[data-model.md](./data-model.md)、[contracts/](./contracts/)（OpenAPI 与 Web 路由）、[quickstart.md](./quickstart.md)、[prototype/](./prototype/README.md)（已确认）
+**Prerequisites**: [plan.md](./plan.md)、[spec.md](../../achieve-specs/admin-center/spec.md)、[research.md](./research.md)、[data-model.md](../uam/data-model.md)、[contracts/](../admin-center/)（OpenAPI 与 Web 路由）、[quickstart.md](./quickstart.md)、[prototype/](../admin-center/prototype/README.md)（已确认）
 
 **Tests**: **必需**（不是可选）。根 `AGENTS.md`「测试先行」要求每个新行为先写会失败的测试再实现（red → green → refactor），单元测试行覆盖率 **≥ 90%**。因此每个用户故事都先列「测试」任务，**它们必须先失败**，再做实现任务。
 
@@ -17,7 +17,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 - **[P]**：可并行（不同文件、无未完成的依赖）
 - **[Story]**：所属用户故事（US1 … US12）；Setup、Foundational、Polish 阶段没有
-- 描述里给出确切路径；字段约束逐字引用自 [data-model.md](./data-model.md)
+- 描述里给出确切路径；字段约束逐字引用自 [data-model.md](../uam/data-model.md)
 
 ## Path Conventions
 
@@ -38,8 +38,8 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T004 [P] 编写 `apps/admin-center/AGENTS.md` 与 `apps/admin-center/CLAUDE.md`：技术栈与目录、命令、覆盖率口径与排除路径、环境变量表（`UAM_BASE_URL`、`UAM_SERVICE_KEY`、`UAM_TIMEOUT_MS`、`SESSION_COOKIE_NAME`、`TRUSTED_PROXY_HOPS`）、「`src/lib` 下的服务端模块一律 `import "server-only"`」
 - [X] T005 把 `specs/002-admin-center-uam/contracts/uam/openapi.yaml` 迁到 `contracts/uam/openapi.yaml`（`git mv`，作为唯一权威），在原位置留 `specs/002-admin-center-uam/contracts/uam/README.md` 指向新位置，并修正 `plan.md`、`research.md`、`quickstart.md`、`contracts/web-routes.md`、`prototype/README.md`、本文件中的链接
 - [X] T006 [P] 更新仓库根 `.gitignore`：忽略 `apps/uam/target/`、`apps/admin-center/{node_modules,.next,coverage,playwright-report,test-results}/`、`.env*`（保留 `.env.example`）
-- [X] T007 [P] 创建 CI `.github/workflows/uam.yml`：JDK 21，`spotless:check`、`compile`、`mvn verify`（Testcontainers + JaCoCo 行覆盖率 ≥ 90% 门禁）
-- [X] T008 [P] 创建 CI `.github/workflows/admin-center.yml`：`npm ci`、`lint`、`typecheck`、`test:cov`（≥ 90%）、`build`
+- [X] T007 [P] 创建 CI `.github/workflows/uam-ci.yml`：JDK 21，`spotless:check`、`compile`、`mvn verify`（Testcontainers + JaCoCo 行覆盖率 ≥ 90% 门禁）
+- [X] T008 [P] 创建 CI `.github/workflows/admin-center-ci.yml`：`npm ci`、`lint`、`typecheck`、`test:cov`（≥ 90%）、`build`
 - [X] T009 [P] 创建本地依赖编排 `infra/local/docker-compose.yml`（PostgreSQL 16；Redis 7，开启 AOF `everysec`）与 `infra/local/.env.example`；UAM 的端口**不映射到宿主机**
 - [X] T010 [P] 在 `apps/admin-center/src/components/ui/` 加入用到的 shadcn/ui 组件：`button`、`input`、`label`、`card`、`alert`、`avatar`、`badge`、`table`、`alert-dialog`、`dialog`、`dropdown-menu`、`sidebar`、`sheet`、`breadcrumb`、`tooltip`、`separator`
 - [X] T011 [P] 实现 `apps/admin-center` 的 `gen:api` 脚本：由 `contracts/uam/openapi.yaml` 生成 `apps/admin-center/src/lib/uam/types.generated.ts`（提交生成结果）
@@ -391,7 +391,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ## Phase 13: User Story 11 - 评审并确认 Admin Center 界面设计原型（Priority: P2）
 
-**Goal**: 原型已交付并经用户确认；实现与原型一致，且没有范围外的入口。原型见 [prototype/](./prototype/README.md)。
+**Goal**: 原型已交付并经用户确认；实现与原型一致，且没有范围外的入口。原型见 [prototype/](../admin-center/prototype/README.md)。
 
 **Independent Test**: 实现后的每个原型页面与关键状态都能在真实界面里复现，且没有编辑、删除、重置他人密码、绑定账号、批量下线等入口。（FR-041；SC-015；quickstart S18）
 

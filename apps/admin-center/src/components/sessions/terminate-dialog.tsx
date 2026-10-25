@@ -50,7 +50,7 @@ export function TerminateFeedback({ children }: { children: ReactNode }) {
 const OWN_SESSION_HINT = "这是你当前使用的会话，请改用顶栏用户菜单中的「退出登录」。";
 
 /**
- * 会话卡片上的「强制下线」（FR-030）：二次确认，说明所属账号与后果（界面见 specs/002-admin-center-uam/prototype）。
+ * 会话卡片上的「强制下线」（FR-030）：二次确认，说明所属账号与后果（界面见 docs/system-design/admin-center/prototype）。
  * - `current`：操作人自己正在使用的会话，入口禁用并提示改用「退出登录」（UAM 同样以 409 拒绝）；
  * - 确认后调用 Server Action，结果交给 `TerminateFeedback`；处理中不能中途关闭（防重复提交）；
  * - 普通按钮而非 AlertDialogAction：后者点击即关闭，而这里要等动作返回后再关。

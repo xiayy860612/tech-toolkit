@@ -18,7 +18,7 @@ import { Card } from "@/components/ui/card";
 
 type Mode = "disable" | "enable";
 
-/** 确认框文案（界面见 specs/002-admin-center-uam/prototype）：说明后果；用户名按文本渲染。 */
+/** 确认框文案（界面见 docs/system-design/admin-center/prototype）：说明后果；用户名按文本渲染。 */
 const COPY = {
   disable: {
     trigger: "停用用户",

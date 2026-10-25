@@ -51,7 +51,7 @@ function SubmitButton() {
 }
 
 /**
- * 新建用户表单（界面见 specs/002-admin-center-uam/prototype）。
+ * 新建用户表单（界面见 docs/system-design/admin-center/prototype）。
  * `idempotencyKey` 由页面每次渲染生成，随隐藏字段提交；动作返回新键时（UAM 明确拒绝后）改用新键。
  * 失败后 React 会把表单重置为默认值：用户名与账号名取回上次提交的值，密码框保持为空——密码从不回填。
  */

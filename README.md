@@ -19,9 +19,9 @@ UAM 的接口契约：[`contracts/uam/openapi.yaml`](./contracts/uam/openapi.yam
 
 | 位置 | 内容 |
 |---|---|
-| [`docs/achieve-specs/`](./docs/achieve-specs) | **已落地**需求、领域与行为的最新真实状态（统一语言、领域模型、核心流程、需求对照与验证记录、已知限制）。本项目：[`admin-center-uam.md`](./docs/achieve-specs/admin-center-uam.md) |
-| [`docs/system-design/`](./docs/system-design) | **已落地**架构与实现的最新真实状态（C4 视图、运行时与部署视图、数据存储、安全、扩展性、可观测性、质量门禁；图在 [`diagrams/`](./docs/system-design/diagrams)）。本项目：[`admin-center-uam.md`](./docs/system-design/admin-center-uam.md) |
-| [`specs/`](./specs) | 新功能的**过程**文档（调研、澄清、方案、任务拆分）；功能完成后归档到上面两处。本项目：[`specs/002-admin-center-uam/`](./specs/002-admin-center-uam) |
+| [`docs/achieve-specs/`](./docs/achieve-specs) | **已落地**的**用户需求描述**（不涉及技术细节）。本项目：[`admin-center/spec.md`](./docs/achieve-specs/admin-center/spec.md)（Admin Center 的需求规格） |
+| [`docs/system-design/`](./docs/system-design) | **已落地**架构与实现的最新真实状态（含技术方案：C4 视图、运行时与部署视图、数据存储、安全、扩展性、可观测性、质量门禁、领域模型与接口、需求对照与验证记录；图在各目录的 `diagrams/` 下）。**按 app 拆分**：[`system/`](./docs/system-design/system)（跨服务）· [`uam/`](./docs/system-design/uam) · [`admin-center/`](./docs/system-design/admin-center)（含界面原型 `prototype/`） |
+| [`specs/`](./specs) | 新功能的**过程**文档（调研、澄清、方案、任务拆分）；功能完成后**迁移**到上面两处（仅 `spec.md` → `docs/achieve-specs/`，其余 → 按 app 拆分到 `docs/system-design/`），`specs/` 下不保留。本项目 `002-admin-center-uam` 已归档 |
 | [`docs/best-practice/`](./docs/best-practice) | 通用实践，如 [测试类型与适用场景](./docs/best-practice/testing.md) |
 
-界面设计原型（静态、可点击）：[`specs/002-admin-center-uam/prototype/`](./specs/002-admin-center-uam/prototype/README.md)。
+界面设计原型（静态、可点击）：[`docs/system-design/admin-center/prototype/`](./docs/system-design/admin-center/prototype/README.md)。

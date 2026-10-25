@@ -1,6 +1,6 @@
 # AGENTS — apps/admin-center（Admin Center：接入层 Web Server）
 
-遵循仓库根 [`AGENTS.md`](../../AGENTS.md)；本文件补充 Admin Center 的技术栈、命令与门禁。规格见 [`specs/002-admin-center-uam/`](../../specs/002-admin-center-uam/)，UAM 契约见 [`contracts/uam/openapi.yaml`](../../contracts/uam/openapi.yaml)，Web 路由契约见 [`specs/002-admin-center-uam/contracts/web-routes.md`](../../specs/002-admin-center-uam/contracts/web-routes.md)。
+遵循仓库根 [`AGENTS.md`](../../AGENTS.md)；本文件补充 Admin Center 的技术栈、命令与门禁。需求见 [`docs/achieve-specs/admin-center/spec.md`](../../docs/achieve-specs/admin-center/spec.md)，设计见 [`docs/system-design/admin-center/`](../../docs/system-design/admin-center/README.md)，UAM 契约见 [`contracts/uam/openapi.yaml`](../../contracts/uam/openapi.yaml)，Web 路由契约见 [`docs/system-design/admin-center/web-routes.md`](../../docs/system-design/admin-center/web-routes.md)。
 
 ## 技术栈与目录
 

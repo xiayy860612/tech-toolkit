@@ -49,7 +49,7 @@ function SubmitButton() {
 }
 
 /**
- * 修改密码表单（界面见 specs/002-admin-center-uam/prototype）。
+ * 修改密码表单（界面见 docs/system-design/admin-center/prototype）。
  * 提交后 React 会把表单重置为默认值：成功与失败都一样，三个密码框保持为空——密码从不回填。
  * 账号不是表单字段：服务端只改当前登录所用的账号。
  */

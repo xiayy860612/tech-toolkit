@@ -5,7 +5,7 @@ import { startService, stopService, uamCli } from "./support/stack";
 
 /**
  * US11：界面实现与原型一致（FR-041、SC-015；quickstart S18）。
- * 对照 `specs/002-admin-center-uam/prototype/README.md` 的「覆盖的页面与状态」表，逐行在**真实界面**里复现原型的关键状态；
+ * 对照 `docs/system-design/admin-center/prototype/README.md` 的「覆盖的页面与状态」表，逐行在**真实界面**里复现原型的关键状态；
  * 每个 describe 的标题标出它对应的 README 行，用例里的断言再标出具体的关键状态。
  *
  * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。

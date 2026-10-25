@@ -1,6 +1,6 @@
 # AGENTS — apps/uam（UAM：用户、账号、会话的唯一权威）
 
-遵循仓库根 [`AGENTS.md`](../../AGENTS.md)；本文件补充 UAM 的技术栈、命令与门禁。规格见 [`specs/002-admin-center-uam/`](../../specs/002-admin-center-uam/)，权威契约见 [`contracts/uam/openapi.yaml`](../../contracts/uam/openapi.yaml)。
+遵循仓库根 [`AGENTS.md`](../../AGENTS.md)；本文件补充 UAM 的技术栈、命令与门禁。需求见 [`docs/achieve-specs/admin-center/spec.md`](../../docs/achieve-specs/admin-center/spec.md)，设计见 [`docs/system-design/uam/`](../../docs/system-design/uam/README.md)，权威契约见 [`contracts/uam/openapi.yaml`](../../contracts/uam/openapi.yaml)。
 
 ## 技术栈与目录
 

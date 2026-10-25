@@ -132,13 +132,14 @@ s3_worktree() {
 #   quick-starter/be-spring-mvc-h2/src/main/resources/jwt-rsa-key.pem
 #     —— 早期遗留示例项目的占位 PEM（正文只有一行 24 个字符，不是有效私钥），只存在于 quick-starter / fix-deploy /
 #        sb3-migrate-to-sb4 等旧分支，不在 main 与本特性分支的历史里，工作区也没有；与本特性无关，改写历史由仓库所有者决定。
-#   specs/002-admin-center-uam/tasks.md
+#   specs/002-admin-center-uam/tasks.md（归档后已移到 docs/system-design/system/tasks.md；历史里的命中仍在旧路径下）
 #     —— 提交 7e12020 的 T185 说明里写过私钥头标记的字面文字（只是解释上面那两个遗留占位，不是私钥）；已提交的历史改不了，
 #        该文件现在的版本已改成不含该字面文字（工作区扫描会照常失败来保证这一点）。只放行私钥特征，不放行 uamk_ 密钥。
 LEGACY_PEM_ALLOW="
 b/sb3-jdk17/examples/service-example-h2/src/main/resources/jwt-rsa-key.pem
 b/quick-starter/be-spring-mvc-h2/src/main/resources/jwt-rsa-key.pem
 b/specs/002-admin-center-uam/tasks.md
+b/docs/system-design/system/tasks.md
 "
 # history_hits <正则> [允许的路径（换行分隔）]：输出「提交 路径」（内容永远不打印）；允许名单里的路径不输出
 history_hits() {

@@ -1,6 +1,6 @@
 # Admin Center 界面设计原型
 
-**Feature**: [spec.md](../spec.md)（FR-041、User Story 11、SC-015） | **Plan**: [plan.md](../plan.md) | **Date**: 2026-10-23 | **状态**: 已确认（2026-10-23，用户已确认技术栈与本原型）
+**Feature**: [spec.md](../../../achieve-specs/admin-center/spec.md)（FR-041、User Story 11、SC-015） | **Plan**: [plan.md](../../system/plan.md) | **Date**: 2026-10-23 | **状态**: 已确认（2026-10-23，用户已确认技术栈与本原型）
 
 一份**零依赖、可点击**的静态原型，用来在界面实现之前评审页面、交互与关键状态。**它不是生产代码，也不会被实现复用**；所有数据都是内存里的合成假数据，刷新即重置，不发任何网络请求。
 
@@ -11,7 +11,7 @@
 任何浏览器直接打开 `index.html` 即可（不需要安装任何环境）：
 
 ```bash
-open specs/002-admin-center-uam/prototype/index.html
+open docs/system-design/admin-center/prototype/index.html
 ```
 
 - 顶部**视口**按钮：桌面 1280 / 平板 820 / 手机 390 / 最窄 320。布局按真实 CSS 宽度渲染，窗口较窄时整体缩放显示。

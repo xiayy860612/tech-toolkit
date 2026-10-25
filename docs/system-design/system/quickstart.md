@@ -1,8 +1,8 @@
 # Quickstart：启动与逐场景验证
 
-**Feature**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md) | **Date**: 2026-10-23
+**Feature**: [spec.md](../../achieve-specs/admin-center/spec.md) | **Plan**: [plan.md](./plan.md) | **Date**: 2026-10-23
 
-本文是**验证指南**：实现完成后，按它在真实栈上证明特性端到端可用。契约与数据结构见 [contracts/](./contracts/) 与 [data-model.md](./data-model.md)，这里不重复。
+本文是**验证指南**：实现完成后，按它在真实栈上证明特性端到端可用。契约与数据结构见 [contracts/](../admin-center/) 与 [data-model.md](../uam/data-model.md)，这里不重复。
 
 > **状态**：`apps/uam`、`apps/admin-center`、`infra/` 还没有实现（由 `/speckit-tasks` 拆分后落地），所以下面的命令是**目标形态**，实现后以各应用 `AGENTS.md` 为准。**现在就能做的只有 S18（评审原型）**。
 
@@ -71,7 +71,7 @@ printf '%s\n' "$SECOND_PASSWORD" | java -jar apps/uam/target/uam.jar add-account
 | S15 | 规模与吞吐 | k6：10 万用户、1 万有效会话下压测列表与详情；实例数 1 → 4 对比吞吐 | 列表与详情 95% ≤ 2 秒；4 实例吞吐 ≥ 单实例 3.2 倍 | SC-009、SC-011 |
 | S16 | UAM 直连：服务密钥、权限与操作人 | 直接调 UAM：不带密钥、错密钥、已撤销的旧密钥各调一个读接口和一个写接口；用没有断言权限的密钥调登录与写接口、再调只读接口；用有权限的密钥调写接口但不带操作人请求头；强制下线时把目标会话引用同时填作操作人会话引用；停用时把目标用户填作操作人用户；从非 Admin Center 的主机连接 UAM | 无 / 错 / 已撤销密钥 → 401 `client_unauthenticated`（响应不透露哪里不对）；无断言权限 → 登录与写接口 403 `client_forbidden`、只读接口可用；缺少操作人请求头的写请求 → 400 `operator_required`；目标等于操作人会话引用 → 409 `cannot_terminate_own_session`；目标等于操作人用户 → 409 `cannot_disable_self`；非 Admin Center 的主机连不上 UAM（网络边界） | FR-008、FR-042、FR-043、research R4、R5 |
 | S17 | 安全与日志抽查 | 扫描页面、响应体、浏览器包、UAM 与 Admin Center 日志；从另一个站点伪造新建 / 停用 / 强制下线请求；检查写操作日志 | 没有明文密码（含新建与修改密码时的）、哈希、会话标识、服务密钥；伪造请求 100% 被拒；每次写操作（含被拒绝的）都有一条含操作人、对象、动作、时间、结果的日志，且不含敏感信息 | FR-031、FR-033、FR-034、SC-014 |
-| S18 | **评审界面设计原型（现在可做）** | 打开 [prototype/index.html](./prototype/index.html)，逐个场景与视口点一遍 | 覆盖 FR-041 列出的全部页面与状态，且没有范围外的入口；经你确认后才开始界面实现 | US11、FR-041、SC-015 |
+| S18 | **评审界面设计原型（现在可做）** | 打开 [prototype/index.html](../admin-center/prototype/index.html)，逐个场景与视口点一遍 | 覆盖 FR-041 列出的全部页面与状态，且没有范围外的入口；经你确认后才开始界面实现 | US11、FR-041、SC-015 |
 | S19 | 服务密钥轮换与配置错误 | ① 给 `admin-center` 加第二个哈希并滚动发布 UAM，再让 Admin Center 换新密钥，最后删旧哈希；全程持续访问。② 把 Admin Center 的密钥故意配错，刷新已登录页面，再改回 | ① 全程 0 个用户被登出、0 个请求因密钥失败；删旧哈希后旧密钥 → 401；② 用户不被登出、cookie 不清除，页面提示服务暂不可用，UAM 与 Admin Center 日志有告警（不含密钥）；改回后无需重新登录 | US12、FR-044、SC-016 |
 
 ## 自动化对应
