@@ -1,0 +1,485 @@
+package com.s2u2m.uam.support;
+
+import com.s2u2m.uam.domain.DomainException;
+import com.s2u2m.uam.domain.ErrorCode;
+import com.s2u2m.uam.domain.model.Account;
+import com.s2u2m.uam.domain.model.Credential;
+import com.s2u2m.uam.domain.model.LoginName;
+import com.s2u2m.uam.domain.model.OnlineUserSummary;
+import com.s2u2m.uam.domain.model.PageResult;
+import com.s2u2m.uam.domain.model.Session;
+import com.s2u2m.uam.domain.model.SessionRef;
+import com.s2u2m.uam.domain.model.User;
+import com.s2u2m.uam.domain.model.UserStatus;
+import com.s2u2m.uam.domain.model.UserWithAccountCount;
+import com.s2u2m.uam.domain.model.WriteOperationEvent;
+import com.s2u2m.uam.domain.port.AccountRepository;
+import com.s2u2m.uam.domain.port.Clock;
+import com.s2u2m.uam.domain.port.CredentialRepository;
+import com.s2u2m.uam.domain.port.IdempotencyStore;
+import com.s2u2m.uam.domain.port.LoginThrottle;
+import com.s2u2m.uam.domain.port.PasswordChangeThrottle;
+import com.s2u2m.uam.domain.port.PasswordHasher;
+import com.s2u2m.uam.domain.port.SessionStore;
+import com.s2u2m.uam.domain.port.TransactionRunner;
+import com.s2u2m.uam.domain.port.UserRepository;
+import com.s2u2m.uam.domain.port.UserStatusLock;
+import com.s2u2m.uam.domain.port.WriteOperationLog;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.BooleanSupplier;
+import java.util.function.IntConsumer;
+import java.util.function.Supplier;
+
+/** 单元测试用的假端口（内存实现），领域与用例测试不碰数据库与 Redis。 */
+public final class Fakes {
+
+  private Fakes() {}
+
+  /** 可手动推进的时钟。 */
+  public static final class FakeClock implements Clock {
+    private Instant now;
+
+    public FakeClock(Instant start) {
+      this.now = start;
+    }
+
+    @Override
+    public Instant now() {
+      return now;
+    }
+
+    public void advance(Duration duration) {
+      now = now.plus(duration);
+    }
+  }
+
+  /** 内存用户仓储。 */
+  public static class FakeUsers implements UserRepository {
+    public final Map<UUID, User> byId = new LinkedHashMap<>();
+
+    /** 真正发生了状态变更的次数。 */
+    public int statusUpdates;
+
+    @Override
+    public Optional<User> findById(UUID id) {
+      return Optional.ofNullable(byId.get(id));
+    }
+
+    @Override
+    public void insert(User user) {
+      byId.put(user.id(), user);
+    }
+
+    @Override
+    public long count() {
+      return byId.size();
+    }
+
+    @Override
+    public long countActive() {
+      return byId.values().stream().filter(User::isActive).count();
+    }
+
+    @Override
+    public boolean updateStatus(UUID id, UserStatus status) {
+      User user = byId.get(id);
+      if (user == null || user.status() == status) {
+        return false;
+      }
+      byId.put(id, new User(user.id(), user.name(), status, user.createdAt()));
+      statusUpdates++;
+      return true;
+    }
+
+    /** {@link #findNames} 的调用次数与最近一次的参数。 */
+    public int findNamesCalls;
+
+    public Collection<UUID> lastFindNamesIds = List.of();
+
+    @Override
+    public Map<UUID, String> findNames(Collection<UUID> ids) {
+      findNamesCalls++;
+      lastFindNamesIds = List.copyOf(ids);
+      Map<UUID, String> names = new HashMap<>();
+      ids.stream().filter(byId::containsKey).forEach(id -> names.put(id, byId.get(id).name()));
+      return names;
+    }
+
+    /** 最近一次 {@link #search} 的参数，以及它要返回的结果。 */
+    public String lastQuery = "<never called>";
+
+    public int lastPage;
+    public int lastSize;
+    public PageResult<UserWithAccountCount> searchResult = new PageResult<>(List.of(), 0);
+
+    @Override
+    public PageResult<UserWithAccountCount> search(String query, int page, int size) {
+      lastQuery = query;
+      lastPage = page;
+      lastSize = size;
+      return searchResult;
+    }
+  }
+
+  /** 内存账号仓储；按规范化账号名唯一。 */
+  public static final class FakeAccounts implements AccountRepository {
+    public final Map<UUID, Account> byId = new LinkedHashMap<>();
+
+    @Override
+    public Optional<Account> findByLoginName(LoginName name) {
+      return byId.values().stream()
+          .filter(a -> a.loginName().normalized().equals(name.normalized()))
+          .findFirst();
+    }
+
+    @Override
+    public boolean existsByLoginName(LoginName name) {
+      return findByLoginName(name).isPresent();
+    }
+
+    @Override
+    public List<Account> findByUserId(UUID userId) {
+      return byId.values().stream().filter(a -> a.userId().equals(userId)).toList();
+    }
+
+    @Override
+    public void insert(Account account) {
+      if (existsByLoginName(account.loginName())) {
+        throw new DomainException(ErrorCode.ACCOUNT_NAME_TAKEN, "账号名已被使用");
+      }
+      byId.put(account.id(), account);
+    }
+  }
+
+  /** 内存凭据仓储；可设置在插入时失败，用来验证「不留半成品」。 */
+  public static final class FakeCredentials implements CredentialRepository {
+    public final Map<UUID, String> hashes = new HashMap<>();
+    public RuntimeException failOnInsert;
+
+    @Override
+    public Optional<String> findPasswordHash(UUID accountId) {
+      return Optional.ofNullable(hashes.get(accountId));
+    }
+
+    @Override
+    public void insert(Credential credential) {
+      if (failOnInsert != null) {
+        throw failOnInsert;
+      }
+      hashes.put(credential.accountId(), credential.passwordHash());
+    }
+
+    @Override
+    public void updatePasswordHash(UUID accountId, String passwordHash) {
+      hashes.put(accountId, passwordHash);
+    }
+
+    @Override
+    public boolean upgradePasswordHash(UUID accountId, String expectedHash, String passwordHash) {
+      return hashes.replace(accountId, expectedHash, passwordHash);
+    }
+  }
+
+  /** 事务假实现：快照三个仓储，抛异常就整体还原，模拟回滚。 */
+  public static final class FakeTransactionRunner implements TransactionRunner {
+    private final FakeUsers users;
+    private final FakeAccounts accounts;
+    private final FakeCredentials credentials;
+    public int transactions;
+
+    /** 当前是否在事务里（用来断言某些动作发生在提交之后）。 */
+    public boolean active;
+
+    public FakeTransactionRunner(
+        FakeUsers users, FakeAccounts accounts, FakeCredentials credentials) {
+      this.users = users;
+      this.accounts = accounts;
+      this.credentials = credentials;
+    }
+
+    @Override
+    public <T> T inTransaction(Supplier<T> work) {
+      transactions++;
+      active = true;
+      var usersBefore = new LinkedHashMap<>(users.byId);
+      var accountsBefore = new LinkedHashMap<>(accounts.byId);
+      var credentialsBefore = new HashMap<>(credentials.hashes);
+      try {
+        return work.get();
+      } catch (RuntimeException e) {
+        users.byId.clear();
+        users.byId.putAll(usersBefore);
+        accounts.byId.clear();
+        accounts.byId.putAll(accountsBefore);
+        credentials.hashes.clear();
+        credentials.hashes.putAll(credentialsBefore);
+        throw e;
+      } finally {
+        active = false;
+      }
+    }
+  }
+
+  /** 假哈希：{@code fake$<明文>}；记录每次比对，用来断言「先做一次哈希比对」。 */
+  public static class FakePasswordHasher implements PasswordHasher {
+    public static final String DUMMY = "fake$\u0000dummy-never-a-password";
+    public final List<String> comparedHashes = new ArrayList<>();
+    public boolean upgradeNeeded;
+    public int hashCalls;
+
+    @Override
+    public String hash(String rawPassword) {
+      hashCalls++;
+      return "fake$" + rawPassword;
+    }
+
+    @Override
+    public boolean matches(String rawPassword, String passwordHash) {
+      comparedHashes.add(passwordHash);
+      return passwordHash.equals("fake$" + rawPassword);
+    }
+
+    @Override
+    public boolean needsUpgrade(String passwordHash) {
+      return upgradeNeeded;
+    }
+
+    @Override
+    public String dummyHash() {
+      return DUMMY;
+    }
+  }
+
+  /** 内存会话存储：一账号一会话，按哈希索引。 */
+  public static class FakeSessionStore implements SessionStore {
+    public final Map<String, Session> byHash = new LinkedHashMap<>();
+    public final List<SessionRef> terminated = new ArrayList<>();
+
+    /** 每次 {@link #terminateByRef} 是否要求留下墓碑，与 {@link #terminated} 一一对应。 */
+    public final List<Boolean> terminatedMarks = new ArrayList<>();
+
+    /** 墓碑：被管理员强制下线的会话哈希。 */
+    public final Set<String> tombstones = new HashSet<>();
+
+    public final List<Session> touched = new ArrayList<>();
+
+    /** 每次 {@link #terminateAllForUser} 传入的账号标识。 */
+    public final List<List<UUID>> terminatedForUsers = new ArrayList<>();
+
+    /** {@link #listOnline} 要返回的（已聚合、已排序的）在线用户，以及最近一次传入的当前时刻。 */
+    public List<OnlineUserSummary> online = List.of();
+
+    public Instant listOnlineNow;
+
+    @Override
+    public Optional<SessionRef> create(Session session, String tokenHash) {
+      Optional<String> oldHash =
+          byHash.entrySet().stream()
+              .filter(e -> e.getValue().accountId().equals(session.accountId()))
+              .map(Map.Entry::getKey)
+              .findFirst();
+      Optional<SessionRef> replaced = oldHash.map(h -> byHash.remove(h).ref());
+      byHash.put(tokenHash, session);
+      return replaced;
+    }
+
+    @Override
+    public Optional<Session> find(String tokenHash) {
+      return Optional.ofNullable(byHash.get(tokenHash));
+    }
+
+    @Override
+    public Optional<Session> touch(String tokenHash, Session touchedSession) {
+      if (!byHash.containsKey(tokenHash)) {
+        return Optional.empty();
+      }
+      byHash.put(tokenHash, touchedSession);
+      touched.add(touchedSession);
+      return Optional.of(touchedSession);
+    }
+
+    @Override
+    public List<OnlineUserSummary> listOnline(Instant now) {
+      listOnlineNow = now;
+      return online;
+    }
+
+    @Override
+    public List<Session> sessionsOfAccounts(Collection<UUID> accountIds) {
+      return accountIds.stream()
+          .flatMap(id -> byHash.values().stream().filter(s -> s.accountId().equals(id)))
+          .toList();
+    }
+
+    @Override
+    public int terminateAllForUser(Collection<UUID> accountIds) {
+      terminatedForUsers.add(List.copyOf(accountIds));
+      int before = byHash.size();
+      byHash.values().removeIf(s -> accountIds.contains(s.accountId()));
+      return before - byHash.size();
+    }
+
+    @Override
+    public boolean terminateByRef(SessionRef ref, boolean markTerminated) {
+      terminated.add(ref);
+      terminatedMarks.add(markTerminated);
+      List<String> hashes =
+          byHash.entrySet().stream()
+              .filter(e -> e.getValue().ref().equals(ref))
+              .map(Map.Entry::getKey)
+              .toList();
+      hashes.forEach(byHash::remove);
+      if (markTerminated) {
+        tombstones.addAll(hashes);
+      }
+      return !hashes.isEmpty();
+    }
+
+    @Override
+    public boolean wasTerminated(String tokenHash) {
+      return tombstones.contains(tokenHash);
+    }
+  }
+
+  /** 假的状态锁：记录每次取锁时是否在事务里。 */
+  public static final class FakeUserStatusLock implements UserStatusLock {
+    public final List<Boolean> acquiredInsideTransaction = new ArrayList<>();
+    private final BooleanSupplier inTransaction;
+
+    public FakeUserStatusLock(BooleanSupplier inTransaction) {
+      this.inTransaction = inTransaction;
+    }
+
+    @Override
+    public void lockStatusChanges() {
+      acquiredInsideTransaction.add(inTransaction.getAsBoolean());
+    }
+  }
+
+  /** 内存登录限流：按主体计数，达到阈值后拦截。 */
+  public static final class FakeLoginThrottle implements LoginThrottle {
+    public final Map<String, Integer> failures = new HashMap<>();
+    public final List<String> resets = new ArrayList<>();
+    public final int maxFailures;
+    public final long retryAfterSeconds;
+
+    public FakeLoginThrottle(int maxFailures, long retryAfterSeconds) {
+      this.maxFailures = maxFailures;
+      this.retryAfterSeconds = retryAfterSeconds;
+    }
+
+    @Override
+    public OptionalLong admit(String subject) {
+      return failures.merge(subject, 1, Integer::sum) > maxFailures
+          ? OptionalLong.of(retryAfterSeconds)
+          : OptionalLong.empty();
+    }
+
+    @Override
+    public void reset(String subject) {
+      resets.add(subject);
+      failures.remove(subject);
+    }
+  }
+
+  /** 内存改密限流：按主体计数，达到阈值后拦截（口径同 {@link FakeLoginThrottle}）。 */
+  public static final class FakePasswordChangeThrottle implements PasswordChangeThrottle {
+    public final Map<String, Integer> failures = new HashMap<>();
+    public final List<String> resets = new ArrayList<>();
+    public final int maxFailures;
+    public final long retryAfterSeconds;
+
+    public FakePasswordChangeThrottle(int maxFailures, long retryAfterSeconds) {
+      this.maxFailures = maxFailures;
+      this.retryAfterSeconds = retryAfterSeconds;
+    }
+
+    @Override
+    public OptionalLong admitChange(String subject) {
+      return failures.merge(subject, 1, Integer::sum) > maxFailures
+          ? OptionalLong.of(retryAfterSeconds)
+          : OptionalLong.empty();
+    }
+
+    @Override
+    public void resetChange(String subject) {
+      resets.add(subject);
+      failures.remove(subject);
+    }
+  }
+
+  /** 收集写操作日志事件的假实现。 */
+  public static final class RecordingWriteLog implements WriteOperationLog {
+    public final List<WriteOperationEvent> events = new ArrayList<>();
+
+    @Override
+    public void record(WriteOperationEvent event) {
+      events.add(event);
+    }
+  }
+
+  /** 内存幂等存储：按「范围 + 键」保存进行中标记或完成快照；{@code onInFlight} 在每次返回「进行中」时回调（参数为第几次）， 用来模拟占位方在等待期间完成或放弃。 */
+  public static class FakeIdempotencyStore implements IdempotencyStore {
+    private record Entry(String fingerprint, String response) {}
+
+    private final Map<String, Entry> entries = new HashMap<>();
+    public final List<String> released = new ArrayList<>();
+    public final List<String> completed = new ArrayList<>();
+    public int claims;
+    public int inFlightReturned;
+    public IntConsumer onInFlight = count -> {};
+
+    private static String id(String scope, String key) {
+      return scope + "|" + key;
+    }
+
+    public boolean holds(String scope, String key) {
+      return entries.containsKey(id(scope, key));
+    }
+
+    public String snapshotOf(String scope, String key) {
+      Entry entry = entries.get(id(scope, key));
+      return entry == null ? null : entry.response();
+    }
+
+    @Override
+    public Claim claim(String scope, String key, String fingerprint) {
+      claims++;
+      Entry entry = entries.get(id(scope, key));
+      if (entry == null) {
+        entries.put(id(scope, key), new Entry(fingerprint, null));
+        return new Claim.Acquired();
+      }
+      if (entry.response() != null) {
+        return new Claim.Completed(entry.fingerprint(), entry.response());
+      }
+      inFlightReturned++;
+      onInFlight.accept(inFlightReturned);
+      return new Claim.InFlight(entry.fingerprint());
+    }
+
+    @Override
+    public void complete(String scope, String key, String fingerprint, String response) {
+      completed.add(id(scope, key));
+      entries.put(id(scope, key), new Entry(fingerprint, response));
+    }
+
+    @Override
+    public void release(String scope, String key) {
+      released.add(id(scope, key));
+      entries.remove(id(scope, key));
+    }
+  }
+}

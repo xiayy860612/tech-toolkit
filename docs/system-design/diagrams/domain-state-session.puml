@@ -1,0 +1,17 @@
+@startuml domain-state-session
+title Session 生命周期
+hide empty description
+
+state "有效" as Active
+state "结束" as Ended
+
+[*] --> Active : 登录成功\n顶掉同账号的旧会话
+Active --> Active : verify\n距上次写入 > 60 秒才续期
+Active --> Ended : 退出 / 强制下线\n用户或账号被停用 / 被取代\n空闲到期（30 分钟）/ 绝对到期（12 小时）
+Ended --> [*]
+
+note right of Ended
+  结束是终态，没有「恢复」；
+  再次使用必须重新登录。
+end note
+@enduml

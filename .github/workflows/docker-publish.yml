@@ -1,0 +1,100 @@
+name: docker-publish
+
+# 可复用工作流：构建某个 app 的镜像并推送到阿里云 ACR（各 app 工作流通过 workflow_call 调用，
+# 并由调用方保证只在 main 的 push 上调用）。
+# 每个 app 一个镜像仓库：<registry>/s2u2m/<app>（仓库需要先在 ACR 里建好）。
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: "apps/ 下的目录名，同时作为镜像仓库名（如 uam、admin-center）"
+        type: string
+        required: true
+    secrets:
+      IMG_REPO_USERNAME:
+        required: false
+      IMG_REPO_PASSWORD:
+        required: false
+
+env:
+  REGISTRY: registry.cn-shenzhen.aliyuncs.com
+  IMAGE: registry.cn-shenzhen.aliyuncs.com/s2u2m/${{ inputs.app }}
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    # 最小权限：只读仓库内容；推送凭据来自 secrets，与 GITHUB_TOKEN 无关
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 读取版本号
+        id: version
+        run: |
+          app="apps/${{ inputs.app }}"
+          if [ -f "$app/pom.xml" ]; then
+            # 取 <project> 的直接子节点 <version>（不是 <parent> 里的那个）
+            version=$(python3 -c "import sys, xml.etree.ElementTree as ET; r = ET.parse(sys.argv[1]).getroot(); print(r.find('{http://maven.apache.org/POM/4.0.0}version').text)" "$app/pom.xml")
+          elif [ -f "$app/package.json" ]; then
+            version=$(node -p "require('./$app/package.json').version")
+          else
+            echo "::error::$app 下既没有 pom.xml 也没有 package.json，无法确定版本号" && exit 1
+          fi
+          # 镜像 tag 只允许 [A-Za-z0-9_.-]，且不能以 . 或 - 开头
+          if ! printf '%s' "$version" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_.-]*$'; then
+            echo "::error::版本号 '$version' 不能作为镜像 tag" && exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 登录阿里云 ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.IMG_REPO_USERNAME }}
+          password: ${{ secrets.IMG_REPO_PASSWORD }}
+
+      # tag：<版本号>、<构建号>、<短 sha>、latest
+      #   构建号 = 该 app 工作流的 run_number（单调递增）；版本号取自 pom.xml / package.json。
+      #   <app>-<版本号> 在版本号不变时会被后续构建覆盖（例如 0.1.0-SNAPSHOT）；要定位确切产物，用构建号或 sha。
+      - name: 生成 tag 与 label
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=${{ github.run_number }}
+            type=sha,prefix=,format=short
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=${{ inputs.app }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
+      # 构建上下文是仓库根目录（Dockerfile 里的 COPY 路径以根为基准，.dockerignore 也在根）
+      - name: 构建并推送镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ inputs.app }}/Dockerfile
+          push: true
+          # 关闭 provenance / SBOM 附加证明：它们会让推送多出 application/vnd.oci.empty.v1+json 清单，
+          # 阿里云个人版 ACR 不支持（denied: unknown manifest class）
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ inputs.app }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.app }}
+
+      - name: 摘要
+        run: |
+          {
+            echo "### ${{ inputs.app }} 已推送镜像"
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

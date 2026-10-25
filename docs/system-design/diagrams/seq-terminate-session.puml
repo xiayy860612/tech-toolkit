@@ -1,0 +1,22 @@
+@startuml seq-terminate-session
+title 强制下线（操作人以请求头传入）
+autonumber
+
+actor "运维人员" as O
+participant "Admin Center\n（UAM 的客户端）" as AC
+participant "UAM" as U
+database "Redis" as R
+
+O -> AC : 确认强制下线某会话（POST，同源校验）
+AC -> U : POST /v1/auth/sessions/verify（服务密钥；拿到操作人）
+AC -> U : DELETE /v1/sessions/{sessionRef}\n服务密钥 + X-Operator-User-Id / Account-Id / Session-Ref
+U -> U : 识别客户端 admin-center\n校验服务密钥与断言权限
+U -> U : 目标 == X-Operator-Session-Ref ?\n是 → 409 cannot_terminate_own_session
+U -> R : Lua：删 sess / sref / acct 指针 / online 条目\n并原子写墓碑 uam:term:{sha}（TTL 10 分钟）· WAIT 1
+U -> U : 写应用日志 uam.admin.write\n（clientId、操作人、对象、动作、结果；被拒绝的也记录）
+U --> AC : 204（目标已不存在则 404 session_not_found）
+
+note over R
+  被下线者下一次请求 → verify 401（带 reason=terminated，10 分钟内）→ 登录页提示被管理员强制下线
+end note
+@enduml

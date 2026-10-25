@@ -1,0 +1,94 @@
+@startuml c4-l3-uam-component
+' C4 L3 组件视图：UAM（按已落地的代码绘制）。分层依赖：api → application → domain ← infrastructure（由 ArchUnit 守住）。
+!include <C4/C4_Component>
+LAYOUT_WITH_LEGEND()
+
+title L3 组件视图：UAM
+
+Container(admin, "Admin Center", "Next.js", "UAM 的客户端 admin-center（被授予断言权限）：带服务密钥与 X-Operator-* 请求头")
+
+Container_Boundary(uam, "UAM（Spring Boot 4 · Java 21）") {
+  Boundary(api, "api 层") {
+    Component(trace, "TraceContextFilter", "Servlet 过滤器", "最先执行：传递并回显 W3C traceparent，traceId 放入 MDC")
+    Component(clientAuth, "ClientAuthFilter", "Servlet 过滤器", "校验服务密钥（Authorization: Bearer）：缺失 / 无效 / 已撤销 → 401 client_unauthenticated；再按 ClientPermissions 判权限 → 403 client_forbidden；/actuator/health/** 免校验")
+    Component(perms, "ClientPermissions", "Java", "按 HTTP 方法决定所需权限：GET / HEAD 只需有效密钥，其余方法需要 assert-end-user-context（新增写接口默认受限）")
+    Component(operatorCtx, "OperatorContextResolver", "Spring 组件（由控制器调用）", "解析 X-Operator-* 请求头；写操作（/v1/auth/** 除外）缺失或不合法 → 400 operator_required；读操作可选")
+    Component(authApi, "AuthController", "REST", "/v1/auth/login · sessions/verify · logout")
+    Component(userApi, "UsersController", "REST", "/v1/users：查询、新建（Idempotency-Key）、停用、启用")
+    Component(sessionApi, "SessionsController", "REST", "/v1/online-users · /v1/users/{id}/sessions · DELETE /v1/sessions/{ref}")
+    Component(accountApi, "AccountsController", "REST", "/v1/accounts/{id}/password")
+    Component(problem, "ProblemAdvice", "RFC 9457", "统一错误体 application/problem+json，稳定的 code；throttled 带 Retry-After")
+  }
+  Boundary(app, "application 层") {
+    Component(authUc, "认证用例", "Java", "Login · VerifySession（只读 Redis）· Logout（幂等）")
+    Component(userUc, "用户用例", "Java", "ListUsers · GetUser · CreateUser（幂等键，只缓存 201）· DisableUser · EnableUser")
+    Component(provisioning, "AccountProvisioningService", "Java", "单事务创建用户 + 账号 + 凭据 / 追加账号；账号名规则与密码策略")
+    Component(sessionUc, "会话用例", "Java", "ListOnlineUsers · ListUserSessions · TerminateSession")
+    Component(pwUc, "ChangePasswordUseCase", "Java", "路径账号 ≠ 操作人账号 → 403 client_forbidden；校验当前密码（限流）与强度；只改指定账号")
+  }
+  Boundary(dom, "domain 层") {
+    Component(domain, "领域模型、策略与端口", "纯 Java，不依赖框架", "model：User · Account · Credential · Session · ClientIdentity · OperatorContext；policy：账号名 · 密码 · 会话 · 登录限流 · SelfProtectionRule；port：见「端口」组件")
+    Component(ports, "端口（domain/port）", "Java 接口", "UserRepository · AccountRepository · CredentialRepository · SessionStore · UserStatusLock · TransactionRunner · LoginThrottle · PasswordChangeThrottle · IdempotencyStore · PasswordHasher · ClientAuthenticator · ClientRejectionLog · WriteOperationLog · Clock")
+  }
+  Boundary(infra, "infrastructure 层") {
+    Component(jdbc, "JDBC 仓储", "Spring JdbcClient", "读写 PostgreSQL：用户、账号、凭据；JdbcTransactionRunner；pg_advisory_xact_lock 串行化用户状态变更（UserStatusLock）")
+    Component(sessionStore, "RedisSessionStore", "Lettuce + Lua", "读写 Redis：会话（HASH 内快照用户名 / 账号名 / 种类 / 到期，校验不查库）、账号指针、会话引用、在线索引；login / touch / terminate / terminate-all / online 五个会话脚本；撤销后 WAIT 1（ReplicaWait）")
+    Component(redisGuards, "RedisGuards", "Lettuce", "读写 Redis：登录与改密限流闸门（uam:throttle:*，throttle-admit.lua 在哈希比对之前原子占用名额）；创建用户的幂等键（uam:idem:*，按客户端隔离）")
+    Component(hasher, "Argon2PasswordHasher", "Argon2id", "密码哈希与自动升级；伪哈希比对")
+    Component(clientReg, "ClientRegistry", "配置 UAM_CLIENTS", "实现 ClientAuthenticator：SHA-256 哈希，常量时间比较；每客户端 1–2 把有效密钥；输出客户端 id 与权限；配置不合法则启动失败")
+    Component(rejectLog, "ClientRejectionLogger", "JSON 日志", "uam.client.rejected：来源、原因类别、状态、方法、路径、clientId（不含密钥）；每秒至多 200 条，超出只计数")
+    Component(writeLog, "WriteOperationLogger", "JSON 日志", "uam.admin.write：客户端、操作人、对象、动作、结果；统一脱敏（LogRedaction）")
+  }
+  Boundary(cli, "cli（部署期一次性命令）") {
+    Component(cmds, "init-admin · add-account", "Spring Boot cli profile", "不启动 Web、不连 Redis、先跑 Flyway；创建逻辑一律复用 AccountProvisioningService")
+    Component(keygen, "generate-service-key", "StandaloneCommands", "在 Spring 启动之前直接执行：不连库、不连 Redis、不需要环境变量；标准输出只有密钥，哈希与配置片段写标准错误")
+  }
+}
+
+Rel(admin, trace, "HTTP 请求", "REST/JSON · TLS")
+Rel(trace, clientAuth, "转交")
+Rel(clientAuth, perms, "查询所需权限")
+Rel(clientAuth, ports, "ClientAuthenticator.authenticate · ClientRejectionLog.record")
+Rel(clientAuth, authApi, "通过后")
+Rel(clientAuth, userApi, "通过后")
+Rel(clientAuth, sessionApi, "通过后")
+Rel(clientAuth, accountApi, "通过后")
+Rel(userApi, operatorCtx, "解析操作人")
+Rel(sessionApi, operatorCtx, "解析操作人")
+Rel(accountApi, operatorCtx, "解析操作人")
+
+Rel(authApi, authUc, "调用")
+Rel(userApi, userUc, "调用")
+Rel(sessionApi, sessionUc, "调用")
+Rel(accountApi, pwUc, "调用")
+
+Rel(authUc, domain, "使用")
+Rel(userUc, domain, "使用")
+Rel(sessionUc, domain, "使用")
+Rel(pwUc, domain, "使用")
+
+' 数据库（PostgreSQL、Redis）见 L2；这里只在基础设施组件的描述里标明用到哪一个。
+' 依赖倒置：用例只依赖 domain 里的端口，基础设施实现这些端口（运行时由 Spring 装配）。
+' 各端口由谁实现：JdbcUserRepository / JdbcAccountRepository / JdbcCredentialRepository / JdbcTransactionRunner、
+' RedisSessionStore（SessionStore）、RedisGuards（LoginThrottle · PasswordChangeThrottle · IdempotencyStore）、
+' Argon2PasswordHasher、ClientRegistry（ClientAuthenticator）、ClientRejectionLogger、WriteOperationLogger、SystemClock。
+Rel(jdbc, ports, "实现")
+Rel(sessionStore, ports, "实现")
+Rel(redisGuards, ports, "实现")
+Rel(hasher, ports, "实现")
+Rel(clientReg, ports, "实现")
+Rel(rejectLog, ports, "实现")
+Rel(writeLog, ports, "实现")
+
+Rel(cmds, provisioning, "创建首个用户 / 追加账号")
+Rel(userUc, provisioning, "新建用户复用")
+Rel(provisioning, domain, "使用")
+
+' 布局提示：基础设施层分两行，避免整张图过宽
+Lay_R(jdbc, sessionStore)
+Lay_R(sessionStore, redisGuards)
+Lay_D(jdbc, hasher)
+Lay_R(hasher, clientReg)
+Lay_R(clientReg, rejectLog)
+Lay_R(rejectLog, writeLog)
+@enduml

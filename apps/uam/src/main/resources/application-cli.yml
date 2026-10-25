@@ -1,0 +1,19 @@
+# 部署期命令（SPRING_PROFILES_ACTIVE=cli）：不启动 Web、不连 Redis、先跑 Flyway，日志写标准错误（见 logback-spring.xml）
+spring:
+  main:
+    web-application-type: none
+    banner-mode: "off"
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisReactiveAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.health.DataRedisHealthContributorAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.health.DataRedisReactiveHealthContributorAutoConfiguration
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          # 部署期命令不连 Redis
+          include: readinessState,db

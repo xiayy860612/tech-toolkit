@@ -1,0 +1,55 @@
+name: admin-center-ci
+
+on:
+  push:
+    paths:
+      - "apps/admin-center/**"
+      - "contracts/**"
+      - ".github/workflows/admin-center-ci.yml"
+      - ".github/workflows/docker-publish.yml"
+      - ".dockerignore"
+  pull_request:
+    paths:
+      - "apps/admin-center/**"
+      - "contracts/**"
+      - ".github/workflows/admin-center-ci.yml"
+      - ".github/workflows/docker-publish.yml"
+      - ".dockerignore"
+
+# 最小权限：只读仓库内容
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin-center
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/admin-center/package-lock.json
+      - run: npm ci
+      - name: lint
+        run: npm run lint
+      - name: typecheck
+        run: npm run typecheck
+      - name: 测试 + 覆盖率门禁（行覆盖率 >= 90%）
+        run: npm run test:cov
+      - name: build（构建不需要运行期环境变量）
+        run: npm run build
+
+  # 只有 main 的 push（且 verify 通过）才构建并推送镜像到阿里云 ACR；PR 与其他分支不触发（逻辑见 docker-publish.yml）
+  image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    permissions:
+      contents: read
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      app: admin-center
+    secrets: inherit

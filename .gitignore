@@ -40,3 +40,13 @@ openspec/changes/**
 # Claude Code — session state (generated at runtime)
 .claude/hooks/.state*
 .claude/agent-memory
+# 002-admin-center-uam
+apps/uam/target/
+apps/admin-center/coverage/
+apps/admin-center/.next/
+apps/admin-center/next-env.d.ts
+apps/admin-center/tsconfig.tsbuildinfo
+.env.*
+!.env.example
+!infra/local/e2e.env
+apps/admin-center/.swc/
