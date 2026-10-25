@@ -2,13 +2,13 @@ name: docker-publish
 
 # 可复用工作流：构建某个 app 的镜像并推送到阿里云 ACR（各 app 工作流通过 workflow_call 调用，
 # 并由调用方保证只在 main 的 push 上调用）。
-# 所有 app 共用同一个镜像仓库，靠 tag 前缀 `<app>-` 区分。
+# 每个 app 一个镜像仓库：<registry>/s2u2m/<app>（仓库需要先在 ACR 里建好）。
 
 on:
   workflow_call:
     inputs:
       app:
-        description: "apps/ 下的目录名，同时作为 tag 前缀（如 uam、admin-center）"
+        description: "apps/ 下的目录名，同时作为镜像仓库名（如 uam、admin-center）"
         type: string
         required: true
     secrets:
@@ -19,7 +19,7 @@ on:
 
 env:
   REGISTRY: registry.cn-shenzhen.aliyuncs.com
-  IMAGE: registry.cn-shenzhen.aliyuncs.com/s2u2m/saas
+  IMAGE: registry.cn-shenzhen.aliyuncs.com/s2u2m/${{ inputs.app }}
 
 jobs:
   image:
@@ -57,7 +57,7 @@ jobs:
           username: ${{ secrets.IMG_REPO_USERNAME }}
           password: ${{ secrets.IMG_REPO_PASSWORD }}
 
-      # tag：<app>-<版本号>、<app>-<构建号>、<app>-<短 sha>、<app>-latest
+      # tag：<版本号>、<构建号>、<短 sha>、latest
       #   构建号 = 该 app 工作流的 run_number（单调递增）；版本号取自 pom.xml / package.json。
       #   <app>-<版本号> 在版本号不变时会被后续构建覆盖（例如 0.1.0-SNAPSHOT）；要定位确切产物，用构建号或 sha。
       - name: 生成 tag 与 label
@@ -66,10 +66,10 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=raw,value=${{ inputs.app }}-${{ steps.version.outputs.version }}
-            type=raw,value=${{ inputs.app }}-${{ github.run_number }}
-            type=sha,prefix=${{ inputs.app }}-,format=short
-            type=raw,value=${{ inputs.app }}-latest
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=${{ github.run_number }}
+            type=sha,prefix=,format=short
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.title=${{ inputs.app }}
             org.opencontainers.image.version=${{ steps.version.outputs.version }}

@@ -54,8 +54,8 @@ mvn -f apps/uam/pom.xml spring-boot:run
 
 `.github/workflows/uam.yml`：`verify`（lint / 编译 / 测试 + 覆盖率）通过后，`image` 任务调用可复用工作流 `.github/workflows/docker-publish.yml`，用 `apps/uam/Dockerfile`（上下文为仓库根）构建镜像。
 
-- **触发**：只有 `main` 的 push 才构建并推送到 `registry.cn-shenzhen.aliyuncs.com/s2u2m/saas`（阿里云 ACR）；PR 与其他分支只跑 `verify`，不构建镜像。
-- **tag**（所有 app 共用一个仓库，以 `uam-` 前缀区分）：`uam-<版本号>`（取自 `pom.xml` 的 `<version>`，如 `uam-0.1.0-SNAPSHOT`）、`uam-<构建号>`（工作流 `run_number`）、`uam-<短 sha>`、`uam-latest`。版本号不变时 `uam-<版本号>` 会被覆盖，要定位确切产物用构建号或 sha。
+- **触发**：只有 `main` 的 push 才构建并推送到 `registry.cn-shenzhen.aliyuncs.com/s2u2m/uam`（阿里云 ACR，仓库需先在 ACR 建好）；PR 与其他分支只跑 `verify`，不构建镜像。
+- **tag**：`<版本号>`（取自 `pom.xml` 的 `<version>`，如 `0.1.0-SNAPSHOT`）、`<构建号>`（工作流 `run_number`）、`<短 sha>`、`latest`。版本号不变时 `<版本号>` 会被覆盖，要定位确切产物用构建号或 sha。
 - **所需 secrets**（仓库 Settings → Secrets and variables → Actions）：`IMG_REPO_USERNAME`、`IMG_REPO_PASSWORD`（阿里云 ACR 的登录用户名与固定密码）。
 
 ## 环境变量与示例配置

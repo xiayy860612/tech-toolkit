@@ -40,8 +40,8 @@ npm run gen:api        # 由 contracts/uam/openapi.yaml 重新生成 src/lib/uam
 
 `.github/workflows/admin-center.yml`：`verify`（lint / typecheck / 测试 + 覆盖率 / build）通过后，`image` 任务调用可复用工作流 `.github/workflows/docker-publish.yml`，用 `apps/admin-center/Dockerfile`（上下文为仓库根）构建镜像。
 
-- **触发**：只有 `main` 的 push 才构建并推送到 `registry.cn-shenzhen.aliyuncs.com/s2u2m/saas`（阿里云 ACR）；PR 与其他分支只跑 `verify`，不构建镜像。
-- **tag**（所有 app 共用一个仓库，以 `admin-center-` 前缀区分）：`admin-center-<版本号>`（取自 `package.json` 的 `version`，如 `admin-center-0.1.0`）、`admin-center-<构建号>`（工作流 `run_number`）、`admin-center-<短 sha>`、`admin-center-latest`。版本号不变时 `admin-center-<版本号>` 会被覆盖，要定位确切产物用构建号或 sha。
+- **触发**：只有 `main` 的 push 才构建并推送到 `registry.cn-shenzhen.aliyuncs.com/s2u2m/admin-center`（阿里云 ACR，仓库需先在 ACR 建好）；PR 与其他分支只跑 `verify`，不构建镜像。
+- **tag**：`<版本号>`（取自 `package.json` 的 `version`，如 `0.1.0`）、`<构建号>`（工作流 `run_number`）、`<短 sha>`、`latest`。版本号不变时 `<版本号>` 会被覆盖，要定位确切产物用构建号或 sha。
 - **所需 secrets**（仓库 Settings → Secrets and variables → Actions）：`IMG_REPO_USERNAME`、`IMG_REPO_PASSWORD`（阿里云 ACR 的登录用户名与固定密码）。
 
 ## 环境变量与示例配置
