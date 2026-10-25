@@ -43,7 +43,7 @@ mvn -f apps/uam/pom.xml spring-boot:run
 
 - 测试先行（red → green → refactor）：新行为或缺陷修复先写会失败的测试。
 - 单元测试 JUnit 5 + AssertJ + Mockito；集成 / 并发测试（`*IT`）用 Testcontainers 的真实 PostgreSQL 16 与 Redis 7（所以 `verify` 需要 Docker）；契约测试把响应按 `contracts/uam/openapi.yaml` 校验；ArchUnit 守分层。
-- **覆盖率口径：行覆盖率（LINE）≥ 90%**（`pom.xml` 的 `jacoco.line.minimum`，规则作用于整个 BUNDLE），工具 JaCoCo，单元与集成测试合并统计（`target/jacoco-merged.exec`，报告在 `target/site/jacoco/`）；`mvn verify` 在低于阈值时失败，CI（`.github/workflows/uam.yml`）同样执行。
+- **覆盖率口径：行覆盖率（LINE）≥ 90%**（`pom.xml` 的 `jacoco.line.minimum`，规则作用于整个 BUNDLE），工具 JaCoCo，单元与集成测试合并统计（`target/jacoco-merged.exec`，报告在 `target/site/jacoco/`）；`mvn verify` 在低于阈值时失败，CI（`.github/workflows/uam-ci.yml`）同样执行。
 - **排除路径**（`pom.xml` 里 JaCoCo 的 `excludes`，只允许放不含业务逻辑的代码，终审在 PR 评审）：
   - `**/UamApplication.class`：启动类，只委托给 `StandaloneCommands` 与 Spring
   - `**/config/*Config.class`：纯装配类，目前是 `ClientRegistryConfig`、`PolicyConfig`、`RedisConfig`
@@ -52,7 +52,7 @@ mvn -f apps/uam/pom.xml spring-boot:run
 
 ## CI 与镜像发布
 
-`.github/workflows/uam.yml`：`verify`（lint / 编译 / 测试 + 覆盖率）通过后，`image` 任务调用可复用工作流 `.github/workflows/docker-publish.yml`，用 `apps/uam/Dockerfile`（上下文为仓库根）构建镜像。
+`.github/workflows/uam-ci.yml`：`verify`（lint / 编译 / 测试 + 覆盖率）通过后，`image` 任务调用可复用工作流 `.github/workflows/docker-publish.yml`，用 `apps/uam/Dockerfile`（上下文为仓库根）构建镜像。
 
 - **触发**：只有 `main` 的 push 才构建并推送到 `registry.cn-shenzhen.aliyuncs.com/s2u2m/uam`（阿里云 ACR，仓库需先在 ACR 建好）；PR 与其他分支只跑 `verify`，不构建镜像。
 - **tag**：`<版本号>`（取自 `pom.xml` 的 `<version>`，如 `0.1.0-SNAPSHOT`）、`<构建号>`（工作流 `run_number`）、`<短 sha>`、`latest`。版本号不变时 `<版本号>` 会被覆盖，要定位确切产物用构建号或 sha。

@@ -33,12 +33,12 @@ npm run gen:api        # 由 contracts/uam/openapi.yaml 重新生成 src/lib/uam
 ## 测试与覆盖率
 
 - 测试先行（red → green → refactor）：新行为或缺陷修复先写会失败的测试。
-- **覆盖率口径：行覆盖率 ≥ 90%**，工具 Jest 内置覆盖率（`jest.config.ts` 的 `coverageThreshold: { global: { lines: 90 } }`），CI（`.github/workflows/admin-center.yml`）同样执行。
+- **覆盖率口径：行覆盖率 ≥ 90%**，工具 Jest 内置覆盖率（`jest.config.ts` 的 `coverageThreshold: { global: { lines: 90 } }`），CI（`.github/workflows/admin-center-ci.yml`）同样执行。
 - **排除路径**（`jest.config.ts` 的 `collectCoverageFrom` 里的否定项，只允许放不含业务逻辑的代码，终审在 PR 评审）：`src/components/ui/**`（shadcn/ui 供应商代码）、`src/**/*.generated.ts`（由 OpenAPI 生成）、`src/**/*.d.ts`（类型声明）。其余 `src/**/*.{ts,tsx}`（含 `instrumentation.ts`、`middleware.ts`）都计入。
 
 ## CI 与镜像发布
 
-`.github/workflows/admin-center.yml`：`verify`（lint / typecheck / 测试 + 覆盖率 / build）通过后，`image` 任务调用可复用工作流 `.github/workflows/docker-publish.yml`，用 `apps/admin-center/Dockerfile`（上下文为仓库根）构建镜像。
+`.github/workflows/admin-center-ci.yml`：`verify`（lint / typecheck / 测试 + 覆盖率 / build）通过后，`image` 任务调用可复用工作流 `.github/workflows/docker-publish.yml`，用 `apps/admin-center/Dockerfile`（上下文为仓库根）构建镜像。
 
 - **触发**：只有 `main` 的 push 才构建并推送到 `registry.cn-shenzhen.aliyuncs.com/s2u2m/admin-center`（阿里云 ACR，仓库需先在 ACR 建好）；PR 与其他分支只跑 `verify`，不构建镜像。
 - **tag**：`<版本号>`（取自 `package.json` 的 `version`，如 `0.1.0`）、`<构建号>`（工作流 `run_number`）、`<短 sha>`、`latest`。版本号不变时 `<版本号>` 会被覆盖，要定位确切产物用构建号或 sha。
