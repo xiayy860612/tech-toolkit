@@ -1,4 +1,4 @@
-name: admin-center
+name: admin-center-ci
 
 on:
   push:

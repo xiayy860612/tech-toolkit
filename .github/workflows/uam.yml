@@ -1,4 +1,4 @@
-name: uam
+name: uam-ci
 
 on:
   push:
