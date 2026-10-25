@@ -50,6 +50,14 @@ mvn -f apps/uam/pom.xml spring-boot:run
   - `**/generated/**`：生成代码（预留；目前没有匹配的类）
   - 注意：`cli/StandaloneCommands`（`generate-service-key` 的实现）**不在排除之列**，由单元测试覆盖；新增的 `infrastructure/config` 类若以 `Config` 结尾会被自动排除，因此那里不要放逻辑。
 
+## CI 与镜像发布
+
+`.github/workflows/uam.yml`：`verify`（lint / 编译 / 测试 + 覆盖率）通过后，`image` 任务调用可复用工作流 `.github/workflows/docker-publish.yml`，用 `apps/uam/Dockerfile`（上下文为仓库根）构建镜像。
+
+- **触发**：只有 `main` 的 push 才构建并推送到 `ccr.ccs.tencentyun.com/s2u2m/saas`；PR 与其他分支只跑 `verify`，不构建镜像。
+- **tag**（所有 app 共用一个仓库，以 `uam-` 前缀区分）：`uam-<版本号>`（取自 `pom.xml` 的 `<version>`，如 `uam-0.1.0-SNAPSHOT`）、`uam-<构建号>`（工作流 `run_number`）、`uam-<短 sha>`、`uam-latest`。版本号不变时 `uam-<版本号>` 会被覆盖，要定位确切产物用构建号或 sha。
+- **所需 secrets**（仓库 Settings → Secrets and variables → Actions）：`TCR_USERNAME`、`TCR_PASSWORD`（腾讯云 CCR 的访问凭证）。
+
 ## 环境变量与示例配置
 
 真实值只通过部署环境注入，禁止入库；示例见 `infra/local/.env.example`（本地依赖）与 `infra/local/e2e.env`（本地 E2E 栈，**仅限测试**的固定密钥）。

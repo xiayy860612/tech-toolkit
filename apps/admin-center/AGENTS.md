@@ -36,6 +36,14 @@ npm run gen:api        # 由 contracts/uam/openapi.yaml 重新生成 src/lib/uam
 - **覆盖率口径：行覆盖率 ≥ 90%**，工具 Jest 内置覆盖率（`jest.config.ts` 的 `coverageThreshold: { global: { lines: 90 } }`），CI（`.github/workflows/admin-center.yml`）同样执行。
 - **排除路径**（`jest.config.ts` 的 `collectCoverageFrom` 里的否定项，只允许放不含业务逻辑的代码，终审在 PR 评审）：`src/components/ui/**`（shadcn/ui 供应商代码）、`src/**/*.generated.ts`（由 OpenAPI 生成）、`src/**/*.d.ts`（类型声明）。其余 `src/**/*.{ts,tsx}`（含 `instrumentation.ts`、`middleware.ts`）都计入。
 
+## CI 与镜像发布
+
+`.github/workflows/admin-center.yml`：`verify`（lint / typecheck / 测试 + 覆盖率 / build）通过后，`image` 任务调用可复用工作流 `.github/workflows/docker-publish.yml`，用 `apps/admin-center/Dockerfile`（上下文为仓库根）构建镜像。
+
+- **触发**：只有 `main` 的 push 才构建并推送到 `ccr.ccs.tencentyun.com/s2u2m/saas`；PR 与其他分支只跑 `verify`，不构建镜像。
+- **tag**（所有 app 共用一个仓库，以 `admin-center-` 前缀区分）：`admin-center-<版本号>`（取自 `package.json` 的 `version`，如 `admin-center-0.1.0`）、`admin-center-<构建号>`（工作流 `run_number`）、`admin-center-<短 sha>`、`admin-center-latest`。版本号不变时 `admin-center-<版本号>` 会被覆盖，要定位确切产物用构建号或 sha。
+- **所需 secrets**（仓库 Settings → Secrets and variables → Actions）：`TCR_USERNAME`、`TCR_PASSWORD`（腾讯云 CCR 的访问凭证）。
+
 ## 环境变量与示例配置
 
 见 `.env.example`（仅占位值）。真实值只通过部署环境注入，禁止入库。缺少 `UAM_SERVICE_KEY` 或 `UAM_BASE_URL` 时服务**启动**失败（构建不受影响）。

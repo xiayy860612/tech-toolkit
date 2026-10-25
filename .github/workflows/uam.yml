@@ -6,11 +6,15 @@ on:
       - "apps/uam/**"
       - "contracts/**"
       - ".github/workflows/uam.yml"
+      - ".github/workflows/docker-publish.yml"
+      - ".dockerignore"
   pull_request:
     paths:
       - "apps/uam/**"
       - "contracts/**"
       - ".github/workflows/uam.yml"
+      - ".github/workflows/docker-publish.yml"
+      - ".dockerignore"
 
 # 最小权限：只读仓库内容
 permissions:
@@ -32,3 +36,15 @@ jobs:
         run: mvn -B -f apps/uam/pom.xml -DskipTests compile
       - name: 测试 + 覆盖率门禁（行覆盖率 >= 90%，Testcontainers 需要 Docker）
         run: mvn -B -f apps/uam/pom.xml verify
+
+  # 只有 main 的 push（且 verify 通过）才构建并推送镜像到腾讯云 CCR；PR 与其他分支不触发（逻辑见 docker-publish.yml）
+  # TODO: feature/admin-and-uam 仅用于联调 CI，验证通过后从条件里移除
+  image:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/admin-and-uam')
+    needs: verify
+    permissions:
+      contents: read
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      app: uam
+    secrets: inherit
