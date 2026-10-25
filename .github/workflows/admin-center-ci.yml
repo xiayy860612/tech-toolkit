@@ -44,9 +44,8 @@ jobs:
         run: npm run build
 
   # 只有 main 的 push（且 verify 通过）才构建并推送镜像到阿里云 ACR；PR 与其他分支不触发（逻辑见 docker-publish.yml）
-  # TODO: feature/admin-and-uam 仅用于联调 CI，验证通过后从条件里移除
   image:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/admin-and-uam')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: verify
     permissions:
       contents: read
