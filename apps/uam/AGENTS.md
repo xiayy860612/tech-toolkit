@@ -31,9 +31,9 @@ mvn -f apps/uam/pom.xml test
 mvn -f apps/uam/pom.xml verify
 
 # 本地运行：先启动 PostgreSQL 与 Redis，再注入连接与客户端清单（占位值换成自己的；真实值禁止入库）
-cp infra/local/.env.example infra/local/.env   # 然后改 POSTGRES_PASSWORD
-docker compose -f infra/local/docker-compose.yml --env-file infra/local/.env up -d
-export SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5432/uam SPRING_DATASOURCE_USERNAME=uam SPRING_DATASOURCE_PASSWORD='<与 infra/local/.env 一致>'
+cp devops/local/.env.example devops/local/.env   # 然后改 POSTGRES_PASSWORD
+docker compose -f devops/local/docker-compose.yml --env-file devops/local/.env up -d
+export SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5432/uam SPRING_DATASOURCE_USERNAME=uam SPRING_DATASOURCE_PASSWORD='<与 devops/local/.env 一致>'
 export SPRING_DATA_REDIS_HOST=127.0.0.1 SPRING_DATA_REDIS_PORT=6379
 export UAM_CLIENTS='<见下文「服务密钥与客户端清单」>'
 mvn -f apps/uam/pom.xml spring-boot:run
@@ -60,7 +60,7 @@ mvn -f apps/uam/pom.xml spring-boot:run
 
 ## 环境变量与示例配置
 
-真实值只通过部署环境注入，禁止入库；示例见 `infra/local/.env.example`（本地依赖）与 `infra/local/e2e.env`（本地 E2E 栈，**仅限测试**的固定密钥）。
+真实值只通过部署环境注入，禁止入库；示例见 `devops/local/.env.example`（本地依赖）与 `devops/local/e2e.env`（本地 E2E 栈，**仅限测试**的固定密钥）。
 
 | 变量 | 说明 | 默认 |
 |---|---|---|
@@ -106,7 +106,7 @@ mvn -f apps/uam/pom.xml spring-boot:run
   3. 把 Admin Center 的 `UAM_SERVICE_KEY` 换成新密钥，滚动发布，确认其工作正常。
   4. 从 `UAM_CLIENTS` **删掉旧哈希**，再滚动发布 UAM；之后旧密钥 → 401。
   - **1–2 个哈希规则**：每个客户端同时有效的密钥至多 2 把，只在第 2 ~ 3 步之间出现 2 把；超过 2 个或重复会让 UAM 启动失败。
-  - 本地演练：`infra/local/scripts/rotate-key.sh rotate`（逐步做上面 4 步并探测新旧密钥的状态码，不改被跟踪的文件）；`rotate-key.sh restore` 回到 `e2e.env` 的固定测试密钥。单实例栈重建 UAM 时有几秒不可达；多实例用 `ROTATE_COMPOSE_FILE`、`ROTATE_UAM_SERVICES`、`ROTATE_ADMIN_SERVICES`（用法见脚本头部注释）。
+  - 本地演练：`devops/local/scripts/rotate-key.sh rotate`（逐步做上面 4 步并探测新旧密钥的状态码，不改被跟踪的文件）；`rotate-key.sh restore` 回到 `e2e.env` 的固定测试密钥。单实例栈重建 UAM 时有几秒不可达；多实例用 `ROTATE_COMPOSE_FILE`、`ROTATE_UAM_SERVICES`、`ROTATE_ADMIN_SERVICES`（用法见脚本头部注释）。
 
 ## 部署期命令（不是运维入口）
 
@@ -120,14 +120,14 @@ printf '%s\n' "$INITIAL_PASSWORD" | SPRING_PROFILES_ACTIVE=cli java -jar apps/ua
 printf '%s\n' "$PASSWORD" | SPRING_PROFILES_ACTIVE=cli java -jar apps/uam/target/uam.jar add-account --account-name-of admin --account-name admin2   # 给已有用户追加第二个账号；也可用 --user-id <UUID> 代替 --account-name-of
 ```
 
-在容器里：`docker compose -f infra/local/docker-compose.stack.yml --env-file infra/local/e2e.env run --rm -T -e SPRING_PROFILES_ACTIVE=cli uam java -jar /app/uam.jar init-admin ...`（`infra/local/scripts/bootstrap.sh` 就是这样建首个用户的）。
+在容器里：`docker compose -f devops/local/docker-compose.stack.yml --env-file devops/local/e2e.env run --rm -T -e SPRING_PROFILES_ACTIVE=cli uam java -jar /app/uam.jar init-admin ...`（`devops/local/scripts/bootstrap.sh` 就是这样建首个用户的）。
 
 ## 本地栈、多实例与安全检查
 
-- E2E 栈（PostgreSQL、Redis、UAM、Admin Center；UAM 不映射到宿主机）：`infra/local/scripts/bootstrap.sh up` / `down`；`up --generated-key` 改用 `generate-service-key` 现生成密钥（依赖固定密钥的 E2E 用例不要用）。Playwright 用例见 [`apps/admin-center/AGENTS.md`](../admin-center/AGENTS.md)。
-- 多实例栈（3 个 UAM + 3 个 Admin Center + nginx，`infra/local/docker-compose.scale.yml`）：`infra/local/scripts/scale-checks.sh up|check|down`（无粘滞与一致性断言）、`infra/local/scripts/rolling-restart.sh`（持续访问下滚动重启，统计意外登出与失败请求）。压测脚本与结果在 `infra/load/`（`k6/seed-data.sh` 造 10 万用户 / 1 万会话，`k6/list-and-detail.js`，`k6/validate-throughput.js`；SC-011 的判定方法见 `infra/load/SC-011.md`，**尚未测量**；已测结果见 `infra/load/RESULTS.md`）。
-- 本地 k8s（kind 集群 `cka`，清单在 `infra/k8s/`）：`infra/k8s/scripts/deploy.sh up|down|status|forward`。`up` 构建两个镜像（`tech-toolkit/uam:local`、`tech-toolkit/admin-center:local`）并载入 kind，部署 PostgreSQL / Redis（StatefulSet + PVC）、UAM ×2、Admin Center ×2 与入口 nginx（命名空间 `tech-toolkit`），再用 `init-admin` 建首个用户；`forward` 把入口转发到 `http://127.0.0.1:8088`（与多实例栈的 8088 冲突，不要同时跑；用 `EDGE_PORT` 改）。服务密钥与数据库密码由脚本首次部署时生成并只存在于 k8s Secret 里（重复 `up` 不换密钥），首个用户的密码写入 `~/.config/tech-toolkit/k8s-admin-password`（0600）。UAM 只有 ClusterIP，NetworkPolicy（Calico）只放行 Admin Center → UAM → PostgreSQL / Redis 的调用链。
-- 安全检查：`infra/local/scripts/security-check.sh [static|runtime|all]`（用法与检查项见 Admin Center 的 AGENTS.md）；其中对 UAM 日志的检查是「没有明文密码、`$argon2` 哈希前缀、会话标识、服务密钥」。
+- E2E 栈（PostgreSQL、Redis、UAM、Admin Center；UAM 不映射到宿主机）：`devops/local/scripts/bootstrap.sh up` / `down`；`up --generated-key` 改用 `generate-service-key` 现生成密钥（依赖固定密钥的 E2E 用例不要用）。Playwright 用例见 [`apps/admin-center/AGENTS.md`](../admin-center/AGENTS.md)。
+- 多实例栈（3 个 UAM + 3 个 Admin Center + nginx，`devops/local/docker-compose.scale.yml`）：`devops/local/scripts/scale-checks.sh up|check|down`（无粘滞与一致性断言）、`devops/local/scripts/rolling-restart.sh`（持续访问下滚动重启，统计意外登出与失败请求）。压测脚本与结果在 `devops/load/`（`k6/seed-data.sh` 造 10 万用户 / 1 万会话，`k6/list-and-detail.js`，`k6/validate-throughput.js`；SC-011 的判定方法见 `devops/load/SC-011.md`，**尚未测量**；已测结果见 `devops/load/RESULTS.md`）。
+- k8s（清单在 `devops/k8s/`，kustomize：通用 `base/` + `components/` + `overlays/{kind,cloud}`，设计见 [`docs/system-design/system/README.md`](../../docs/system-design/system/README.md) §4.2.1）。**云上**：先建命名空间与 Secret（`uam-runtime`、`admin-center-runtime`，契约见该节），复制 `devops/k8s/overlays/cloud` 改 host / 镜像标签 / ingress 类后 `kubectl apply -k`；数据库用托管服务，清单不含。**本地 kind**（集群 `cka`）：`devops/k8s/scripts/deploy.sh up|down|status|forward`。`up` 构建两个镜像（`tech-toolkit/uam:local`、`tech-toolkit/admin-center:local`）并载入 kind，部署 PostgreSQL / Redis（StatefulSet + PVC）、UAM ×2、Admin Center ×2，入口由 ingress-nginx 提供（命名空间 `tech-toolkit`；controller 固定版本在 `devops/k8s/cluster/`，集群里没有时 `up` 自动安装），再用 `init-admin` 建首个用户；`forward` 把 ingress controller 转发到 `http://127.0.0.1:8088`（与多实例栈的 8088 冲突，不要同时跑；用 `EDGE_PORT` 改）。服务密钥与数据库密码由脚本首次部署时生成并只存在于 k8s Secret 里（重复 `up` 不换密钥），首个用户的密码写入 `~/.config/tech-toolkit/k8s-admin-password`（0600）。UAM 只有 ClusterIP，NetworkPolicy（Calico）只放行 Admin Center → UAM → PostgreSQL / Redis 的调用链。
+- 安全检查：`devops/local/scripts/security-check.sh [static|runtime|all]`（用法与检查项见 Admin Center 的 AGENTS.md）；其中对 UAM 日志的检查是「没有明文密码、`$argon2` 哈希前缀、会话标识、服务密钥」。
 
 ## 排障
 
@@ -135,5 +135,5 @@ printf '%s\n' "$PASSWORD" | SPRING_PROFILES_ACTIVE=cli java -jar apps/uam/target
 - **Admin Center 页面显示「服务暂不可用」**（用户不会被登出）：先查 UAM 日志有没有 `uam.client.rejected`（`reason` 指明是密钥缺失 / 错误 / 已撤销还是缺权限），再查 Admin Center 日志的 `admin-center.uam.misconfigured`；没有这两类日志则是 UAM 不可达或超过 `UAM_TIMEOUT_MS`。修好后用户**无需重新登录**。
 - **日志时间**：写操作与拒绝日志的 `ts` 是 UTC（ISO-8601，带 `Z`）；`@timestamp` 跟随 JVM 时区。
 - **`LoginTimingIT` 偶发失败**：它是统计性测试（24 个样本取中位数，容忍相对差 25%），机器繁忙时可能抖动；单独重跑该类，稳定失败才说明「账号不存在 / 密码错误 / 已停用」的耗时真的出现了可区分差别（不存在的账号必须也做一次 Argon2 比对）。
-- **在线用户列表的规模上限**：`GET /v1/online-users` 在一次 Redis Lua 调用里扫描全部会话（约 1 万会话时 22 ms / 次），Redis 单线程执行，并发上限约 40 次 / 秒且与实例数无关，超过后会拖累所有实例的会话校验。数据与建议见 `infra/load/RESULTS.md` §4.1。
+- **在线用户列表的规模上限**：`GET /v1/online-users` 在一次 Redis Lua 调用里扫描全部会话（约 1 万会话时 22 ms / 次），Redis 单线程执行，并发上限约 40 次 / 秒且与实例数无关，超过后会拖累所有实例的会话校验。数据与建议见 `devops/load/RESULTS.md` §4.1。
 - **`mvn verify` 失败在 Testcontainers**：确认 Docker 在运行。

@@ -13,9 +13,9 @@ import {
 
 /**
  * US12：服务密钥轮换与 Admin Center 的配置错误处理（FR-008、FR-042 ~ FR-044；SC-016；quickstart S19）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；
- * UAM 已实现双哈希与 403（T178 ~ T181），`infra/local/scripts/rotate-key.sh`（T183）存在，
- * 且支持 `rotate`（不停机轮换，结束时栈处于新密钥）与 `restore`（回到 infra/local/e2e.env）两个动作。
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；
+ * UAM 已实现双哈希与 403（T178 ~ T181），`devops/local/scripts/rotate-key.sh`（T183）存在，
+ * 且支持 `rotate`（不停机轮换，结束时栈处于新密钥）与 `restore`（回到 devops/local/e2e.env）两个动作。
  *
  * ① 持续访问下完成一次轮换：一个已登录的专用用户每 ~200 ms 请求受保护页面，同时跑 `rotate-key.sh rotate`。
  *    判定：0 个用户被登出（任何一次响应是跳到 /login 或 /session/expire）；0 个请求因密钥失败（Admin Center 日志里没有一条
@@ -37,7 +37,7 @@ import {
  * 流量与配置错误只用专用用户的会话；ADMIN 的会话只用来建用户，不被拿去做流量，也不改它的密码。
  */
 
-const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // infra/local/e2e.env 的 SESSION_COOKIE_NAME
+const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // devops/local/e2e.env 的 SESSION_COOKIE_NAME
 /** 故意配错的服务密钥：形状上不是真密钥（没有真实前缀），明显是测试值。 */
 const WRONG_KEY = "wrong-service-key-for-e2e-misconfig-test";
 const ALERT_EVENT = "admin-center.uam.misconfigured";

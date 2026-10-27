@@ -4,12 +4,12 @@
 
 本文是**验证指南**：实现完成后，按它在真实栈上证明特性端到端可用。契约与数据结构见 [contracts/](../admin-center/) 与 [data-model.md](../uam/data-model.md)，这里不重复。
 
-> **状态**：`apps/uam`、`apps/admin-center`、`infra/` 还没有实现（由 `/speckit-tasks` 拆分后落地），所以下面的命令是**目标形态**，实现后以各应用 `AGENTS.md` 为准。**现在就能做的只有 S18（评审原型）**。
+> **状态**：`apps/uam`、`apps/admin-center`、`devops/` 还没有实现（由 `/speckit-tasks` 拆分后落地），所以下面的命令是**目标形态**，实现后以各应用 `AGENTS.md` 为准。**现在就能做的只有 S18（评审原型）**。
 
 ## 前置条件
 
 - JDK 21、Maven、Node.js LTS、Docker（含 Compose）。
-- 已有 PostgreSQL 16 与 Redis 7（本地用 `infra/local` 的 Compose 启动）。
+- 已有 PostgreSQL 16 与 Redis 7（本地用 `devops/local` 的 Compose 启动）。
 - **网络边界**：UAM 只对 Admin Center 实例开放（网络边界，与服务密钥一起构成两层保护）；本地 Compose 里 UAM 不映射到宿主机端口，只在内部网络上被 Admin Center 访问。
 - 本机 `/etc/hosts` 或测试环境提供 HTTPS 入口（`__Host-` 前缀的 cookie 要求 HTTPS；开发环境可用 `SESSION_COOKIE_NAME=asid` 去掉前缀）。
 
@@ -17,7 +17,7 @@
 
 ```bash
 # 1. 依赖：PostgreSQL、Redis
-docker compose -f infra/local/docker-compose.yml --env-file infra/local/.env up -d
+docker compose -f devops/local/docker-compose.yml --env-file devops/local/.env up -d
 
 # 1b. 生成 Admin Center 的服务密钥（密钥只输出一次）
 java -jar apps/uam/target/uam.jar generate-service-key --client admin-center
@@ -67,7 +67,7 @@ printf '%s\n' "$SECOND_PASSWORD" | java -jar apps/uam/target/uam.jar add-account
 | S11 | UAM 不可用 | 停掉 UAM，刷新已登录页面并尝试写操作；恢复 UAM | 读：显示「服务暂不可用」且**不清 cookie**；写：提示「操作未生效」，绝不显示成功；恢复后无需重新登录 | FR-009、FR-033 |
 | S12 | 响应式 | 用 Playwright 视口矩阵 320 / 375 / 768 / 1024 / 1440 / 2560 走完登录 → 用户列表 → 新建 → 详情 → 停用 → 会话 → 强制下线 → 修改密码 → 退出；并仅用键盘走一遍 | 0 个页面整页横向滚动；手机表格变卡片、侧边栏变抽屉；对话框可滚动、确认与取消可达、焦点被限制并在关闭后回到触发元素；axe 无严重违规 | US9、FR-035、FR-036、SC-008 |
 | S13 | 无会话粘滞与多实例一致 | 起 3 个 Admin Center + 3 个 UAM（`docker-compose.scale.yml`，nginx 轮询），登录一次后让请求分到各实例；经一个实例新建用户、强制下线 | 全部实例都识别为已登录；其他实例立即看到新用户；被强制下线的会话在任一实例的下一次请求都被视为未登录 | US10、FR-037 ~ FR-040、SC-010、SC-013 |
-| S14 | 滚动重启 | 在持续访问下依次重启全部实例（`infra/local/scripts/rolling-restart.sh`） | 0 个用户被意外登出；重启结束后原会话仍有效 | FR-039、SC-012 |
+| S14 | 滚动重启 | 在持续访问下依次重启全部实例（`devops/local/scripts/rolling-restart.sh`） | 0 个用户被意外登出；重启结束后原会话仍有效 | FR-039、SC-012 |
 | S15 | 规模与吞吐 | k6：10 万用户、1 万有效会话下压测列表与详情；实例数 1 → 4 对比吞吐 | 列表与详情 95% ≤ 2 秒；4 实例吞吐 ≥ 单实例 3.2 倍 | SC-009、SC-011 |
 | S16 | UAM 直连：服务密钥、权限与操作人 | 直接调 UAM：不带密钥、错密钥、已撤销的旧密钥各调一个读接口和一个写接口；用没有断言权限的密钥调登录与写接口、再调只读接口；用有权限的密钥调写接口但不带操作人请求头；强制下线时把目标会话引用同时填作操作人会话引用；停用时把目标用户填作操作人用户；从非 Admin Center 的主机连接 UAM | 无 / 错 / 已撤销密钥 → 401 `client_unauthenticated`（响应不透露哪里不对）；无断言权限 → 登录与写接口 403 `client_forbidden`、只读接口可用；缺少操作人请求头的写请求 → 400 `operator_required`；目标等于操作人会话引用 → 409 `cannot_terminate_own_session`；目标等于操作人用户 → 409 `cannot_disable_self`；非 Admin Center 的主机连不上 UAM（网络边界） | FR-008、FR-042、FR-043、research R4、R5 |
 | S17 | 安全与日志抽查 | 扫描页面、响应体、浏览器包、UAM 与 Admin Center 日志；从另一个站点伪造新建 / 停用 / 强制下线请求；检查写操作日志 | 没有明文密码（含新建与修改密码时的）、哈希、会话标识、服务密钥；伪造请求 100% 被拒；每次写操作（含被拒绝的）都有一条含操作人、对象、动作、时间、结果的日志，且不含敏感信息 | FR-031、FR-033、FR-034、SC-014 |
@@ -78,5 +78,5 @@ printf '%s\n' "$SECOND_PASSWORD" | java -jar apps/uam/target/uam.jar add-account
 
 - S1 ~ S11、S16、S17：UAM 的集成 / 契约 / 并发测试与 Admin Center 的 Playwright E2E 覆盖；其中并发规则（S3、S5、S6）必须是确定性的并发测试。
 - S12：Playwright 视口矩阵 + `@axe-core/playwright`。
-- S13 ~ S15：`infra/` 下的多实例编排、滚动重启脚本与 k6 脚本；规模验收须在独占机器上多轮重复。
+- S13 ~ S15：`devops/` 下的多实例编排、滚动重启脚本与 k6 脚本；规模验收须在独占机器上多轮重复。
 - 每个任务先写会失败的测试，再实现（根 AGENTS.md「测试先行」）；覆盖率口径与命令见各应用 `AGENTS.md`。

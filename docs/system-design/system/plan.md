@@ -53,7 +53,7 @@
 
 | 门禁（来源：根 AGENTS.md） | 结论 | 说明 |
 |---|---|---|
-| 范围与最小改动 | PASS | 只新增 `apps/*`、`contracts/`、`infra/`、`.github/workflows/`；不改既有文件 |
+| 范围与最小改动 | PASS | 只新增 `apps/*`、`contracts/`、`devops/`、`.github/workflows/`；不改既有文件 |
 | 规格先于实现变更 | PASS | 本计划的两条 plan 级留白（撤销时效、客户端身份）在 research R4 / R6 解答，**不改变 spec 已确认的行为**，无需回写 spec |
 | SOLID / YAGNI / KISS | PASS | 分层 `api → application → domain ← infrastructure`；明确不做 JWT / JWKS、mTLS 与 OAuth2 客户端凭据（后期按需）、Redis Cluster、会话标识轮换、react-hook-form、审计界面（YAGNI） |
 | 契约优先 | PASS | OpenAPI 与 Web 路由契约先于实现；变更须先改契约与失败用例 |
@@ -169,8 +169,8 @@ apps/
 
 
 contracts/uam/openapi.yaml                # 共享契约的唯一权威位置
-infra/local/                              # docker-compose（PostgreSQL、Redis）、docker-compose.scale.yml（多实例）、nginx 无粘滞负载均衡、scripts/rolling-restart.sh
-infra/load/k6/                            # 压测脚本（SC-009、SC-011）
+devops/local/                              # docker-compose（PostgreSQL、Redis）、docker-compose.scale.yml（多实例）、nginx 无粘滞负载均衡、scripts/rolling-restart.sh
+devops/load/k6/                            # 压测脚本（SC-009、SC-011）
 .github/workflows/{uam,admin-center}.yml  # CI：lint、typecheck、test、覆盖率门禁、build
 ```
 

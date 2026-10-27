@@ -1,0 +1,22 @@
+# 默认值只是占位，overlay 必须补丁 ingressClassName、host、tls.secretName。
+# 登录用 Server Action，会比较 Origin 与 Host / X-Forwarded-Host：入口必须透传浏览器看到的 Host（主流 ingress controller 默认如此）。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: admin-center
+  labels: {app.kubernetes.io/name: admin-center, app.kubernetes.io/part-of: tech-toolkit}
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [admin.example.com]
+      secretName: admin-center-tls
+  rules:
+    - host: admin.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin-center
+                port: {name: http}

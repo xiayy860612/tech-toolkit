@@ -19,7 +19,7 @@
 
 ### R1 仓库结构
 
-- **Decision**: 单仓多应用：`apps/uam`（Spring Boot）与 `apps/admin-center`（Next.js）；共享契约先放本特性 `contracts/uam/openapi.yaml`，第一个实现任务把它迁到仓库根 `contracts/uam/openapi.yaml` 作为唯一权威；本地依赖与多实例编排放 `infra/local/`；压测脚本放 `infra/load/k6/`。各应用目录按根 `AGENTS.md` 带 `AGENTS.md` 与 `CLAUDE.md`。
+- **Decision**: 单仓多应用：`apps/uam`（Spring Boot）与 `apps/admin-center`（Next.js）；共享契约先放本特性 `contracts/uam/openapi.yaml`，第一个实现任务把它迁到仓库根 `contracts/uam/openapi.yaml` 作为唯一权威；本地依赖与多实例编排放 `devops/local/`；压测脚本放 `devops/load/k6/`。各应用目录按根 `AGENTS.md` 带 `AGENTS.md` 与 `CLAUDE.md`。
 - **Rationale**: 与根 AGENTS.md 对子项目文档的约定一致；契约独立于任一实现，便于契约测试。
 - **Alternatives**: 双仓（增加协作与版本对齐成本，无收益）；契约只放 UAM 内（Admin Center 的生成类型与桩测试要跨目录引用，不利于「契约优先」）。
 - **风险**: 未合并的 `001-platform-web-uam` 也有 `apps/uam`。两条线若都要进 `main`，目录会冲突；本特性按用户选择独立于 001，冲突留待合并时处理（见 §8 风险）。
@@ -88,7 +88,7 @@
 
 ### R18 可观测性与横向扩展
 
-- **Decision**: 两个服务都无实例本地状态：UAM 的状态在 PostgreSQL / Redis，Admin Center 无存储；任一实例可处理任一请求，**负载均衡无需会话粘滞**。结构化 JSON 日志；Micrometer 指标；服务间传递 W3C `traceparent`；存活 / 就绪探针（UAM 就绪检查依赖 Redis 与 PostgreSQL）；优雅停机以满足 SC-012（滚动重启 0 次意外登出）。本地多实例编排：`infra/local/docker-compose.scale.yml` + nginx。
+- **Decision**: 两个服务都无实例本地状态：UAM 的状态在 PostgreSQL / Redis，Admin Center 无存储；任一实例可处理任一请求，**负载均衡无需会话粘滞**。结构化 JSON 日志；Micrometer 指标；服务间传递 W3C `traceparent`；存活 / 就绪探针（UAM 就绪检查依赖 Redis 与 PostgreSQL）；优雅停机以满足 SC-012（滚动重启 0 次意外登出）。本地多实例编排：`devops/local/docker-compose.scale.yml` + nginx。
 - **Rationale**: 直接对应 FR-037 ~ FR-040 与 SC-010 ~ SC-012。
 ## 7. 测试（跨服务）
 

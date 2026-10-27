@@ -107,7 +107,7 @@
 3. Admin Center 换新 `UAM_SERVICE_KEY`，滚动发布。
 4. 从 `UAM_CLIENTS` 删旧哈希，再滚动发布 UAM；之后旧密钥 → 401。
 
-本地演练：`infra/local/scripts/rotate-key.sh rotate`。
+本地演练：`devops/local/scripts/rotate-key.sh rotate`。
 
 ### 5.4 在线用户与会话查询
 

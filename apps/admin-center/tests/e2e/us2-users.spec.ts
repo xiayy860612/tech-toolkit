@@ -4,7 +4,7 @@ import { actualAccountCount, actualUserCount, expect, login, seedUsers, test, US
 
 /**
  * US2：在 User Manager 中浏览用户并查看其全部账号（quickstart S4；FR-017 ~ FR-020；SC-002、SC-003）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。
  * 造数：创建用户的 API 属于 US4，这里用 SQL + 部署期命令 add-account（见 seedUsers），固定标识、可重复执行。
  * 手机（< 768）上列表与账号表都以卡片呈现，所以定位器按视口宽度切换。
  */

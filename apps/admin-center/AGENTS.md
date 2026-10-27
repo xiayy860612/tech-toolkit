@@ -61,24 +61,24 @@ npm run gen:api        # 由 contracts/uam/openapi.yaml 重新生成 src/lib/uam
 ## E2E 栈与 Playwright
 
 ```bash
-infra/local/scripts/bootstrap.sh up      # 构建并启动 PostgreSQL、Redis、UAM、Admin Center，建首个用户；Admin Center 在 http://127.0.0.1:3000
+devops/local/scripts/bootstrap.sh up      # 构建并启动 PostgreSQL、Redis、UAM、Admin Center，建首个用户；Admin Center 在 http://127.0.0.1:3000
 cd apps/admin-center
 npx playwright install chromium          # 首次运行前
 npm run e2e                              # 全部视口 project（w320 w375 w768 w1024 w1440 w2560）
 npm run e2e -- --project=w1440 tests/e2e/us1-login.spec.ts   # 单个视口、单个用例文件
-infra/local/scripts/bootstrap.sh down    # 结束后关栈并清数据卷
+devops/local/scripts/bootstrap.sh down    # 结束后关栈并清数据卷
 ```
 
-- 配置来自 `infra/local/e2e.env`：**固定的测试密钥与哈希，仅限本地 E2E**，禁止用于其他环境；E2E 用例依赖这把固定密钥（`bootstrap.sh up --generated-key` 改用现生成的密钥，不要与这些用例混用）。首个用户账号与**假的**测试密码见 `tests/e2e/support/fixtures.ts` 的 `ADMIN`（与 `bootstrap.sh` 一致，可用 `E2E_ADMIN_ACCOUNT` / `E2E_ADMIN_PASSWORD` 覆盖）；它们只在本地 E2E 栈里有意义。
+- 配置来自 `devops/local/e2e.env`：**固定的测试密钥与哈希，仅限本地 E2E**，禁止用于其他环境；E2E 用例依赖这把固定密钥（`bootstrap.sh up --generated-key` 改用现生成的密钥，不要与这些用例混用）。首个用户账号与**假的**测试密码见 `tests/e2e/support/fixtures.ts` 的 `ADMIN`（与 `bootstrap.sh` 一致，可用 `E2E_ADMIN_ACCOUNT` / `E2E_ADMIN_PASSWORD` 覆盖）；它们只在本地 E2E 栈里有意义。
 - 栈前面没有反向代理，用例统一带 `X-Forwarded-For`（`playwright.config.ts` 的 `extraHTTPHeaders`）；换地址测试用 `E2E_BASE_URL`。部分用例经 `docker compose` 调栈里的 UAM CLI / PostgreSQL 造数（`tests/e2e/support/stack.ts`），需要本机 Docker。
 
 ## 多实例、压测与安全检查
 
-- 多实例栈 `infra/local/docker-compose.scale.yml`（3 个 Admin Center + 3 个 UAM + nginx 入口，无会话粘滞）：`infra/local/scripts/scale-checks.sh up|check|down`（入口 `http://127.0.0.1:8088`，钉住实例用 8091 ~ 8093）、`infra/local/scripts/rolling-restart.sh`（持续访问下依次重启全部实例，意外登出必须为 0）。
-- 本地 k8s 部署（kind 集群 `cka`）：`infra/k8s/scripts/deploy.sh up|forward|down`，细节见 [`apps/uam/AGENTS.md`](../uam/AGENTS.md) 的「本地栈」一节。入口 nginx 沿用 `infra/local/nginx/proxy-params.conf`，Admin Center 的 `TRUSTED_PROXY_HOPS=1` 对应这一层；直接 `kubectl port-forward svc/admin-center` 会因为没有 `X-Forwarded-For` 而无法登录。
-- 压测：`infra/load/k6/`（`seed-data.sh`、`list-and-detail.js`、`validate-throughput.js`，经 compose 的 `load` profile 运行，命令见 compose 文件里的注释）；结果与未测项见 `infra/load/RESULTS.md`，SC-011 的判定方法见 `infra/load/SC-011.md`（**尚未测量**）。
-- **安全检查** `infra/local/scripts/security-check.sh [static|runtime|all]`（默认 `all`；兼容 bash 3.2）：
-  - `static`（不需要 Docker）：无被跟踪的 `.env`（只允许 `*.example` 与 `infra/local/e2e.env`）；`package.json` 无数据库驱动 / ORM（FR-013）；工作区与全部历史里没有完整长度的 `uamk_` 密钥或私钥特征（允许名单与理由写在脚本里）；`src/lib` 服务端模块都有 `import "server-only"`；构建浏览器包（`npm run build`，不设环境变量）后 `.next/static` 里没有服务密钥；每个写入口先做同源校验，并跑相关「跨站 / 同源」单元测试。`SECURITY_CHECK_SKIP_BUILD=1` 复用已有构建。
+- 多实例栈 `devops/local/docker-compose.scale.yml`（3 个 Admin Center + 3 个 UAM + nginx 入口，无会话粘滞）：`devops/local/scripts/scale-checks.sh up|check|down`（入口 `http://127.0.0.1:8088`，钉住实例用 8091 ~ 8093）、`devops/local/scripts/rolling-restart.sh`（持续访问下依次重启全部实例，意外登出必须为 0）。
+- k8s 部署（通用清单，本地 kind 与云上共用 `devops/k8s/base`）：本地 `devops/k8s/scripts/deploy.sh up|forward|down`，云上用 `devops/k8s/overlays/cloud`，细节见 [`apps/uam/AGENTS.md`](../uam/AGENTS.md) 的「本地栈」一节。`TRUSTED_PROXY_HOPS` 必须等于前面可信代理的层数（kind 与云上的 ingress controller 一层；ingress 直面 L4 负载均衡为 1，前面再有 L7 / CDN 则为 2）；云上用默认 `__Host-asid` cookie（要求 HTTPS），kind 的 http 入口用 `asid`；直接 `kubectl port-forward svc/admin-center` 会因为没有 `X-Forwarded-For` 而无法登录。
+- 压测：`devops/load/k6/`（`seed-data.sh`、`list-and-detail.js`、`validate-throughput.js`，经 compose 的 `load` profile 运行，命令见 compose 文件里的注释）；结果与未测项见 `devops/load/RESULTS.md`，SC-011 的判定方法见 `devops/load/SC-011.md`（**尚未测量**）。
+- **安全检查** `devops/local/scripts/security-check.sh [static|runtime|all]`（默认 `all`；兼容 bash 3.2）：
+  - `static`（不需要 Docker）：无被跟踪的 `.env`（只允许 `*.example` 与 `devops/local/e2e.env`）；`package.json` 无数据库驱动 / ORM（FR-013）；工作区与全部历史里没有完整长度的 `uamk_` 密钥或私钥特征（允许名单与理由写在脚本里）；`src/lib` 服务端模块都有 `import "server-only"`；构建浏览器包（`npm run build`，不设环境变量）后 `.next/static` 里没有服务密钥；每个写入口先做同源校验，并跑相关「跨站 / 同源」单元测试。`SECURITY_CHECK_SKIP_BUILD=1` 复用已有构建。
   - `runtime`（需要已启动的 E2E 栈，否则退出码 2）：用 curl 走真实流程，对 login、createUser、terminateSession、disableUser、enableUser、changePassword、`POST /logout` 各用「外站 Origin / `Sec-Fetch-Site: cross-site` / 无来源头」伪造一次，必须被拒且状态不变（同源请求作对照）；另有 R10：不带 cookie（及带失效 cookie）发 `RSC: 1` + 含 `(shell)` 段的 `Next-Router-State-Tree` 请求数据页，响应里不得出现标记用户名（Next 局部渲染会跳过布局，受保护页面必须自己先调 `requireOperator()`，对照用有效会话）；最后扫描全部响应、两个服务的日志与浏览器脚本，没有标记密码、`$argon2`、会话标识、服务密钥（SC-014）。
   - `all`：先 static 再 runtime；栈原本没起则自己 `up`、结束 `down`，原本已启动则保持原样。退出码 0 全部通过、1 有失败项、2 用法 / 环境错误。
 
@@ -88,6 +88,6 @@ infra/local/scripts/bootstrap.sh down    # 结束后关栈并清数据卷
 - **启动失败**「环境变量缺失或不合法：…」：缺 `UAM_SERVICE_KEY` / `UAM_BASE_URL`（只列变量名，不回显值）。构建不受影响，所以 CI 的 `npm run build` 不需要这些变量。
 - **页面提示「服务暂不可用」**：UAM 不可达或超过 `UAM_TIMEOUT_MS`，或服务密钥 / 权限配置有误（看上面的告警日志）；写操作则显示「操作未生效」。这时用户没有被登出。
 - **本地 http 下登录后立刻回到登录页**：会话 cookie 带 `Secure`，`__Host-` 前缀还要求 HTTPS。本地 http 把 `SESSION_COOKIE_NAME` 设为 `asid`；Chrome / Firefox 对 `localhost`、`127.0.0.1` 放行 Secure cookie，Safari 通常不接受 http 下的 Secure cookie——用 HTTPS 入口或换浏览器。
-- **「无法确定终端来源地址，已拒绝登录 / 修改密码」**：`TRUSTED_PROXY_HOPS` 必须等于 Admin Center 前面可信代理的跳数，取 `X-Forwarded-For` 从右数第 N 项（左边用户自带的内容不采信）；直连（无代理）时没有可用来源地址，需要代理或测试里补请求头。入口在非默认端口（非 80 / 443）时，反向代理还必须透传**带端口的** `Host`（nginx 用 `$http_host`）并设 `X-Forwarded-Host`，否则 Server Action 的 Origin / Host 比较失败（见 `infra/load/RESULTS.md` 缺陷 C）。
+- **「无法确定终端来源地址，已拒绝登录 / 修改密码」**：`TRUSTED_PROXY_HOPS` 必须等于 Admin Center 前面可信代理的跳数，取 `X-Forwarded-For` 从右数第 N 项（左边用户自带的内容不采信）；直连（无代理）时没有可用来源地址，需要代理或测试里补请求头。入口在非默认端口（非 80 / 443）时，反向代理还必须透传**带端口的** `Host`（nginx 用 `$http_host`）并设 `X-Forwarded-Host`，否则 Server Action 的 Origin / Host 比较失败（见 `devops/load/RESULTS.md` 缺陷 C）。
 - **页面时间不是预期时区**：时间在服务端按 Node 进程的本地时区格式化，容器默认 UTC；需要时给 Admin Center 容器设 `TZ`。
-- **栈起不来或残留旧数据**：`infra/local/scripts/bootstrap.sh down`（带 `-v` 清卷）后重新 `up`；单实例栈做密钥轮换演练会让 UAM 有几秒不可达，不是密钥故障。
+- **栈起不来或残留旧数据**：`devops/local/scripts/bootstrap.sh down`（带 `-v` 清卷）后重新 `up`；单实例栈做密钥轮换演练会让 UAM 有几秒不可达，不是密钥故障。

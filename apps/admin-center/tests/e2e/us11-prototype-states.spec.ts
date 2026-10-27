@@ -8,7 +8,7 @@ import { startService, stopService, uamCli } from "./support/stack";
  * 对照 `docs/system-design/admin-center/prototype/README.md` 的「覆盖的页面与状态」表，逐行在**真实界面**里复现原型的关键状态；
  * 每个 describe 的标题标出它对应的 README 行，用例里的断言再标出具体的关键状态。
  *
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。
  *
  * 复现不了的状态（诚实说明，不用假装）：
  * - 「空列表」中的「还没有用户」与「当前没有在线用户」：共享栈里永远有 init-admin 造出的初始用户，而且能看到页面的人本身就在线，
@@ -25,7 +25,7 @@ import { startService, stopService, uamCli } from "./support/stack";
  * 一个账号只有一个会话：每个账号只在一个浏览器上下文里登录；不碰 ADMIN 的密码。
  */
 
-const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // infra/local/e2e.env 的 SESSION_COOKIE_NAME
+const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // devops/local/e2e.env 的 SESSION_COOKIE_NAME
 
 const ctxs = new Contexts();
 

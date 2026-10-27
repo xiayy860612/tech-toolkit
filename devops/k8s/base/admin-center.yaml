@@ -1,0 +1,79 @@
+# Admin Center：无状态接入层。UAM_SERVICE_KEY 来自 Secret admin-center-runtime（envFrom）。
+# SESSION_COOKIE_NAME 不在这里设：默认 __Host-asid（要求 HTTPS，云上用这个）；本地 http 由 overlays/kind 改为 asid。
+# TRUSTED_PROXY_HOPS 必须等于前面可信代理的层数，按环境在 overlay 里确认（见 docs/system-design/system/README.md §4.2.1）。
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-center
+  labels: {app.kubernetes.io/name: admin-center, app.kubernetes.io/part-of: tech-toolkit}
+spec:
+  selector: {app.kubernetes.io/name: admin-center}
+  ports:
+    - {name: http, port: 3000, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-center
+  labels: {app.kubernetes.io/name: admin-center, app.kubernetes.io/part-of: tech-toolkit}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app.kubernetes.io/name: admin-center}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: admin-center, app.kubernetes.io/part-of: tech-toolkit}
+    spec:
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001 # 镜像里的 app 用户
+        seccompProfile: {type: RuntimeDefault}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app.kubernetes.io/name: admin-center}
+      containers:
+        - name: admin-center
+          image: admin-center # 占位，由 overlay 的 images 替换
+          ports:
+            - {name: http, containerPort: 3000}
+          envFrom:
+            - secretRef: {name: admin-center-runtime}
+          env:
+            - {name: UAM_BASE_URL, value: "http://uam:8080"}
+            - {name: TRUSTED_PROXY_HOPS, value: "1"}
+          startupProbe:
+            httpGet: {path: /login, port: http}
+            periodSeconds: 3
+            failureThreshold: 20
+          readinessProbe:
+            # /login 对匿名用户不调用 UAM，只反映本进程是否在服务
+            httpGet: {path: /login, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: {path: /login, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          lifecycle:
+            preStop:
+              exec: {command: ["sleep", "5"]}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {memory: 384Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: admin-center
+  labels: {app.kubernetes.io/name: admin-center, app.kubernetes.io/part-of: tech-toolkit}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: admin-center}

@@ -11,7 +11,7 @@
 | UAM（User Account Management） | [`apps/uam`](./apps/uam) | 用户、账号、会话的唯一权威；RESTful 领域服务（Java 21 / Spring Boot），**只识别调用它的服务（服务密钥），不基于用户会话** | [`apps/uam/AGENTS.md`](./apps/uam/AGENTS.md) |
 | Admin Center | [`apps/admin-center`](./apps/admin-center) | 面向运维人员的接入层 Web Server（Next.js）：登录、User Manager、Session Manager；浏览器访问基于会话（cookie），自适应桌面 / 平板 / 手机 | [`apps/admin-center/AGENTS.md`](./apps/admin-center/AGENTS.md) |
 
-UAM 的接口契约：[`contracts/uam/openapi.yaml`](./contracts/uam/openapi.yaml)。本地依赖、多实例编排与脚本在 [`infra/local/`](./infra/local)，压测与结果在 [`infra/load/`](./infra/load)。
+UAM 的接口契约：[`contracts/uam/openapi.yaml`](./contracts/uam/openapi.yaml)。本地依赖、多实例编排与脚本在 [`devops/local/`](./devops/local)，压测与结果在 [`devops/load/`](./devops/load)。
 
 **怎么跑起来**：安装、构建、测试、本地运行、覆盖率、环境变量与排障，一律以各应用的 `AGENTS.md` 为准（命令只写在那里）。
 

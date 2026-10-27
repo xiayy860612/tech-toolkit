@@ -1,0 +1,6 @@
+# 标准 Ingress（云上入口）：ingressClassName / host / TLS 由 overlay 补丁（见 overlays/cloud）。
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ingress.yaml
+  - network-policy.yaml

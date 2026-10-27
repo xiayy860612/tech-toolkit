@@ -1,0 +1,81 @@
+# UAM：只有 ClusterIP Service，且 NetworkPolicy 只放行 Admin Center（spec 假设：UAM 只在内网可达）。
+# 连接与客户端清单全部来自 Secret uam-runtime（envFrom）：
+#   SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD、SPRING_DATA_REDIS_HOST / _PORT、UAM_CLIENTS
+# 托管 Redis 需要密码 / TLS 时，在同一个 Secret 里追加 SPRING_DATA_REDIS_PASSWORD、SPRING_DATA_REDIS_SSL_ENABLED 即可。
+apiVersion: v1
+kind: Service
+metadata:
+  name: uam
+  labels: {app.kubernetes.io/name: uam, app.kubernetes.io/part-of: tech-toolkit}
+spec:
+  selector: {app.kubernetes.io/name: uam}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uam
+  labels: {app.kubernetes.io/name: uam, app.kubernetes.io/part-of: tech-toolkit}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app.kubernetes.io/name: uam}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: uam, app.kubernetes.io/part-of: tech-toolkit}
+    spec:
+      # 大于 spring.lifecycle.timeout-per-shutdown-phase（30s），优雅停机能自己完成而不是被 SIGKILL
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001 # 镜像里的 uam 用户；写成数字，kubelet 才能校验 runAsNonRoot
+        seccompProfile: {type: RuntimeDefault}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app.kubernetes.io/name: uam}
+      containers:
+        - name: uam
+          image: uam # 占位，由 overlay 的 images 替换
+          ports:
+            - {name: http, containerPort: 8080}
+          envFrom:
+            - secretRef: {name: uam-runtime}
+          env:
+            - {name: JAVA_TOOL_OPTIONS, value: "-XX:MaxRAMPercentage=60"}
+          startupProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            # 依赖 PostgreSQL 与 Redis；优雅停机时先变为未就绪
+            httpGet: {path: /actuator/health/readiness, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          lifecycle:
+            # 等 Endpoints 摘除传播后再开始停机，避免滚动发布时最后几个请求落到正在关闭的实例
+            preStop:
+              exec: {command: ["sleep", "5"]}
+          resources:
+            requests: {cpu: 200m, memory: 512Mi}
+            limits: {memory: 768Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: uam
+  labels: {app.kubernetes.io/name: uam, app.kubernetes.io/part-of: tech-toolkit}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: uam}

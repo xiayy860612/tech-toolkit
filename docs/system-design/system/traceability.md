@@ -72,7 +72,7 @@
 | FR-034 写操作日志 | UAM `WriteOperationLogger`、各写用例 | `WriteOperationLoggerTest`、各用例的 `*UseCaseTest`、`LogRedactionTest` |
 | FR-035 自适应 | AC `components/shell/*`、`globals.css` | `us9-responsive.spec.ts`（六个视口）、`app-shell.test.tsx` |
 | FR-036 触控目标、键盘、焦点 | AC `components/**`（shadcn/Radix） | `us9-a11y.spec.ts`（axe、键盘、焦点）、`us9-touch-and-content.spec.ts` |
-| FR-037 ~ FR-040 横向扩展、一致、重启不登出 | 两服务无实例本地状态；UAM `server.shutdown=graceful`；`infra/local/` 多实例编排 | `TwoInstanceConsistencyIT`、`GracefulShutdownIT`、`scale-checks.sh`、`rolling-restart.sh`；结果见 `infra/load/RESULTS.md` |
+| FR-037 ~ FR-040 横向扩展、一致、重启不登出 | 两服务无实例本地状态；UAM `server.shutdown=graceful`；`devops/local/` 多实例编排 | `TwoInstanceConsistencyIT`、`GracefulShutdownIT`、`scale-checks.sh`、`rolling-restart.sh`；结果见 `devops/load/RESULTS.md` |
 | FR-041 原型 | `docs/system-design/admin-center/prototype/` | `us11-prototype-states.spec.ts`、`us11-no-out-of-scope.spec.ts`（实现与原型一致性） |
 | FR-042 每个接口校验服务密钥 | UAM `ClientAuthFilter`、`ClientRegistry`（SHA-256 常量时间比较）、`ClientRejectionLogger` | `ClientAuthFilterTest`、`ClientRegistryTest`、`ClientAuthContractIT`（遍历契约每个接口）、`RejectedCallLogIT`、`ClientRejectionLoggerTest` |
 | FR-043 客户端权限 | UAM `ClientPermissions`、`ClientIdentity` | `ClientPermissionsTest`、`ClientAuthContractIT` |
@@ -90,9 +90,9 @@
 | SC-006 | 强制下线 100% 生效、≤ 4 次点击 | `TerminateSessionIT`、`us6-terminate.spec.ts` | 自动化 |
 | SC-007 | 改密 90% ≤ 1 分钟；旧 / 新密码 100% | `ChangePasswordIT`、`us7-password.spec.ts` 记录耗时；**「90% 的人」未做用户测试** | 仅自动化耗时 |
 | SC-008 | 六个视口全流程无整页横向滚动 | `us9-responsive.spec.ts`（320 / 375 / 768 / 1024 / 1440 / 2560） | 自动化（仅 Chromium） |
-| SC-009 | 10 万用户 / 1 万会话下列表与详情 95% ≤ 2 秒 | `infra/load/k6/list-and-detail.js`、`seed-data.sh`；**仅在 `RESULTS.md` §4 记录的负载下测得**（最高 100 次 / 秒，在线用户列表 20 次 / 秒，单次运行，非独占机器，不含浏览器渲染）；超过约 45 次 / 秒的在线用户列表见 §8 | **仅在文档化的负载下测得** |
+| SC-009 | 10 万用户 / 1 万会话下列表与详情 95% ≤ 2 秒 | `devops/load/k6/list-and-detail.js`、`seed-data.sh`；**仅在 `RESULTS.md` §4 记录的负载下测得**（最高 100 次 / 秒，在线用户列表 20 次 / 秒，单次运行，非独占机器，不含浏览器渲染）；超过约 45 次 / 秒的在线用户列表见 §8 | **仅在文档化的负载下测得** |
 | SC-010 | 多实例 100% 识别、新用户立即可见 | `TwoInstanceConsistencyIT`、`scale-checks.sh`（`RESULTS.md` §2） | 自动化 + 脚本 |
-| SC-011 | 1 → 4 实例吞吐 ≥ 3.2 倍 | `infra/load/k6/validate-throughput.js`、`infra/load/SC-011.md` | **未测量**（用户决定：部署到独立机器后再测；仅脚本冒烟，不是判定） |
+| SC-011 | 1 → 4 实例吞吐 ≥ 3.2 倍 | `devops/load/k6/validate-throughput.js`、`devops/load/SC-011.md` | **未测量**（用户决定：部署到独立机器后再测；仅脚本冒烟，不是判定） |
 | SC-012 | 滚动重启 0 次意外登出 | `rolling-restart.sh`（`RESULTS.md` §3）、`GracefulShutdownIT` | 脚本（本地 3+3 编排） |
 | SC-013 | 会话结束后 100% 视为未登录 | `us8-logout-expiry.spec.ts`、`TwoInstanceConsistencyIT`、`scale-checks.sh` | 自动化 + 脚本 |
 | SC-014 | 无明文密码 / 哈希 / 会话标识 / 会话数据泄露；伪造写请求 100% 被拒；写操作 100% 留日志 | `security-check.sh`（static + runtime）、`LogRedactionTest`、`WriteOperationLoggerTest`、`origin-check.test.ts` | 自动化 + 脚本 |
@@ -100,7 +100,7 @@
 | SC-016 | 密钥相关拒绝 100%；轮换 0 登出 / 0 失败；密钥不出现于页面 / 响应 / 日志 | `ClientAuthContractIT`、`RejectedCallLogIT`、`us12-rotation.spec.ts`、`rotate-key.sh`、`security-check.sh` | 自动化 + 脚本（轮换演练见 §7、§8） |
 ## 7. 验证记录
 
-按 [quickstart.md](./quickstart.md) 的场景 S1 ~ S19 列出**自动化证据**（测试类 / Playwright 规格 / 脚本）。「最终回归结果」列由终验时填写，其余列只陈述证据**是什么**，不代表某次运行的结果。已记录的专项结果（多实例、滚动重启、规模）见 [infra/load/RESULTS.md](../../../infra/load/RESULTS.md)。
+按 [quickstart.md](./quickstart.md) 的场景 S1 ~ S19 列出**自动化证据**（测试类 / Playwright 规格 / 脚本）。「最终回归结果」列由终验时填写，其余列只陈述证据**是什么**，不代表某次运行的结果。已记录的专项结果（多实例、滚动重启、规模）见 [devops/load/RESULTS.md](../../../devops/load/RESULTS.md)。
 
 **终验（2026-10-24，全新栈）**：UAM `mvn verify` 389 单元 + 355 集成测试通过，行覆盖率 97.66%；Admin Center 681 个单元测试通过，行覆盖率 99.49%，lint / typecheck / build 通过；
 E2E 全部规格在 w1440 / w375 / w768 上 349 通过 / 8 按设计跳过 / 0 失败，在 w320 / w1024 / w2560 上 346 通过 / 10 按设计跳过 / 1 失败——失败的是 us1 中「不存在的账号名」用例：它在每个视口项目里都用同一个账号名与来源地址，永远登录不成功、计数不清零，第 6 个项目被限流拦下，是测试隔离问题（改为每次运行用独立账号名后 w2560 上 us1 全部 13 个通过），不是产品缺陷；
@@ -120,13 +120,13 @@ E2E 全部规格在 w1440 / w375 / w768 上 349 通过 / 8 按设计跳过 / 0 �
 | S10 | 退出与到期 | UAM `LogoutUseCaseTest`、`SessionExpiryIT`（时限调到秒级；E2E 栈时限为 30 分钟 / 12 小时，到期只由该 IT 覆盖）、`AuthLogoutContractIT`；AC `us8-logout-expiry.spec.ts` | 通过（E2E 六个视口全量）；UAM `mvn verify` 通过；退出、被取代、被强制下线、被停用后旧 cookie 重放 100% 视为未登录；到期只由 `SessionExpiryIT` 覆盖 |
 | S11 | UAM 不可用 | AC `us11-prototype-states.spec.ts`（停掉 UAM 后的读 / 写 / 恢复）、`get-session.test.ts`、`client.test.ts` | 通过（E2E 六个视口：停掉 UAM 后读显示「服务暂不可用」、写显示「操作未生效」、恢复后无需重新登录） |
 | S12 | 响应式、键盘、axe | AC `us9-responsive.spec.ts`、`us9-a11y.spec.ts`、`us9-touch-and-content.spec.ts`（六个视口 project） | 通过（六个视口：三个 US9 规格，axe 无严重违规、触控 ≥ 44px、无整页横向滚动） |
-| S13 | 无会话粘滞与多实例一致 | UAM `TwoInstanceConsistencyIT`；`infra/local/scripts/scale-checks.sh`（3+3 栈；断言内容与结果见 `infra/load/RESULTS.md` §2） | 通过：`scale-checks.sh` 31 项全过；30 次轮询在三个 Admin Center 实例上各 10 次 |
-| S14 | 滚动重启 | UAM `GracefulShutdownIT`；`infra/local/scripts/rolling-restart.sh` | 通过：`rolling-restart.sh` 持续访问 8333 个请求，0 次意外登出、0 个失败请求，重启后会话 15 / 15 有效 |
-| S15 | 规模与吞吐 | `infra/load/k6/{seed-data.sh,list-and-detail.js,validate-throughput.js}`；SC-009 见 `RESULTS.md` §4，**SC-011 未测量** | SC-009 通过（10 万用户 / 1 万会话，p95 约 93 ms，见 `RESULTS.md` §4）；**SC-011 未测量**，用户决定部署到独立机器后再测 |
+| S13 | 无会话粘滞与多实例一致 | UAM `TwoInstanceConsistencyIT`；`devops/local/scripts/scale-checks.sh`（3+3 栈；断言内容与结果见 `devops/load/RESULTS.md` §2） | 通过：`scale-checks.sh` 31 项全过；30 次轮询在三个 Admin Center 实例上各 10 次 |
+| S14 | 滚动重启 | UAM `GracefulShutdownIT`；`devops/local/scripts/rolling-restart.sh` | 通过：`rolling-restart.sh` 持续访问 8333 个请求，0 次意外登出、0 个失败请求，重启后会话 15 / 15 有效 |
+| S15 | 规模与吞吐 | `devops/load/k6/{seed-data.sh,list-and-detail.js,validate-throughput.js}`；SC-009 见 `RESULTS.md` §4，**SC-011 未测量** | SC-009 通过（10 万用户 / 1 万会话，p95 约 93 ms，见 `RESULTS.md` §4）；**SC-011 未测量**，用户决定部署到独立机器后再测 |
 | S16 | UAM 直连：服务密钥、权限、操作人 | UAM `ClientAuthContractIT`、`ClientAuthFilterTest`、`ClientPermissionsTest`、`ClientRegistryTest`、`OperatorContextResolverTest`、`TerminateSessionUseCaseTest`、`DisableEnableUserUseCaseTest`、`RejectedCallLogIT`；「非 Admin Center 主机连不上 UAM」由编排拓扑保证（UAM 不映射宿主机端口），无自动化探测 | 通过（UAM `ClientAuthContractIT` 遍历契约全部 12 个操作；`security-check.sh` 的写入口同源检查） |
-| S17 | 安全与日志抽查 | `infra/local/scripts/security-check.sh`（static / runtime）；UAM `LogRedactionTest`、`WriteOperationLoggerTest`；AC `origin-check.test.ts` | 通过：`security-check.sh all` 137 项通过 / 0 失败（含 R10 RSC 局部渲染不能绕过登录） |
+| S17 | 安全与日志抽查 | `devops/local/scripts/security-check.sh`（static / runtime）；UAM `LogRedactionTest`、`WriteOperationLoggerTest`；AC `origin-check.test.ts` | 通过：`security-check.sh all` 137 项通过 / 0 失败（含 R10 RSC 局部渲染不能绕过登录） |
 | S18 | 评审界面设计原型 | AC `us11-prototype-states.spec.ts`、`us11-no-out-of-scope.spec.ts`；`prototype/README.md`（已确认 2026-10-23） | 通过（`us11-*` 两个规格，六个视口） |
-| S19 | 服务密钥轮换与配置错误 | AC `us12-rotation.spec.ts`；`infra/local/scripts/rotate-key.sh`；UAM `ClientRegistryRotationTest`、`GenerateServiceKeyCommandTest`、`ClientAuthContractIT` | 通过：E2E 轮换与密钥配错（w1440）；多实例栈持续访问下滚动轮换 341 / 341 次页面请求正常、0 登出、0 密钥告警，删旧哈希后旧密钥在三个 UAM 上均为 401 |
+| S19 | 服务密钥轮换与配置错误 | AC `us12-rotation.spec.ts`；`devops/local/scripts/rotate-key.sh`；UAM `ClientRegistryRotationTest`、`GenerateServiceKeyCommandTest`、`ClientAuthContractIT` | 通过：E2E 轮换与密钥配错（w1440）；多实例栈持续访问下滚动轮换 341 / 341 次页面请求正常、0 登出、0 密钥告警，删旧哈希后旧密钥在三个 UAM 上均为 401 |
 
 **质量门禁**（各应用 `AGENTS.md` 为准）：UAM `spotless:check`、`compile`、`verify`（行覆盖率 ≥ 90%，JaCoCo）；Admin Center `lint`、`typecheck`、`test:cov`（行覆盖率 ≥ 90%，Jest）、`build`。本文不复制覆盖率数字。
 ## 8. 已知限制与待决事项
@@ -134,7 +134,7 @@ E2E 全部规格在 w1440 / w375 / w768 上 349 通过 / 8 按设计跳过 / 0 �
 | # | 项目 | 说明 | 状态 |
 |---|---|---|---|
 | 1 | **T156：用户菜单非模态** | 为消除 axe 的 `aria-hidden-focus`（serious），顶栏用户菜单改为 `modal={false}`；唯一的行为差异：点击菜单外区域时既关闭菜单、也会点到下面的元素。 | **已确认保持非模态（用户决定）** |
-| 2 | **SC-011 未测量** | 1 → 4 实例吞吐 ≥ 3.2 倍需要独占机器与分机压测；本机只跑过脚本冒烟（不是判定）。方法见 `infra/load/SC-011.md`。 | **未测量，未判定；用户决定部署到独立机器后再测** |
+| 2 | **SC-011 未测量** | 1 → 4 实例吞吐 ≥ 3.2 倍需要独占机器与分机压测；本机只跑过脚本冒烟（不是判定）。方法见 `devops/load/SC-011.md`。 | **未测量，未判定；用户决定部署到独立机器后再测** |
 | 3 | **SC-009 仅在文档化的负载下测得** | 见 §6.2；单次运行、非独占机器、不含浏览器渲染。 | 已记录口径 |
 | 4 | **在线用户列表的规模上限** | `online.lua` 在一次 Redis 调用里扫描整个 `uam:online`（每成员 1 次 `GET` + 1 次 `HMGET`）：1 万会话时约 22 ms / 次，Redis 单线程，理论上限约 45 次 / 秒（实测 45 次 / 秒时 14.3% 页面触发 1.5 秒超时，并拖累所有实例的会话校验）；上限与 UAM 实例数无关，且随会话数线性变差。**提议的最小修复**（未实施）：只读 `uam:online` 的分数，由分数推出最近活动时间。 | 待用户确认后实施 |
 | 5 | **单实例做密钥轮换会有几秒「服务暂不可用」** | 单实例栈重建 UAM 的几秒内 Admin Center 不可达（演练中 16 / 72 次页面请求），不是密钥失败、用户不被登出；多实例栈上滚动轮换 341 次页面请求全部正常（`tasks.md` T184）。 | 已知，预期行为 |

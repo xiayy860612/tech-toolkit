@@ -4,7 +4,7 @@ import { accountCountNamed, expect, login, SOURCE_HEADERS, test, userCountNamed 
 
 /**
  * US4：在 User Manager 中新建「账号名 / 密码」用户（quickstart S5；FR-021 ~ FR-023；SC-004）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；UAM 已实现 `POST /v1/users`。
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；UAM 已实现 `POST /v1/users`。
  * 每次运行、每个视口项目用独立的名字（后缀），重复执行与六个视口项目互不冲突；
  * 名字刻意不含其它规格造数用户的子串（多账号用户、无账号用户、已停用用户、分页用户、在线者、离线者），避免串到它们的搜索与计数。
  * 「并发抢同一账号名」属于 UAM 的确定性并发测试（T098），不在浏览器里测。

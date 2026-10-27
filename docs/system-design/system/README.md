@@ -62,11 +62,11 @@
 
 ## 4. 部署视图
 
-### 4.1 单实例 E2E 栈（`infra/local/docker-compose.stack.yml`，项目名 `uam-e2e`）
+### 4.1 单实例 E2E 栈（`devops/local/docker-compose.stack.yml`，项目名 `uam-e2e`）
 
-PostgreSQL、Redis、UAM、Admin Center 各一个；仅 Admin Center 向宿主机发布 `127.0.0.1:3000`，**UAM 不映射宿主机端口**。配置来自 `infra/local/e2e.env`（**仅限本地 E2E 的固定测试密钥**，禁止用于其他环境）；`infra/local/scripts/bootstrap.sh up|down` 构建并启动 / 关闭，并用 `init-admin` 建首个用户。栈前面没有反向代理，E2E 用例统一带 `X-Forwarded-For`。
+PostgreSQL、Redis、UAM、Admin Center 各一个；仅 Admin Center 向宿主机发布 `127.0.0.1:3000`，**UAM 不映射宿主机端口**。配置来自 `devops/local/e2e.env`（**仅限本地 E2E 的固定测试密钥**，禁止用于其他环境）；`devops/local/scripts/bootstrap.sh up|down` 构建并启动 / 关闭，并用 `init-admin` 建首个用户。栈前面没有反向代理，E2E 用例统一带 `X-Forwarded-For`。
 
-### 4.2 多实例栈（`infra/local/docker-compose.scale.yml`，项目名 `uam-scale`）
+### 4.2 多实例栈（`devops/local/docker-compose.scale.yml`，项目名 `uam-scale`）
 
 3 个 Admin Center + 3 个 UAM + PostgreSQL + Redis + 2 个 nginx。三个网络：
 
@@ -79,6 +79,29 @@ PostgreSQL、Redis、UAM、Admin Center 各一个；仅 Admin Center 向宿主�
 - **入口 nginx**（`nginx/nginx.conf` + `proxy-params.conf`）：轮询、**无粘滞**（不使用 `ip_hash` / `hash` / cookie 映射）；上游 keepalive，`keepalive_time 5s` / `keepalive_timeout 4s`（周期性回收长连接，让停机中的实例能在宽限期内排空，避免被 SIGKILL）；`proxy_next_upstream error timeout http_502 http_503`，3 次 / 5 秒；**POST 不被重放**；`Host` 用 `$http_host` 并设 `X-Forwarded-Host`（非默认端口下 Server Action 的 Origin / Host 比较需要）。
 - **`uam-lb`**（`nginx/uam-lb.conf`）：Admin Center 的 `UAM_BASE_URL=http://uam-lb:8080`，轮询到 3 个 UAM；**仅对 `POST /v1/auth/sessions/verify` 允许 `non_idempotent` 重试**（verify 只读、重放无副作用）；其余 POST 不重放；日志不记 `Authorization` 与请求体。
 - 容器停机宽限：UAM `stop_grace_period 40s`（大于 `spring.lifecycle.timeout-per-shutdown-phase=30s`），Admin Center `20s`；UAM 就绪探针 `/actuator/health/readiness`（含 PostgreSQL 与 Redis），Admin Center 探活用 `GET /login`（匿名不调用 UAM，只反映本进程是否在服务）。
+
+### 4.2.1 Kubernetes 部署（`devops/k8s/`）
+
+清单要求**通用**：同一份 `base/` 既能部署到本地 kind，也能直接用在云上的 k8s；环境差异只放在 `overlays/` 与 `components/`（kustomize）。
+
+| 位置 | 内容 |
+|---|---|
+| `base/` | UAM ×2、Admin Center ×2（Deployment + ClusterIP Service + PodDisruptionBudget）、入站默认拒绝与「Admin Center → UAM」放行的 NetworkPolicy。**不含** Namespace、数据库、入口、Secret、环境专属镜像名 |
+| `components/ingress` | 标准 `Ingress`（`ingressClassName` / host / TLS 由 overlay 补丁）+ 放行 ingress controller → Admin Center 的 NetworkPolicy；kind 与云上共用 |
+| `components/in-cluster-data` | PostgreSQL 16 / Redis 7 的 StatefulSet + PVC + 「UAM → 数据层」放行策略；**仅用于 kind / 开发**，云上用托管服务 |
+| `overlays/kind` | base + ingress + in-cluster-data；Ingress 去掉 host / TLS（经 port-forward 用 IP 访问）；镜像 `tech-toolkit/*:local`；`SESSION_COOKIE_NAME=asid`（本地 http） |
+| `cluster/ingress-nginx.yaml` | 固定版本（v1.15.1，baremetal 变体）的 ingress controller，**只给 kind 装**（`deploy.sh up` 按需应用）；上游仓库已于 2026-03 归档、不再有安全修复，云上请用有人维护的 controller |
+| `overlays/cloud` | base + ingress；镜像取 CI 推送的 ACR 仓库；cookie 用默认 `__Host-asid`（要求 HTTPS）；**示例**，host / 镜像标签 / ingress 类按实际环境改 |
+
+**Secret 契约**（清单只按固定名字引用，不含任何值；kind 由 `scripts/deploy.sh` 生成，云上由云密钥服务 / External Secrets / CI 创建）：
+
+| Secret | 键 | 说明 |
+|---|---|---|
+| `uam-runtime`（`envFrom`） | `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD`、`SPRING_DATA_REDIS_HOST` / `_PORT`、`UAM_CLIENTS` | 托管 Redis 需要密码 / TLS 时，直接在同一个 Secret 里加 `SPRING_DATA_REDIS_PASSWORD`、`SPRING_DATA_REDIS_SSL_ENABLED` |
+| `admin-center-runtime`（`envFrom`） | `UAM_SERVICE_KEY` | 与 `UAM_CLIENTS` 里的哈希成对（轮换步骤见 UAM 文档） |
+| `postgres-credentials` | `POSTGRES_DB` / `_USER` / `_PASSWORD` | 只有 `in-cluster-data` 用 |
+
+要点：UAM 只有 ClusterIP，NetworkPolicy 只放行 Admin Center（策略要求 CNI 支持，不支持时策略不生效但也无害）；`TRUSTED_PROXY_HOPS` 必须等于 Admin Center 前面的可信代理层数（ingress controller 直接面对 L4 负载均衡为 `1`；前面再有 L7 负载均衡 / CDN 则为 `2`，且该层必须追加 `X-Forwarded-For`）；镜像不写死标签，上线用 `kustomize edit set image` 钉到构建号或 sha；探针与停机宽限与 §4.2 一致（UAM `terminationGracePeriodSeconds` 40s + `preStop` 5s）。
 
 ### 4.3 来源地址的信任模型（`X-Forwarded-For`）
 
@@ -95,7 +118,7 @@ PostgreSQL、Redis、UAM、Admin Center 各一个；仅 Admin Center 向宿主�
 |---|---|
 | **两层保护** | 服务密钥（UAM 校验，见 UAM §4）+ 网络边界（UAM 只对 Admin Center 实例开放，PostgreSQL 与 Redis 只对 UAM 开放，见 §2.2）。 |
 | **来源地址** | 见 §4.3；Admin Center 取地址（`ClientIp`），UAM 信任被授予断言权限的客户端提交的 `clientIp`。 |
-| **安全检查脚本** | `infra/local/scripts/security-check.sh [static\|runtime\|all]`：static——无被跟踪的 `.env`（只允许 `*.example` 与 `infra/local/e2e.env`）、无数据库驱动 / ORM、工作区与历史里无完整长度 `uamk_` 密钥或私钥特征（允许名单与理由在脚本里）、`src/lib` 的 `server-only`、构建后 `.next/static` 无服务密钥、每个写入口先做同源校验；runtime（需运行中的 E2E 栈）——对 login、createUser、terminateSession、disableUser、enableUser、changePassword、`POST /logout` 各用外站 `Origin` / `Sec-Fetch-Site: cross-site` / 无来源头伪造一次，必须被拒且状态不变，最后扫描响应、两个服务的日志与浏览器脚本里没有密码、`$argon2`、会话标识、服务密钥。 |
+| **安全检查脚本** | `devops/local/scripts/security-check.sh [static\|runtime\|all]`：static——无被跟踪的 `.env`（只允许 `*.example` 与 `devops/local/e2e.env`）、无数据库驱动 / ORM、工作区与历史里无完整长度 `uamk_` 密钥或私钥特征（允许名单与理由在脚本里）、`src/lib` 的 `server-only`、构建后 `.next/static` 无服务密钥、每个写入口先做同源校验；runtime（需运行中的 E2E 栈）——对 login、createUser、terminateSession、disableUser、enableUser、changePassword、`POST /logout` 各用外站 `Origin` / `Sec-Fetch-Site: cross-site` / 无来源头伪造一次，必须被拒且状态不变，最后扫描响应、两个服务的日志与浏览器脚本里没有密码、`$argon2`、会话标识、服务密钥。 |
 
 ## 6. 扩展性与一致性
 
@@ -105,7 +128,7 @@ PostgreSQL、Redis、UAM、Admin Center 各一个；仅 Admin Center 向宿主�
 
 ### 6.2 优雅停机与滚动重启
 
-UAM：`server.shutdown=graceful`，`spring.lifecycle.timeout-per-shutdown-phase=30s`，就绪探针先变未就绪、在途请求完成后再退出（`GracefulShutdownIT`）。入口与 `uam-lb` 的重试 / 长连接回收配置见 §4.2；`rolling-restart.sh` 对 ≥ 15 秒的重启给出疑似 SIGKILL 的警告。已记录的结果（本地 3+3 编排，非独占机器）见 [infra/load/RESULTS.md](../../../infra/load/RESULTS.md) §3；写操作在重启期间的行为**未验证**（POST 不被重放）。
+UAM：`server.shutdown=graceful`，`spring.lifecycle.timeout-per-shutdown-phase=30s`，就绪探针先变未就绪、在途请求完成后再退出（`GracefulShutdownIT`）。入口与 `uam-lb` 的重试 / 长连接回收配置见 §4.2；`rolling-restart.sh` 对 ≥ 15 秒的重启给出疑似 SIGKILL 的警告。已记录的结果（本地 3+3 编排，非独占机器）见 [devops/load/RESULTS.md](../../../devops/load/RESULTS.md) §3；写操作在重启期间的行为**未验证**（POST 不被重放）。
 ## 7. 可观测性（跨服务）
 
 各服务的日志、事件与指标见 [UAM §6](../uam/README.md) 与 [Admin Center §4](../admin-center/README.md)。
@@ -117,7 +140,7 @@ UAM：`server.shutdown=graceful`，`spring.lifecycle.timeout-per-shutdown-phase=
 
 ## 8. 本地专项脚本与 CI
 
-本地专项脚本（不在 CI 里）：`infra/local/scripts/{bootstrap,scale-checks,rolling-restart,rotate-key,security-check}.sh`、`infra/load/k6/*`。各服务的 CI 与覆盖率门禁见 [UAM §7](../uam/README.md)、[Admin Center §5](../admin-center/README.md)；命令与环境变量的权威说明在 [`apps/uam/AGENTS.md`](../../../apps/uam/AGENTS.md) 与 [`apps/admin-center/AGENTS.md`](../../../apps/admin-center/AGENTS.md)（根 `AGENTS.md` 不写命令）。
+本地专项脚本（不在 CI 里）：`devops/local/scripts/{bootstrap,scale-checks,rolling-restart,rotate-key,security-check}.sh`、`devops/load/k6/*`。各服务的 CI 与覆盖率门禁见 [UAM §7](../uam/README.md)、[Admin Center §5](../admin-center/README.md)；命令与环境变量的权威说明在 [`apps/uam/AGENTS.md`](../../../apps/uam/AGENTS.md) 与 [`apps/admin-center/AGENTS.md`](../../../apps/admin-center/AGENTS.md)（根 `AGENTS.md` 不写命令）。
 
 ## 9. 与过程文档的关系
 

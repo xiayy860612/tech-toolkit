@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const root = path.resolve(__dirname, "../../../../..");
-const bootstrap = path.join(root, "infra/local/scripts/bootstrap.sh");
+const bootstrap = path.join(root, "devops/local/scripts/bootstrap.sh");
 /** compose 项目名：显式传 -p，免得开发者 shell 里的 COMPOSE_PROJECT_NAME 盖过编排文件的 name（与 docker-compose.stack.yml 的 name 一致）。 */
 const COMPOSE_PROJECT = "uam-e2e";
 
@@ -30,9 +30,9 @@ export function uamCli(args: string[], stdin?: string): string {
     "-p",
     COMPOSE_PROJECT,
     "-f",
-    path.join(root, "infra/local/docker-compose.stack.yml"),
+    path.join(root, "devops/local/docker-compose.stack.yml"),
     "--env-file",
-    path.join(root, "infra/local/e2e.env"),
+    path.join(root, "devops/local/e2e.env"),
     "run",
     "--rm",
     "-T",
@@ -57,9 +57,9 @@ export function psql(sql: string): string[] {
     "-p",
     COMPOSE_PROJECT,
     "-f",
-    path.join(root, "infra/local/docker-compose.stack.yml"),
+    path.join(root, "devops/local/docker-compose.stack.yml"),
     "--env-file",
-    path.join(root, "infra/local/e2e.env"),
+    path.join(root, "devops/local/e2e.env"),
     "exec",
     "-T",
     "postgres",
@@ -78,9 +78,9 @@ export function redisCli(args: string[]): string[] {
     "-p",
     COMPOSE_PROJECT,
     "-f",
-    path.join(root, "infra/local/docker-compose.stack.yml"),
+    path.join(root, "devops/local/docker-compose.stack.yml"),
     "--env-file",
-    path.join(root, "infra/local/e2e.env"),
+    path.join(root, "devops/local/e2e.env"),
     "exec",
     "-T",
     "redis",
@@ -93,7 +93,7 @@ export function redisCli(args: string[]): string[] {
 }
 
 /** docker compose 的公共参数（栈文件与 E2E 环境文件）。 */
-const composeBase = () => ["compose", "-p", COMPOSE_PROJECT, "-f", path.join(root, "infra/local/docker-compose.stack.yml"), "--env-file", path.join(root, "infra/local/e2e.env")];
+const composeBase = () => ["compose", "-p", COMPOSE_PROJECT, "-f", path.join(root, "devops/local/docker-compose.stack.yml"), "--env-file", path.join(root, "devops/local/e2e.env")];
 
 /**
  * 停掉栈里的一个服务（不删容器与数据卷；US11 用它模拟「UAM 暂不可用」）。
@@ -112,7 +112,7 @@ export function startService(service: "uam"): void {
 // US12：服务密钥轮换与配置错误（quickstart S19）
 // ---------------------------------------------------------------------------------------------------------------------
 
-const rotateKeyScript = path.join(root, "infra/local/scripts/rotate-key.sh");
+const rotateKeyScript = path.join(root, "devops/local/scripts/rotate-key.sh");
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -130,14 +130,14 @@ async function runRotateKey(action: "rotate" | "restore"): Promise<string> {
 }
 
 /**
- * 不停机轮换服务密钥（`infra/local/scripts/rotate-key.sh rotate`）：给 UAM 加第二个哈希并重建 → Admin Center 换新密钥并重建 →
+ * 不停机轮换服务密钥（`devops/local/scripts/rotate-key.sh rotate`）：给 UAM 加第二个哈希并重建 → Admin Center 换新密钥并重建 →
  * 去掉旧哈希并重建 UAM。结束时栈处于「新密钥」状态，要用 `restoreKey()` 回到 e2e.env。
  */
 export function rotateKey(): Promise<string> {
   return runRotateKey("rotate");
 }
 
-/** 回到 `infra/local/e2e.env` 的密钥与哈希（`rotate-key.sh restore`）；任何中间状态下都应能调用。 */
+/** 回到 `devops/local/e2e.env` 的密钥与哈希（`rotate-key.sh restore`）；任何中间状态下都应能调用。 */
 export function restoreKey(): Promise<string> {
   return runRotateKey("restore");
 }
@@ -170,10 +170,10 @@ export async function setAdminCenterKey(value: string | undefined): Promise<void
   await waitForAdminCenter();
 }
 
-/** `infra/local/e2e.env` 里的服务密钥（仅测试用的固定值；用来断言它不出现在日志里）。 */
+/** `devops/local/e2e.env` 里的服务密钥（仅测试用的固定值；用来断言它不出现在日志里）。 */
 export function e2eServiceKey(): string {
-  const line = fs.readFileSync(path.join(root, "infra/local/e2e.env"), "utf8").split("\n").find((l) => l.startsWith("UAM_SERVICE_KEY="));
-  if (!line) throw new Error("infra/local/e2e.env 里没有 UAM_SERVICE_KEY");
+  const line = fs.readFileSync(path.join(root, "devops/local/e2e.env"), "utf8").split("\n").find((l) => l.startsWith("UAM_SERVICE_KEY="));
+  if (!line) throw new Error("devops/local/e2e.env 里没有 UAM_SERVICE_KEY");
   return line.slice("UAM_SERVICE_KEY=".length).trim();
 }
 

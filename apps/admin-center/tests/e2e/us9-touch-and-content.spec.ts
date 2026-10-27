@@ -19,7 +19,7 @@ import {
 
 /**
  * US9：触控目标与内容适应（quickstart S12；FR-035、FR-036）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。在六个视口 project 上各跑一遍。
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。在六个视口 project 上各跑一遍。
  *
  * - 触控目标：每个可交互元素的有效目标 ≥ 44 × 44 CSS 像素（度量方法见 support/responsive.ts 的 touchTargetProblems：盒子 ≥ 44 直接通过，
  *   否则在盒子外 44px 内做命中测试，取真正命中该元素的区域，所以手机上「整张卡片可点」的拉伸链接按整卡算）。

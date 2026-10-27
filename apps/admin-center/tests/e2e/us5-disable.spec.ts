@@ -4,7 +4,7 @@ import { ADMIN, expect, liveSessions, login, test, userIdOfAccount } from "./sup
 
 /**
  * US5：在 User Manager 中停用与启用用户（quickstart S6；FR-016、FR-024、FR-025；SC-005）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；UAM 已实现 US5
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；UAM 已实现 US5
  * （`POST /v1/users/{id}/disable|enable`）。
  *
  * 造数：每个用例经「新建用户」界面（US4）建一个全新的用户及账号，名字带本次运行与视口的后缀，重复执行与六个视口项目互不冲突；

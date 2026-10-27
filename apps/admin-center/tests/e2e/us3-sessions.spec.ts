@@ -14,14 +14,14 @@ import {
 
 /**
  * US3：在 Session Manager 中查看在线用户及其会话（quickstart S7；FR-014、FR-028 ~ FR-032；SC-002、SC-003）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；UAM 已实现 US3 的两个读接口。
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；UAM 已实现 US3 的两个读接口。
  * 造数：两个非 ADMIN 用户（一个有两个账号、一个有一个账号），各账号在独立的浏览器上下文里登录（账号与会话一一对应）。
  * 对账：Redis 的 `uam:online` 是在线用户的事实来源（见 liveSessions）；页面上的集合与会话数必须与它一致。
  * 手机（< 768）上列表以卡片呈现，所以定位器按视口宽度切换；会话卡片各视口一致。
  */
 
 const { multi, single, idle, password } = SESSIONS_SEED;
-const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // infra/local/e2e.env 的 SESSION_COOKIE_NAME
+const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // devops/local/e2e.env 的 SESSION_COOKIE_NAME
 
 const isNarrow = (page: Page) => (page.viewportSize()?.width ?? 1280) < 768;
 

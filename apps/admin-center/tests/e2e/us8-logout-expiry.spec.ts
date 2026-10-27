@@ -3,7 +3,7 @@ import { expect, liveSessions, login, test } from "./support/fixtures";
 
 /**
  * US8：退出登录与会话结束后旧会话标识失效（quickstart S10；FR-009 ~ FR-011、FR-033；SC-013）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；
  * UAM 已实现 US8（`POST /v1/auth/logout`，T148 ~ T149）。
  *
  * 覆盖会话结束的四种原因：主动退出（用户菜单）、被同一账号的新登录取代、被强制下线（US6）、所属用户被停用（US5）。
@@ -13,7 +13,7 @@ import { expect, liveSessions, login, test } from "./support/fixtures";
  * 重放旧值落到登录页时还断言提示文案：被管理员强制下线 → 「你的会话已被管理员强制下线」（`reason=session_terminated`）；
  * 退出、被取代、用户被停用 → 通用的「会话已结束，请重新登录。」（`reason=session_ended`）。强制下线标记的有效期（约 10 分钟）由 UAM 的集成测试覆盖，这里不测。
  *
- * 空闲到期与绝对到期无法在共享栈上测：栈的时限是 30 分钟 / 12 小时（infra/local/e2e.env），也不允许为此改栈配置。
+ * 空闲到期与绝对到期无法在共享栈上测：栈的时限是 30 分钟 / 12 小时（devops/local/e2e.env），也不允许为此改栈配置。
  * 它们由 UAM 的 `SessionExpiryIT`（T144，测试 profile 把时限调到秒级）覆盖：到期后 `verify` → `session_invalid`，
  * 到期会话不出现在在线用户里；Admin Center 对 `session_invalid` 的处理与这里的四种原因完全相同（`/session/expire`），
  * 所以这里不再重复。
@@ -26,7 +26,7 @@ import { expect, liveSessions, login, test } from "./support/fixtures";
  */
 
 const PASSWORD = "E2e-Logout-Pass-1";
-const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // infra/local/e2e.env 的 SESSION_COOKIE_NAME
+const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // devops/local/e2e.env 的 SESSION_COOKIE_NAME
 const runId = Date.now().toString(36);
 
 const widthOf = (page: Page) => page.viewportSize()?.width ?? 1280;

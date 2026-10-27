@@ -23,7 +23,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 - UAM（Spring Boot）：`apps/uam/`，Java 根包 `com.s2u2m.uam`，即 `apps/uam/src/main/java/com/s2u2m/uam/{api,application,domain,infrastructure,cli}/`；资源 `apps/uam/src/main/resources/`；测试 `apps/uam/src/test/java/com/s2u2m/uam/{unit,integration,contract,concurrency,architecture,support}/`
 - Admin Center（Next.js）：`apps/admin-center/`，源码 `src/{app,components,lib}/`，测试 `tests/{unit,contract,e2e,support}/`
-- 共享契约：`contracts/uam/openapi.yaml`（T005 迁入）；本地与多实例编排 `infra/local/`；压测 `infra/load/k6/`；CI `.github/workflows/`
+- 共享契约：`contracts/uam/openapi.yaml`（T005 迁入）；本地与多实例编排 `devops/local/`；压测 `devops/load/k6/`；CI `.github/workflows/`
 - 术语：**客户端（Client）** 指调用 UAM 的服务（不是浏览器）；本期唯一的客户端是 `admin-center`
 
 ---
@@ -40,7 +40,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T006 [P] 更新仓库根 `.gitignore`：忽略 `apps/uam/target/`、`apps/admin-center/{node_modules,.next,coverage,playwright-report,test-results}/`、`.env*`（保留 `.env.example`）
 - [X] T007 [P] 创建 CI `.github/workflows/uam-ci.yml`：JDK 21，`spotless:check`、`compile`、`mvn verify`（Testcontainers + JaCoCo 行覆盖率 ≥ 90% 门禁）
 - [X] T008 [P] 创建 CI `.github/workflows/admin-center-ci.yml`：`npm ci`、`lint`、`typecheck`、`test:cov`（≥ 90%）、`build`
-- [X] T009 [P] 创建本地依赖编排 `infra/local/docker-compose.yml`（PostgreSQL 16；Redis 7，开启 AOF `everysec`）与 `infra/local/.env.example`；UAM 的端口**不映射到宿主机**
+- [X] T009 [P] 创建本地依赖编排 `devops/local/docker-compose.yml`（PostgreSQL 16；Redis 7，开启 AOF `everysec`）与 `devops/local/.env.example`；UAM 的端口**不映射到宿主机**
 - [X] T010 [P] 在 `apps/admin-center/src/components/ui/` 加入用到的 shadcn/ui 组件：`button`、`input`、`label`、`card`、`alert`、`avatar`、`badge`、`table`、`alert-dialog`、`dialog`、`dropdown-menu`、`sidebar`、`sheet`、`breadcrumb`、`tooltip`、`separator`
 - [X] T011 [P] 实现 `apps/admin-center` 的 `gen:api` 脚本：由 `contracts/uam/openapi.yaml` 生成 `apps/admin-center/src/lib/uam/types.generated.ts`（提交生成结果）
 - [X] T012 [P] 编写 `apps/uam/Dockerfile`（JDK 21 运行时，可执行 jar）、`apps/admin-center/Dockerfile`（Node LTS，Next.js standalone 输出）以及各自的 `.dockerignore`
@@ -95,7 +95,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T041 [P] 实现 `apps/admin-center/src/lib/security/origin-check.ts` 与 `apps/admin-center/src/lib/session/client-ip.ts`；使 T034 通过
 - [X] T042 实现 `apps/admin-center/src/middleware.ts`；使 T035 通过
 - [X] T043 实现外壳：`apps/admin-center/src/components/shell/{app-shell,app-header,app-sidebar,user-menu,breadcrumbs,nav-config}.tsx`，`apps/admin-center/src/app/layout.tsx`、`globals.css`、`not-found.tsx`、`error.tsx`，`apps/admin-center/src/app/(shell)/layout.tsx`（读会话三态）、`apps/admin-center/src/app/(auth)/layout.tsx`（极简外壳）；桌面 ≥ 1024 侧边栏展开、平板 768–1023 图标条、手机 < 768 抽屉；展开偏好存非敏感 UI cookie `sidebar_state`；使 T036 通过
-- [X] T044 [P] 搭建 E2E 栈：`infra/local/docker-compose.stack.yml`（PostgreSQL、Redis、UAM、Admin Center）、`infra/local/scripts/bootstrap.sh`（构建镜像并启动栈）与 `infra/local/e2e.env`（**仅限本地 E2E 的固定测试密钥**：`UAM_SERVICE_KEY=uamk_e2e_…`，以及与它的 `sha256` 对应的 `UAM_CLIENTS`；文件头注明「禁止用于任何其他环境」）、`apps/admin-center/tests/e2e/support/{stack,fixtures}.ts`（启停、造数、登录辅助）
+- [X] T044 [P] 搭建 E2E 栈：`devops/local/docker-compose.stack.yml`（PostgreSQL、Redis、UAM、Admin Center）、`devops/local/scripts/bootstrap.sh`（构建镜像并启动栈）与 `devops/local/e2e.env`（**仅限本地 E2E 的固定测试密钥**：`UAM_SERVICE_KEY=uamk_e2e_…`，以及与它的 `sha256` 对应的 `UAM_CLIENTS`；文件头注明「禁止用于任何其他环境」）、`apps/admin-center/tests/e2e/support/{stack,fixtures}.ts`（启停、造数、登录辅助）
 
 **Checkpoint**: 基础就绪，可以开始用户故事。
 
@@ -133,7 +133,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T063 [US1] `apps/uam/src/main/java/com/s2u2m/uam/infrastructure/redis/RedisGuards.java` 的登录限流部分：键 `uam:throttle:login:{sha256(规范化账号名|来源地址)}`，5 次后锁该来源 15 分钟，`Retry-After` 取剩余 TTL
 - [X] T064 [US1] 用例与 DTO：`apps/uam/src/main/java/com/s2u2m/uam/application/{LoginUseCase,VerifySessionUseCase}.java`、`apps/uam/src/main/java/com/s2u2m/uam/api/dto/{LoginRequest,LoginResponse,VerifyRequest,VerifyResponse}.java`；另新增 `apps/uam/src/main/java/com/s2u2m/uam/application/AccountProvisioningService.java`（`createUserWithAccount`、`addAccount`；部署期命令与 US4 的 `CreateUserUseCase` 共用）；使 T046、T047、T051 与 T052 中的服务测试通过
 - [X] T065 [US1] `apps/uam/src/main/java/com/s2u2m/uam/api/AuthController.java`：`POST /v1/auth/login`、`POST /v1/auth/sessions/verify`；使 T050 通过
-- [X] T066 [US1] 部署期命令 `apps/uam/src/main/java/com/s2u2m/uam/cli/{InitAdminCommand,AddAccountCommand}.java`（`cli` profile：不启动 Web、不连 Redis、先跑 Flyway、日志写标准错误；创建逻辑一律调用 `AccountProvisioningService`，不自带；并给 `infra/local/scripts/bootstrap.sh` 增加 `init-admin` 步骤建首个用户，`apps/admin-center/tests/e2e/support/fixtures.ts` 的造数与登录辅助依赖它）；使 T052 通过
+- [X] T066 [US1] 部署期命令 `apps/uam/src/main/java/com/s2u2m/uam/cli/{InitAdminCommand,AddAccountCommand}.java`（`cli` profile：不启动 Web、不连 Redis、先跑 Flyway、日志写标准错误；创建逻辑一律调用 `AccountProvisioningService`，不自带；并给 `devops/local/scripts/bootstrap.sh` 增加 `init-admin` 步骤建首个用户，`apps/admin-center/tests/e2e/support/fixtures.ts` 的造数与登录辅助依赖它）；使 T052 通过
 - [X] T067 [P] [US1] `apps/admin-center/src/lib/validation/login.ts`（zod）与 `apps/admin-center/src/lib/session/next-path.ts`（`next` 白名单）
 - [X] T068 [US1] 登录页与表单 `apps/admin-center/src/app/(auth)/login/page.tsx`、`apps/admin-center/src/components/auth/login-form.tsx`；使 T054 通过
 - [X] T069 [US1] 登录动作 `apps/admin-center/src/app/(auth)/login/actions.ts`（经 `client-ip.ts` 取 `clientIp`；成功写 cookie 并按白名单跳转）；使 T053 通过
@@ -376,14 +376,14 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Implementation for User Story 10
 
-- [X] T160 [P] [US10] `infra/local/docker-compose.scale.yml`：3 个 Admin Center + 3 个 UAM + nginx；UAM 不映射宿主机端口，只对 Admin Center 实例可达
-- [X] T161 [P] [US10] `infra/local/nginx/nginx.conf`：轮询、**无会话粘滞**、到上游的长连接
-- [X] T162 [P] [US10] `infra/local/scripts/scale-checks.sh`：登录一次后把请求分到全部 Admin Center 实例，断言都已登录；经一个实例新建用户 / 强制下线，断言其他实例立即一致
-- [X] T163 [P] [US10] `infra/local/scripts/rolling-restart.sh`：持续访问下依次重启全部实例，统计意外登出数与失败请求数
-- [X] T164 [P] [US10] `infra/load/k6/seed-data.sh`：生成 10 万用户（含账号与凭据）与 1 万个同时有效的会话
-- [X] T165 [P] [US10] `infra/load/k6/list-and-detail.js`：用户与会话的列表和详情，阈值 95% ≤ 2 秒（SC-009）
-- [X] T166 [P] [US10] `infra/load/k6/validate-throughput.js` 与方法说明 `infra/load/SC-011.md`：1 → 4 实例吞吐 ≥ 3.2 倍；独占机器、预热、多轮取中位数、判定口径
-- [X] T167 [US10] 验证：T158、T159 通过；在多实例栈上跑 quickstart S13（SC-010）、S14（SC-012，滚动重启 0 次意外登出）、S15（SC-009、SC-011），结果记入 `infra/load/RESULTS.md` （结果见 `infra/load/RESULTS.md`：S13 31/31 通过、S14 滚动重启 0 次意外登出（最终配置 7 轮 44,306 个请求 0 失败）、SC-009 在 10 万用户 / 1 万会话下满足；**SC-011 未测量也未判定**（需要独占机器，本机只跑了脚本冒烟）；**发现**：`online.lua` 在 1 万会话时每次约 22 ms Redis 时间，在线用户列表约 45 次 / 秒即触顶（14.3% 页面触发 1.5 秒超时），提议改为只读 `uam:online` 的分数、由分数推出最近活动时间，待用户确认后再改）
+- [X] T160 [P] [US10] `devops/local/docker-compose.scale.yml`：3 个 Admin Center + 3 个 UAM + nginx；UAM 不映射宿主机端口，只对 Admin Center 实例可达
+- [X] T161 [P] [US10] `devops/local/nginx/nginx.conf`：轮询、**无会话粘滞**、到上游的长连接
+- [X] T162 [P] [US10] `devops/local/scripts/scale-checks.sh`：登录一次后把请求分到全部 Admin Center 实例，断言都已登录；经一个实例新建用户 / 强制下线，断言其他实例立即一致
+- [X] T163 [P] [US10] `devops/local/scripts/rolling-restart.sh`：持续访问下依次重启全部实例，统计意外登出数与失败请求数
+- [X] T164 [P] [US10] `devops/load/k6/seed-data.sh`：生成 10 万用户（含账号与凭据）与 1 万个同时有效的会话
+- [X] T165 [P] [US10] `devops/load/k6/list-and-detail.js`：用户与会话的列表和详情，阈值 95% ≤ 2 秒（SC-009）
+- [X] T166 [P] [US10] `devops/load/k6/validate-throughput.js` 与方法说明 `devops/load/SC-011.md`：1 → 4 实例吞吐 ≥ 3.2 倍；独占机器、预热、多轮取中位数、判定口径
+- [X] T167 [US10] 验证：T158、T159 通过；在多实例栈上跑 quickstart S13（SC-010）、S14（SC-012，滚动重启 0 次意外登出）、S15（SC-009、SC-011），结果记入 `devops/load/RESULTS.md` （结果见 `devops/load/RESULTS.md`：S13 31/31 通过、S14 滚动重启 0 次意外登出（最终配置 7 轮 44,306 个请求 0 失败）、SC-009 在 10 万用户 / 1 万会话下满足；**SC-011 未测量也未判定**（需要独占机器，本机只跑了脚本冒烟）；**发现**：`online.lua` 在 1 万会话时每次约 22 ms Redis 时间，在线用户列表约 45 次 / 秒即触顶（14.3% 页面触发 1.5 秒超时），提议改为只读 `uam:online` 的分数、由分数推出最近活动时间，待用户确认后再改）
 
 **Checkpoint**: US10 可独立验证。
 
@@ -426,8 +426,8 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T180 [US12] 在 `ClientAuthFilter.java` 写拒绝日志（来源、时间、原因类别，不含密钥）；使 T174 通过
 - [X] T181 [US12] 部署期命令 `apps/uam/src/main/java/com/s2u2m/uam/cli/GenerateServiceKeyCommand.java`；使 T175 通过
 - [X] T182 [US12] Admin Center：在 `apps/admin-center/src/lib/uam/errors.ts` 与 `apps/admin-center/src/lib/logging.ts` 实现 `misconfigured` → `unverified` 与告警日志；使 T176 通过
-- [X] T183 [US12] `infra/local/scripts/rotate-key.sh`：新增第二个哈希 → 滚动发布 UAM → Admin Center 换新密钥 → 删旧哈希；`infra/local/scripts/bootstrap.sh` 改用 `generate-service-key`
-- [X] T184 [US12] 验证：T172 ~ T177 通过（含 `infra/local/scripts/rotate-key.sh` 的轮换演练）；跑 quickstart S16、S19 （结果：UAM verify 364 单元 + 280 集成；E2E 轮换演练在单实例栈上 0 登出、0 密钥告警，UAM 重建的几秒内有 16/72 次「服务暂不可用」（单实例重建所致，非密钥失败）；在 3+3 多实例栈上持续访问下滚动轮换：341 次页面请求全部正常、0 登出、0 密钥告警，删旧哈希后旧密钥在三个 UAM 上均为 401；演练中发现并修复 rotate-key.sh 在多实例栈上硬编码服务名 uam 的缺陷）
+- [X] T183 [US12] `devops/local/scripts/rotate-key.sh`：新增第二个哈希 → 滚动发布 UAM → Admin Center 换新密钥 → 删旧哈希；`devops/local/scripts/bootstrap.sh` 改用 `generate-service-key`
+- [X] T184 [US12] 验证：T172 ~ T177 通过（含 `devops/local/scripts/rotate-key.sh` 的轮换演练）；跑 quickstart S16、S19 （结果：UAM verify 364 单元 + 280 集成；E2E 轮换演练在单实例栈上 0 登出、0 密钥告警，UAM 重建的几秒内有 16/72 次「服务暂不可用」（单实例重建所致，非密钥失败）；在 3+3 多实例栈上持续访问下滚动轮换：341 次页面请求全部正常、0 登出、0 密钥告警，删旧哈希后旧密钥在三个 UAM 上均为 401；演练中发现并修复 rotate-key.sh 在多实例栈上硬编码服务名 uam 的缺陷）
 
 **Checkpoint**: 全部 12 个用户故事完成。
 
@@ -437,7 +437,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 **Purpose**: 跨故事的收尾、门禁与归档
 
-- [X] T185 [P] 安全检查脚本 `infra/local/scripts/security-check.sh`：没有被跟踪的 `.env`；`apps/admin-center/package.json` 不含数据库驱动或 ORM 依赖（FR-013：Admin Center 不持久化数据）；仓库与历史里没有 `uamk_` 密钥或私钥特征（`infra/local/e2e.env` 里标注为仅测试用的固定密钥除外）；`apps/admin-center/src/lib` 的服务端模块都有 `import "server-only"`；浏览器包（`.next/static`）里没有服务密钥；运行期响应与 UAM、Admin Center 日志里没有密码、密码哈希、会话标识、服务密钥（SC-014）；跨站伪造的写请求 100% 被拒 （说明：`git log --all` 里有三个来自旧演示项目的 PEM 私钥头标记 占位（`jwt-rsa-key.pem`，正文只有 24 个字符、不是有效密钥，不在 main 与本特性分支），脚本对这两个路径在历史扫描里做了允许；清除需要改写历史，未做）
+- [X] T185 [P] 安全检查脚本 `devops/local/scripts/security-check.sh`：没有被跟踪的 `.env`；`apps/admin-center/package.json` 不含数据库驱动或 ORM 依赖（FR-013：Admin Center 不持久化数据）；仓库与历史里没有 `uamk_` 密钥或私钥特征（`devops/local/e2e.env` 里标注为仅测试用的固定密钥除外）；`apps/admin-center/src/lib` 的服务端模块都有 `import "server-only"`；浏览器包（`.next/static`）里没有服务密钥；运行期响应与 UAM、Admin Center 日志里没有密码、密码哈希、会话标识、服务密钥（SC-014）；跨站伪造的写请求 100% 被拒 （说明：`git log --all` 里有三个来自旧演示项目的 PEM 私钥头标记 占位（`jwt-rsa-key.pem`，正文只有 24 个字符、不是有效密钥，不在 main 与本特性分支），脚本对这两个路径在历史扫描里做了允许；清除需要改写历史，未做）
 - [X] T186 [P] 覆盖率门禁核对：`mvn -f apps/uam/pom.xml verify` 行覆盖率 ≥ 90%；`npm --prefix apps/admin-center run test:cov` ≥ 90%；排除路径只含不含业务逻辑的代码，并写进两个 `AGENTS.md`
 - [X] T187 [P] 补充 `apps/uam/AGENTS.md` 与 `apps/admin-center/AGENTS.md` 的最终命令、环境变量与排障说明（含 `UAM_CLIENTS` 示例、`generate-service-key`、`init-admin`、`add-account`、轮换步骤）
 - [X] T188 对触及的两个应用（`apps/uam/pom.xml`、`apps/admin-center/package.json`）执行质量门禁：UAM 的 `spotless:check`、`compile`、`verify`；Admin Center 的 `lint`、`typecheck`、`test:cov`、`build`；全部通过
@@ -445,7 +445,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T190 [P] 归档需求与领域现状到 `docs/achieve-specs/admin-center-uam.md`（统一语言、领域模型、核心流程、需求对照表、验证记录、已知限制）
 - [X] T191 [P] 归档架构到 `docs/system-design/admin-center-uam.md`：把 `specs/002-admin-center-uam/diagrams/` 用 `git mv` 迁到 `docs/system-design/diagrams/`，修正文档中的图片与源文件链接
 - [X] T192 在 `specs/002-admin-center-uam/{spec,plan}.md` 顶部加「归档状态」说明，指向 `docs/achieve-specs/` 与 `docs/system-design/`；更新根 `README.md` 的项目入口
-- [X] T193 最终评审：对 `apps/`、`contracts/`、`infra/` 下本特性的全部改动运行代码评审与安全评审，修复发现的问题后重跑 T188
+- [X] T193 最终评审：对 `apps/`、`contracts/`、`devops/` 下本特性的全部改动运行代码评审与安全评审，修复发现的问题后重跑 T188
 
 ### 状态码统一：一个错误码对应一个状态码（用户决定，选项 A；见 `spec.md` Clarifications 2026-10-24）
 

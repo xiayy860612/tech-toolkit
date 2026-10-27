@@ -5,7 +5,7 @@ import { uamCli } from "./support/stack";
 
 /**
  * US6：在 Session Manager 中强制下线某个会话（quickstart S8；FR-011、FR-016、FR-030；SC-006）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；
  * UAM 已实现 US6（`DELETE /v1/sessions/{sessionRef}`，T129 ~ T131）。
  *
  * 造数：每个用例经「新建用户」界面（US4）建一个全新的用户及账号 A，需要时再用部署期命令 add-account 追加账号 B（密码只经标准输入）；

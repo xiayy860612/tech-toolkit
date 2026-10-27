@@ -1,0 +1,32 @@
+# 本地 kind 集群（scripts/deploy.sh）：集群内数据层 + 与云上相同的 Ingress（controller 见 cluster/ingress-nginx.yaml）+ 本地构建的镜像。
+# Secret（postgres-credentials、uam-runtime、admin-center-runtime）由 deploy.sh 生成并 apply，不在这里。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tech-toolkit
+resources:
+  - ../../base
+components:
+  - ../../components/in-cluster-data
+  - ../../components/ingress
+images:
+  - {name: uam, newName: tech-toolkit/uam, newTag: local}
+  - {name: admin-center, newName: tech-toolkit/admin-center, newTag: local}
+patches:
+  - path: ingress-patch.yaml
+    target: {kind: Ingress, name: admin-center}
+  - target: {kind: Deployment, name: admin-center}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: admin-center
+      spec:
+        template:
+          spec:
+            containers:
+              - name: admin-center
+                env:
+                  # 本地入口是 http，__Host- 前缀要求 HTTPS（见 apps/admin-center/AGENTS.md）
+                  - {name: SESSION_COOKIE_NAME, value: asid}
+                  # 前面恰好一层可信代理（ingress controller）
+                  - {name: TRUSTED_PROXY_HOPS, value: "1"}

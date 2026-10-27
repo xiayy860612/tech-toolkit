@@ -21,7 +21,7 @@ import {
 
 /**
  * US9：无障碍（quickstart S12；FR-036）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。在六个视口 project 上各跑一遍。
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。在六个视口 project 上各跑一遍。
  *
  * - axe（`@axe-core/playwright`）：serious / critical 必须为 0，覆盖每个页面与状态：登录（含错误、会话结束提示）、用户列表（含无结果）、
  *   用户详情（正常 / 已停用 / 无账号 / 不存在）、新建表单（含错误与账号名冲突）、会话管理列表、会话卡片、没有会话的用户、
