@@ -60,7 +60,7 @@ class GracefulShutdownIT extends IntegrationTestBase {
   void anInFlightRequestCompletesWhileTheInstanceIsShuttingDownAndReadinessGoesNotReadyFirst()
       throws Exception {
     UamInstance victim = UamInstance.start(env, HoldRoute.class);
-    ApiClient api = victim.api(TEST_SERVICE_KEY);
+    ApiClient api = victim.api();
     ApplicationAvailability availability = victim.context().getBean(ApplicationAvailability.class);
     assertThat(api.get("/actuator/health/readiness").status()).isEqualTo(200);
     assertThat(availability.getReadinessState()).isEqualTo(ReadinessState.ACCEPTING_TRAFFIC);

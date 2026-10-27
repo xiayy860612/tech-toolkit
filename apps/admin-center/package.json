@@ -12,6 +12,7 @@
     "test": "jest",
     "test:cov": "jest --coverage",
     "e2e": "playwright test",
+    "e2e:k8s": "playwright test -c playwright.k8s.config.ts",
     "gen:api": "openapi-typescript ../../contracts/uam/openapi.yaml -o src/lib/uam/types.generated.ts"
   },
   "dependencies": {

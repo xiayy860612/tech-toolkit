@@ -43,7 +43,7 @@ function SubmitButton() {
 }
 
 /**
- * 登录表单（界面见 specs/002-admin-center-uam/prototype）。
+ * 登录表单（界面见 docs/system-design/admin-center/prototype）。
  * 失败后 React 会把表单重置为默认值：账号名取回上次提交的值，密码框保持为空——密码从不回填。
  */
 export function LoginForm({ next, notice }: { next: string; notice?: string }) {

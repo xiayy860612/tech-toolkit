@@ -55,7 +55,7 @@ class SessionExpiryIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     userId = provisioning.createUserWithAccount("爱丽丝", "Alice", PASSWORD).userId().toString();
   }
 

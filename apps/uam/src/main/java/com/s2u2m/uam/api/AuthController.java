@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 登录、校验会话与退出（契约 {@code /v1/auth/*}）。UAM 不使用 cookie 或任何用户凭据来识别客户端：这些接口与其他接口一样先过服务密钥过滤器，
+ * 登录、校验会话与退出（契约 {@code /v1/auth/*}）。UAM 不使用 cookie 或任何用户凭据来识别调用方（也不认证调用方，只靠网络隔离）：
  * 会话标识只作为本处的输入出现，响应带 {@code Cache-Control: no-store}。
  */
 @RestController

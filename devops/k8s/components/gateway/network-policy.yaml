@@ -1,0 +1,18 @@
+# 放行 Gateway 的数据面代理 → Admin Center。Envoy Gateway 默认把代理 Pod 建在 envoy-gateway-system 命名空间里，
+# 并带 app.kubernetes.io/managed-by=envoy-gateway 标签；换实现或改了部署模式时，在 overlay 里补丁这里的选择器。
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-proxy-to-admin-center
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: admin-center}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: envoy-gateway-system}
+          podSelector:
+            matchLabels: {app.kubernetes.io/managed-by: envoy-gateway}
+      ports:
+        - {port: 3000, protocol: TCP}

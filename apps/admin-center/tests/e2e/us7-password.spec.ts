@@ -5,7 +5,7 @@ import { uamCli } from "./support/stack";
 
 /**
  * US7：已登录用户修改自己的密码（quickstart S9；FR-026、FR-027；SC-007）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）；
  * UAM 已实现 US7（`POST /v1/accounts/{accountId}/password`，T139 ~ T141）。
  *
  * 造数：每个用例经「新建用户」界面（US4）建一个全新的用户及账号 A（需要时再用部署期命令 add-account 追加账号 B，密码只经标准输入），

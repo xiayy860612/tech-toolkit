@@ -1,0 +1,10 @@
+# 通用基础：UAM 与 Admin Center（Deployment / Service / PDB / NetworkPolicy），本地与云上共用。
+# 刻意不含：Namespace（由部署方先创建，Secret 也要先于工作负载存在）、数据库、入口、Secret 的值、环境专属镜像名。
+# 镜像名 uam / admin-center 只是占位，由 overlays 的 images 字段替换。
+# Secret 契约见 docs/system-design/system/README.md §4.2.1：uam-runtime（Admin Center 没有必填 Secret）。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - uam.yaml
+  - admin-center.yaml
+  - network-policies.yaml

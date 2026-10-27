@@ -51,7 +51,7 @@ class TerminateSessionIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     UserFixtures data = new UserFixtures(jdbc);
     operatorUser = data.user("运维甲");
     operatorAccount = data.account(operatorUser, "ops");
@@ -244,7 +244,7 @@ class TerminateSessionIT extends IntegrationTestBase {
     assertThat(field(events.get(0), "targetType")).isEqualTo("session");
     assertThat(field(events.get(0), "targetId")).isEqualTo(a.ref().toString());
     assertThat(field(events.get(0), "operatorUserId")).isEqualTo(operatorUser.toString());
-    assertThat(field(events.get(0), "clientId")).isEqualTo("admin-center");
+    assertThat(field(events.get(0), "clientId")).isNull();
     assertThat(field(events.get(1), "outcome")).isEqualTo("rejected");
     assertThat(field(events.get(1), "reason")).isEqualTo("cannot_terminate_own_session");
     assertThat(field(events.get(2), "reason")).isEqualTo("session_not_found");

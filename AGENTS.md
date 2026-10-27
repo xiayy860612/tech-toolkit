@@ -34,15 +34,16 @@
 
 全仓库共享的产品与领域真值；**不含**工具版本与运行命令。
 
-- **`docs/achieve-specs/`**：沉淀**当前项目的最新真实状态**——已落地的需求、设计与领域叙述；长期维护，随实现演进更新，是领域与系统层面的权威来源。
-- **`specs/`**：新功能的过程性上下文目录，容纳技术调研、需求澄清、方案设计、任务拆分等过程产出。其内容**必须基于 `docs/achieve-specs/` 中对应的现状**进行需求澄清、描述与设计，不得脱离现状凭空设计；功能完成后须**归档**至 `docs/achieve-specs/`，作为新的权威状态。
-- **`docs/system-design/`**：沉淀**当前项目架构设计和实现的最新真实状态**——已落地的架构设计，长期维护，随实现演进更新。
+- **`docs/achieve-specs/`**：沉淀**用户需求描述**——只写需求，**不涉及技术细节**（技术方案、领域模型、接口、实现一律属于 `docs/system-design/`）；按需求主体命名子目录（如 `admin-center/`），不按技术方案里的服务命名。
+- **归档规则**：对 `specs/<功能>/` 归档时，**仅 `spec.md`**（用户需求规格）迁入 `docs/achieve-specs/<需求主体>/`；**其余全部**（`plan.md`、`research.md`、`data-model.md`、`quickstart.md`、`tasks.md`、检查清单、界面/路由契约、架构图、界面原型等）**按 app 拆分**到 `docs/system-design/<app>/`，跨 app 的内容放 `docs/system-design/system/`；迁移用 `git mv` 保留历史，完成后 `specs/<功能>/` 不再保留，并同步修正各处引用。
+- **`specs/`**：新功能的过程性上下文目录，容纳技术调研、需求澄清、方案设计、任务拆分等过程产出。其内容**必须基于 `docs/achieve-specs/` 中对应的现状**进行需求澄清、描述与设计，不得脱离现状凭空设计；功能完成后须按上面的「归档规则」归档：需求进 `docs/achieve-specs/`，其余进 `docs/system-design/`，作为新的权威状态。
+- **`docs/system-design/`**：沉淀**当前项目技术方案、架构设计和实现的最新真实状态**——含领域模型、接口、需求对照与验证记录；按 app 拆分（`system/`、各 app 目录），长期维护，随实现演进更新。
 
 ### 业务与领域模型 / 统一语言 / 核心业务流程 / 边界与模块
 
-参见 [`docs/achieve-specs/`](docs/achieve-specs/) 目录下的对应文档。*（待补充）*
+需求参见 [`docs/achieve-specs/`](docs/achieve-specs/)；领域模型与统一语言参见 [`docs/system-design/`](docs/system-design/) 下各 app 的文档。*（待补充）*
 
-**维护**：与代码、OpenAPI、UI 文案保持一致；领域与系统层面的权威叙述以 **`docs/achieve-specs/`** 为准，进行中的功能以 **`specs/`** 为准。
+**维护**：与代码、OpenAPI、UI 文案保持一致；需求以 **`docs/achieve-specs/`** 为准，领域与系统层面的权威叙述以 **`docs/system-design/`** 为准，进行中的功能以 **`specs/`** 为准。
 
 ---
 

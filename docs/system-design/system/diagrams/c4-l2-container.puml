@@ -1,0 +1,36 @@
+@startuml c4-l2-container
+' C4 L2 容器视图。
+!include <C4/C4_Container>
+LAYOUT_WITH_LEGEND()
+
+title L2 容器视图：用户与会话管理系统
+
+Person(operator, "运维人员", "浏览器")
+System_Ext(biz, "业务服务（将来）", "将来按需调用 UAM；服务身份待实现，本期没有")
+System_Ext(secrets, "密钥管理", "注入数据库密码等运行时机密")
+System_Ext(obs, "日志与监控平台", "日志 · 指标 · 告警")
+
+System_Boundary(sys, "用户与会话管理系统") {
+  Container(ingress, "入口层", "nginx / 负载均衡", "TLS 终止；无粘滞轮询；设置可信代理头（终端来源地址）")
+  Container(admin, "Admin Center", "Next.js 15 · SSR · 多实例", "登录页、User Manager、Session Manager；浏览器访问基于会话（cookie）；不存密码、不连数据库")
+  Container(uam, "UAM", "Spring Boot 4 · Java 21 · 多实例", "RESTful 领域服务：认证、会话、用户与账号；不认证调用方（只靠网络边界）；不使用任何用户凭据")
+  ContainerDb(pg, "PostgreSQL 16", "关系数据库", "用户、账号、凭据")
+  ContainerDb(redis, "Redis 7", "内存数据库", "会话、在线索引、登录与改密限流计数、幂等键")
+}
+
+Rel(operator, ingress, "访问", "HTTPS · cookie: session id")
+Rel(ingress, admin, "转发", "HTTP(S) · 无粘滞")
+Rel(admin, uam, "调用", "REST/JSON · TLS · X-Operator-*（无 Authorization）")
+Rel(uam, pg, "读写", "JDBC")
+Rel(uam, redis, "读写", "RESP · Lua")
+Rel(biz, uam, "将来调用（服务身份待实现）", "REST")
+Rel(uam, secrets, "读取数据库 / Redis 连接与密码", "启动时")
+Rel(admin, obs, "日志 · 指标")
+Rel(uam, obs, "日志 · 指标 · 写操作日志")
+
+note right of uam
+  网络边界：UAM 只对 Admin Center 实例开放
+  （这是目前唯一的保护，服务密钥已移除）；
+  PostgreSQL 与 Redis 只对 UAM 开放。
+end note
+@enduml

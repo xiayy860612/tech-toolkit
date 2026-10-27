@@ -11,7 +11,7 @@ import java.util.OptionalLong;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-/** 集成测试用的 HTTP 客户端：带服务密钥调 UAM，返回状态、响应头与 JSON。 */
+/** 集成测试用的 HTTP 客户端：直接调 UAM（UAM 不认证调用方），返回状态、响应头与 JSON。 */
 public final class ApiClient {
 
   /** 一次响应。 */
@@ -34,11 +34,9 @@ public final class ApiClient {
   private static final HttpClient HTTP = HttpClient.newHttpClient();
 
   private final String baseUrl;
-  private final String serviceKey;
 
-  public ApiClient(int port, String serviceKey) {
+  public ApiClient(int port) {
     this.baseUrl = "http://localhost:" + port;
-    this.serviceKey = serviceKey;
   }
 
   public Response postJson(String path, Object body) {
@@ -51,9 +49,6 @@ public final class ApiClient {
         HttpRequest.newBuilder(URI.create(baseUrl + path))
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(json));
-    if (serviceKey != null) {
-      builder.header("Authorization", "Bearer " + serviceKey);
-    }
     headers.forEach(builder::header);
     return send(builder.build());
   }
@@ -64,18 +59,12 @@ public final class ApiClient {
 
   public Response get(String pathAndQuery, Map<String, String> headers) {
     HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + pathAndQuery)).GET();
-    if (serviceKey != null) {
-      builder.header("Authorization", "Bearer " + serviceKey);
-    }
     headers.forEach(builder::header);
     return send(builder.build());
   }
 
   public Response delete(String path, Map<String, String> headers) {
     HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path)).DELETE();
-    if (serviceKey != null) {
-      builder.header("Authorization", "Bearer " + serviceKey);
-    }
     headers.forEach(builder::header);
     return send(builder.build());
   }
@@ -91,9 +80,6 @@ public final class ApiClient {
                     : HttpRequest.BodyPublishers.ofString(body));
     if (body != null) {
       builder.header("Content-Type", "application/json");
-    }
-    if (serviceKey != null) {
-      builder.header("Authorization", "Bearer " + serviceKey);
     }
     headers.forEach(builder::header);
     return send(builder.build());

@@ -50,7 +50,7 @@ class DisableUserIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     data = new UserFixtures(jdbc);
     operatorUser = data.user("运维甲");
     operatorAccount = data.account(operatorUser, "ops");
@@ -273,7 +273,7 @@ class DisableUserIT extends IntegrationTestBase {
     assertThat(field(events.get(2), "reason")).isEqualTo("user_not_found");
     assertThat(field(events.get(3), "action")).isEqualTo("user.enable");
     assertThat(field(events.get(3), "outcome")).isEqualTo("success");
-    assertThat(field(events.get(3), "clientId")).isEqualTo("admin-center");
+    assertThat(field(events.get(3), "clientId")).isNull();
   }
 
   @Test

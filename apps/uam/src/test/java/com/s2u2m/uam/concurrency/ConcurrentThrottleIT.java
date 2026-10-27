@@ -68,7 +68,7 @@ class ConcurrentThrottleIT extends IntegrationTestBase {
     UserFixtures data = new UserFixtures(jdbc);
     UUID accountId = data.account(data.user("张三"), "zhangsan");
     data.credential(accountId, hasher.hash(PASSWORD));
-    ApiClient api = new ApiClient(port, TEST_SERVICE_KEY);
+    ApiClient api = new ApiClient(port);
 
     List<Integer> statuses = fireTogether(() -> api.login("zhangsan", WRONG, IP));
 
@@ -87,7 +87,7 @@ class ConcurrentThrottleIT extends IntegrationTestBase {
     UUID userId = data.user("运维甲");
     UUID accountId = data.account(userId, "ops");
     data.credential(accountId, hasher.hash(PASSWORD));
-    ApiClient api = new ApiClient(port, TEST_SERVICE_KEY);
+    ApiClient api = new ApiClient(port);
     Map<String, String> operator = new LinkedHashMap<>();
     operator.put("X-Operator-User-Id", userId.toString());
     operator.put("X-Operator-Account-Id", accountId.toString());

@@ -33,7 +33,7 @@ class ConcurrentLoginIT extends IntegrationTestBase {
   @Test
   void exactlyOneSessionSurvivesConcurrentLoginsOfTheSameAccount() throws Exception {
     Provisioned created = provisioning.createUserWithAccount("张三", "zhangsan", PASSWORD);
-    ApiClient api = new ApiClient(port, TEST_SERVICE_KEY);
+    ApiClient api = new ApiClient(port);
 
     CountDownLatch gate = new CountDownLatch(1);
     ExecutorService pool = Executors.newFixedThreadPool(LOGINS);

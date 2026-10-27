@@ -1,0 +1,37 @@
+# 云上 k8s 的示例 overlay：托管 PostgreSQL / Redis（不含数据层）+ 标准 Ingress + ACR 镜像。复制后按环境修改标 CHANGE 的地方。
+#
+# 部署前由部署方准备（清单里没有任何密钥值）：
+#   kubectl create namespace <命名空间>   # 与下面的 namespace 一致
+#   Secret uam-runtime            SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD、SPRING_DATA_REDIS_HOST / _PORT
+#                                 （托管 Redis 要密码 / TLS：再加 SPRING_DATA_REDIS_PASSWORD、SPRING_DATA_REDIS_SSL_ENABLED）
+#   Secret admin-center-tls       TLS 证书（或让 cert-manager 按 Ingress 注解签发）
+# 部署：kubectl apply -k devops/k8s/overlays/cloud
+# 上线前把镜像钉到构建号或 sha：cd devops/k8s/overlays/cloud && kustomize edit set image uam=<仓库>/uam:<构建号>（admin-center 同理）。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tech-toolkit # CHANGE
+resources:
+  - ../../base
+components:
+  - ../../components/ingress
+images:
+  # CHANGE：CI（.github/workflows）推送的 ACR 仓库；tag 有 <版本号>、<构建号>、<短 sha>、latest，生产不要用 latest
+  - {name: uam, newName: registry.cn-shenzhen.aliyuncs.com/s2u2m/uam, newTag: latest}
+  - {name: admin-center, newName: registry.cn-shenzhen.aliyuncs.com/s2u2m/admin-center, newTag: latest}
+patches:
+  - path: ingress-patch.yaml
+    target: {kind: Ingress, name: admin-center}
+  # 私有镜像仓库需要拉取凭据时：创建 docker-registry 类型的 Secret，并放开下面的补丁（把 acr-pull 换成实际名字）
+  # - target: {kind: Deployment}
+  #   patch: |-
+  #     - op: add
+  #       path: /spec/template/spec/imagePullSecrets
+  #       value: [{name: acr-pull}]
+  # TRUSTED_PROXY_HOPS（base 默认 1）：ingress controller 直接面对 L4 负载均衡时是 1；
+  # 前面还有 L7 负载均衡 / CDN 时是 2，且那一层必须追加 X-Forwarded-For。需要改时放开下面的补丁。
+  # - target: {kind: Deployment, name: admin-center}
+  #   patch: |-
+  #     apiVersion: apps/v1
+  #     kind: Deployment
+  #     metadata: {name: admin-center}
+  #     spec: {template: {spec: {containers: [{name: admin-center, env: [{name: TRUSTED_PROXY_HOPS, value: "2"}]}]}}}

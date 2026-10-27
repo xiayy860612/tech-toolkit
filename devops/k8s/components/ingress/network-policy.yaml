@@ -1,0 +1,16 @@
+# 放行 ingress controller → Admin Center。controller 所在命名空间默认按 ingress-nginx 写，
+# 不一致时在 overlay 里补丁这条策略的 namespaceSelector（例如阿里云 ACK 的 ingress-nginx 在 kube-system）。
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-controller-to-admin-center
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: admin-center}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: ingress-nginx}
+      ports:
+        - {port: 3000, protocol: TCP}

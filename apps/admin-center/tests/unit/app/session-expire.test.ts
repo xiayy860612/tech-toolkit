@@ -11,7 +11,6 @@ const saved = { ...process.env };
 
 beforeEach(() => {
   process.env.UAM_BASE_URL = "http://uam.test";
-  process.env.UAM_SERVICE_KEY = "test-service-key-not-a-secret";
   process.env.SESSION_COOKIE_NAME = "asid";
 });
 afterEach(() => {

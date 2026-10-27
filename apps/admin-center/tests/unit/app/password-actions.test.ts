@@ -9,7 +9,6 @@ import {
   FIXTURE_IDS,
   problemBody,
   UAM_STUB_BASE_URL,
-  UAM_STUB_SERVICE_KEY,
   verifyResponseBody,
 } from "../../support/uam-stub";
 
@@ -66,7 +65,6 @@ beforeAll(() => stub.listen());
 afterAll(() => stub.close());
 beforeEach(() => {
   process.env.UAM_BASE_URL = UAM_STUB_BASE_URL;
-  process.env.UAM_SERVICE_KEY = UAM_STUB_SERVICE_KEY;
   process.env.TRUSTED_PROXY_HOPS = "1";
   requestHeaders();
   jest.mocked(getSession).mockResolvedValue({ status: "authenticated", session: verifyResponseBody() as never });
@@ -76,10 +74,9 @@ beforeEach(() => {
 });
 afterEach(() => {
   expect(stub.violations).toEqual([]);
-  // 任何日志都不能带出密码或服务密钥
+  // 任何日志都不能带出密码
   const logged = JSON.stringify(logs.flatMap((l) => l.mock.calls));
   noPasswordIn(logged);
-  expect(logged).not.toContain(UAM_STUB_SERVICE_KEY);
   logs.splice(0).forEach((l) => l.mockRestore());
   stub.reset();
   jest.clearAllMocks();
@@ -184,7 +181,7 @@ describe("changePassword 动作：成功", () => {
     const [call] = stub.calls;
     expect(call.operationId).toBe("changeOwnPassword");
     expect(call.path).toBe(`/v1/accounts/${FIXTURE_IDS.accountId}/password`);
-    expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(call.headers.get("authorization")).toBeNull();
     expect(call.headers.get("x-operator-user-id")).toBe(FIXTURE_IDS.userId);
     expect(call.headers.get("x-operator-account-id")).toBe(FIXTURE_IDS.accountId);
     expect(call.headers.get("x-operator-session-ref")).toBe(FIXTURE_IDS.sessionRef);
@@ -263,11 +260,9 @@ describe("changePassword 动作：UAM 的结论", () => {
     expect(await changePassword({}, form())).toEqual({ formError: "操作未生效" });
   });
 
-  it("UAM 拒绝了 Admin Center 本身（服务密钥或权限）：「操作未生效」，并给运维告警（不含密钥与密码）", async () => {
-    stub.respond("changeOwnPassword", { status: 403, body: problemBody(403, "client_forbidden") });
+  it("operator_forbidden（路径账号不是操作人自己的账号，出现即为缺陷）：「操作未生效」", async () => {
+    stub.respond("changeOwnPassword", { status: 403, body: problemBody(403, "operator_forbidden") });
     expect(await changePassword({}, form())).toEqual({ formError: "操作未生效" });
-    expect(console.error).toHaveBeenCalledTimes(1);
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("403"));
   });
 
   it("未知问题码：「操作未生效」", async () => {

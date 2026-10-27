@@ -35,7 +35,6 @@ import org.junit.jupiter.api.Test;
 class TerminateSessionUseCaseTest {
 
   private static final Instant T0 = Instant.parse("2026-10-24T08:00:00Z");
-  private static final String CLIENT = "admin-center";
   private static final SessionPolicy POLICY =
       new SessionPolicy(Duration.ofMinutes(30), Duration.ofHours(12), Duration.ofSeconds(60));
 
@@ -66,7 +65,7 @@ class TerminateSessionUseCaseTest {
   }
 
   private TerminateSessionCommand command(SessionRef target) {
-    return new TerminateSessionCommand(operator, CLIENT, target);
+    return new TerminateSessionCommand(operator, target);
   }
 
   private DomainException rejection(Runnable action) {
@@ -171,7 +170,6 @@ class TerminateSessionUseCaseTest {
     assertThat(event.action()).isEqualTo(Action.SESSION_TERMINATE);
     assertThat(event.outcome()).isEqualTo(Outcome.SUCCESS);
     assertThat(event.operator()).isEqualTo(operator);
-    assertThat(event.clientId()).isEqualTo(CLIENT);
     assertThat(event.targetType()).isEqualTo("session");
     assertThat(event.targetId()).isEqualTo(target.ref().toString());
     assertThat(event.reason()).isNull();

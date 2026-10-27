@@ -5,13 +5,13 @@ import { ADMIN, expect, login, SOURCE_HEADERS, test } from "./support/fixtures";
 
 /**
  * US1：账号名 / 密码登录（quickstart S1 ~ S3；FR-001 ~ FR-007、FR-012；SC-001）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin 出 ADMIN（见 support/fixtures.ts）。
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin 出 ADMIN（见 support/fixtures.ts）。
  * 登录成功后落在 /users，所以「看到用户列表」「顶栏用户名」依赖 US2 的 /users 页面与外壳。
  */
 
 /** 同一用户的第二个账号（只能由部署期命令 add-account 产生）。 */
 const SECOND = { account: "admin.second", password: "E2e-Second-Pass-1" };
-const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // infra/local/e2e.env 的 SESSION_COOKIE_NAME
+const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // devops/local/e2e.env 的 SESSION_COOKIE_NAME
 const SC001_BUDGET_MS = 30_000;
 
 const userMenu = (page: Page) => page.getByRole("button", { name: new RegExp(ADMIN.name) });

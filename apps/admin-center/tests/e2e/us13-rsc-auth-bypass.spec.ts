@@ -3,7 +3,7 @@ import { ADMIN, expect, login, seedSessionUsers, seedUsers, SESSIONS_SEED, test,
 
 /**
  * US13：RSC 局部渲染不能绕过登录（安全回归；FR-012、FR-033）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。
  *
  * 漏洞原理：Next.js 15 的局部渲染只渲染「客户端带来的 Next-Router-State-Tree」里第一个不同的段起的部分，
  * 树里已含 `(shell)` 段时 `(shell)/layout.tsx` 根本不会被调用——而它曾是唯一拦截匿名访问者的地方；
@@ -19,7 +19,7 @@ import { ADMIN, expect, login, seedSessionUsers, seedUsers, SESSIONS_SEED, test,
  * 造数用其它规格已有的固定造数（seedUsers、seedSessionUsers），本用例不新建用户，也不与其它规格的计数冲突。
  */
 
-const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // infra/local/e2e.env 的 SESSION_COOKIE_NAME
+const COOKIE_NAME = process.env.E2E_SESSION_COOKIE_NAME ?? "asid"; // devops/local/e2e.env 的 SESSION_COOKIE_NAME
 const adminName = ADMIN.name;
 
 /** 任何一个出现在匿名响应里都算泄露：管理员、造数用户的用户名，以及造数账号名。 */

@@ -75,12 +75,10 @@ public class UsersController {
       @RequestBody CreateUserRequest request,
       HttpServletRequest http) {
     var operator = operators.resolve(http).orElseThrow();
-    var clientId = (String) http.getAttribute(ClientAuthFilter.CLIENT_ID_ATTRIBUTE);
     var result =
         createUser.create(
             new CreateUserCommand(
                 operator,
-                clientId,
                 idempotencyKey,
                 request.userName(),
                 request.accountName(),
@@ -102,7 +100,6 @@ public class UsersController {
 
   private UserStatusCommand statusCommand(UUID userId, HttpServletRequest http) {
     var operator = operators.resolve(http).orElseThrow();
-    var clientId = (String) http.getAttribute(ClientAuthFilter.CLIENT_ID_ATTRIBUTE);
-    return new UserStatusCommand(operator, clientId, userId);
+    return new UserStatusCommand(operator, userId);
   }
 }

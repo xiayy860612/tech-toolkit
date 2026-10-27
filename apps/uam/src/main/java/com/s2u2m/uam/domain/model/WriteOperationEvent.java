@@ -3,7 +3,6 @@ package com.s2u2m.uam.domain.model;
 /** 一次写操作的审计事件（research R16）；被拒绝的操作也要记录。 */
 public record WriteOperationEvent(
     OperatorContext operator,
-    String clientId,
     Action action,
     String targetType,
     String targetId,

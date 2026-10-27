@@ -39,7 +39,7 @@ class AccountPasswordContractIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     UserFixtures data = new UserFixtures(jdbc);
     userId = data.user("运维甲");
     accountId = data.account(userId, "ops");
@@ -138,7 +138,7 @@ class AccountPasswordContractIT extends IntegrationTestBase {
 
     Response response = change(body(CURRENT, NEW), operator(other));
 
-    assertProblem(response, 403, "client_forbidden");
+    assertProblem(response, 403, "operator_forbidden");
     assertThat(
             jdbc.queryForObject(
                 "SELECT password_hash FROM credential WHERE account_id = ?",
@@ -158,15 +158,5 @@ class AccountPasswordContractIT extends IntegrationTestBase {
     assertProblem(blocked, 429, "throttled");
     assertThat(blocked.retryAfter()).isPresent();
     assertThat(blocked.retryAfter().getAsLong()).isBetween(1L, 900L);
-  }
-
-  @Test
-  void aMissingServiceKeyIs401() {
-    Response response =
-        new ApiClient(port, null)
-            .postJson(
-                "/v1/accounts/" + accountId + "/password", body(CURRENT, NEW), operator(accountId));
-
-    assertProblem(response, 401, "client_unauthenticated");
   }
 }

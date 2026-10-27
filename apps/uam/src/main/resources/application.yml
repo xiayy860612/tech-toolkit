@@ -42,8 +42,6 @@ management:
       application: uam
 
 uam:
-  # 客户端清单，JSON：[{"id","keyHashes":["sha256:<hex>"],"permissions":[...]}]，读自环境变量 UAM_CLIENTS
-  clients: ${UAM_CLIENTS}
   session:
     idle: 30m
     absolute: 12h

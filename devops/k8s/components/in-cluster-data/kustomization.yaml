@@ -1,0 +1,9 @@
+# 集群内的 PostgreSQL 16 / Redis 7：只给 kind / 开发用；云上用托管服务，不要引用本组件。
+# 需要 Secret postgres-credentials（POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD）；
+# UAM 的连接串仍从 Secret uam-runtime 读取（由部署方按这里的服务名 postgres / redis 填写）。
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - postgres.yaml
+  - redis.yaml
+  - network-policy.yaml

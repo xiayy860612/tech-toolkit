@@ -65,13 +65,7 @@ class WriteOperationLoggerTest {
 
     writeLog.record(
         new WriteOperationEvent(
-            operator,
-            "admin-center",
-            Action.USER_CREATE,
-            "user",
-            target.toString(),
-            Outcome.SUCCESS,
-            null));
+            operator, Action.USER_CREATE, "user", target.toString(), Outcome.SUCCESS, null));
 
     assertThat(appender.list).hasSize(1);
     ILoggingEvent event = appender.list.get(0);
@@ -84,7 +78,7 @@ class WriteOperationLoggerTest {
         .containsEntry("ts", "2026-10-23T08:00:00Z")
         .containsEntry("operatorUserId", operatorUser.toString())
         .containsEntry("operatorAccountId", operatorAccount.toString())
-        .containsEntry("clientId", "admin-center")
+        .doesNotContainKey("clientId")
         .containsEntry("action", "user.create")
         .containsEntry("targetType", "user")
         .containsEntry("targetId", target.toString())
@@ -109,7 +103,6 @@ class WriteOperationLoggerTest {
     writeLog.record(
         new WriteOperationEvent(
             operator,
-            "admin-center",
             Action.USER_DISABLE,
             "user",
             operatorUser.toString(),
@@ -128,7 +121,6 @@ class WriteOperationLoggerTest {
     writeLog.record(
         new WriteOperationEvent(
             operator,
-            "admin-center",
             Action.SESSION_TERMINATE,
             "session",
             sessionRef.toString(),
@@ -143,18 +135,12 @@ class WriteOperationLoggerTest {
   void operationsWithoutAnOperatorAreStillLogged() {
     writeLog.record(
         new WriteOperationEvent(
-            null,
-            "admin-center",
-            Action.USER_CREATE,
-            "user",
-            null,
-            Outcome.REJECTED,
-            "operator_required"));
+            null, Action.USER_CREATE, "user", null, Outcome.REJECTED, "operator_required"));
 
     assertThat(appender.list).hasSize(1);
     assertThat(fields(appender.list.get(0)))
         .containsEntry("reason", "operator_required")
-        .containsEntry("clientId", "admin-center")
+        .doesNotContainKey("clientId")
         .doesNotContainKeys("operatorUserId", "operatorAccountId", "targetId", "traceId");
   }
 
@@ -163,7 +149,6 @@ class WriteOperationLoggerTest {
     writeLog.record(
         new WriteOperationEvent(
             new OperatorContext(null, null, sessionRef),
-            "admin-center",
             Action.SESSION_TERMINATE,
             "session",
             sessionRef.toString(),
@@ -184,7 +169,6 @@ class WriteOperationLoggerTest {
     writeLog.record(
         new WriteOperationEvent(
             operator,
-            serviceKey,
             Action.ACCOUNT_PASSWORD_CHANGE,
             "account",
             hash,

@@ -46,8 +46,8 @@ class TwoInstanceConsistencyIT extends IntegrationTestBase {
   @BeforeEach
   void startSecondInstance() {
     instanceB = UamInstance.start(env);
-    a = new ApiClient(portA, TEST_SERVICE_KEY);
-    b = instanceB.api(TEST_SERVICE_KEY);
+    a = new ApiClient(portA);
+    b = instanceB.api();
     UserFixtures data = new UserFixtures(jdbc);
     operatorUser = data.user("运维甲");
     operatorAccount = data.account(operatorUser, "ops");

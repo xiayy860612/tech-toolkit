@@ -1,0 +1,29 @@
+# 默认只开一个明文 HTTP 监听；云上在 overlay 里改成 HTTPS（tls.certificateRefs）与实际的 GatewayClass。
+# 登录用 Server Action，会比较 Origin 与 Host / X-Forwarded-Host：入口必须透传浏览器看到的 Host（Envoy 默认如此）。
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: admin-center
+  labels: {app.kubernetes.io/name: admin-center, app.kubernetes.io/part-of: tech-toolkit}
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces: {from: Same}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: admin-center
+  labels: {app.kubernetes.io/name: admin-center, app.kubernetes.io/part-of: tech-toolkit}
+spec:
+  parentRefs:
+    - name: admin-center
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      backendRefs:
+        - {name: admin-center, port: 3000}

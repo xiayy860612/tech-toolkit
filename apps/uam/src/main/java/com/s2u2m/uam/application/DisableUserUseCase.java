@@ -93,7 +93,6 @@ public class DisableUserUseCase {
     writeLog.record(
         new WriteOperationEvent(
             command.operator(),
-            command.clientId(),
             Action.USER_DISABLE,
             "user",
             command.userId().toString(),

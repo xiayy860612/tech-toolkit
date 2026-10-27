@@ -52,7 +52,6 @@ public class EnableUserUseCase {
     writeLog.record(
         new WriteOperationEvent(
             command.operator(),
-            command.clientId(),
             Action.USER_ENABLE,
             "user",
             command.userId().toString(),

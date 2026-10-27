@@ -10,8 +10,8 @@ final class ProblemCatalog {
 
   static HttpStatus statusOf(ErrorCode code) {
     return switch (code) {
-      case INVALID_CREDENTIALS, SESSION_INVALID, CLIENT_UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED;
-      case CLIENT_FORBIDDEN -> HttpStatus.FORBIDDEN;
+      case INVALID_CREDENTIALS, SESSION_INVALID -> HttpStatus.UNAUTHORIZED;
+      case OPERATOR_FORBIDDEN -> HttpStatus.FORBIDDEN;
       case OPERATOR_REQUIRED, BAD_REQUEST -> HttpStatus.BAD_REQUEST;
       case THROTTLED -> HttpStatus.TOO_MANY_REQUESTS;
       case ACCOUNT_NAME_TAKEN,

@@ -54,7 +54,6 @@ public class TerminateSessionUseCase {
     writeLog.record(
         new WriteOperationEvent(
             command.operator(),
-            command.clientId(),
             Action.SESSION_TERMINATE,
             "session",
             command.target().toString(),

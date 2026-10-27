@@ -26,8 +26,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * T066：部署期命令在 {@code cli} profile 下端到端运行——只连 PostgreSQL（不启动 Web、不连 Redis、不需要 {@code UAM_CLIENTS}），
- * 先跑 Flyway，密码经标准输入，标准输出只给结果、日志写标准错误。
+ * T066：部署期命令在 {@code cli} profile 下端到端运行——只连 PostgreSQL（不启动 Web、不连 Redis）， 先跑
+ * Flyway，密码经标准输入，标准输出只给结果、日志写标准错误。
  */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.NONE,
@@ -92,8 +92,7 @@ class CliProfileIT {
 
   @Test
   void webOnlyBeansAreNotLoadedUnderTheCliProfile() {
-    for (String name :
-        new String[] {"authController", "clientAuthFilter", "clientRegistry", "loginUseCase"}) {
+    for (String name : new String[] {"authController", "loginUseCase"}) {
       assertThat(context.containsBean(name)).as(name).isFalse();
     }
     org.junit.jupiter.api.Assertions.assertThrows(

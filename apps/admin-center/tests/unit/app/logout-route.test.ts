@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import * as route from "@/app/logout/route";
 import { POST } from "@/app/logout/route";
-import { createUamStub, problemBody, UAM_STUB_BASE_URL, UAM_STUB_SERVICE_KEY } from "../../support/uam-stub";
+import { createUamStub, UAM_STUB_BASE_URL } from "../../support/uam-stub";
 
 jest.mock("next/headers", () => ({ headers: jest.fn().mockRejectedValue(new Error("outside")), cookies: jest.fn() }));
 
@@ -43,7 +43,6 @@ beforeAll(() => stub.listen());
 afterAll(() => stub.close());
 beforeEach(() => {
   process.env.UAM_BASE_URL = UAM_STUB_BASE_URL;
-  process.env.UAM_SERVICE_KEY = UAM_STUB_SERVICE_KEY;
   process.env.UAM_TIMEOUT_MS = "1500";
   process.env.SESSION_COOKIE_NAME = "asid";
   setCookie(SESSION_ID);
@@ -65,7 +64,7 @@ describe("POST /logout", () => {
 
     expect(stub.calls).toHaveLength(1);
     expect(stub.calls[0].body).toEqual({ sessionId: SESSION_ID });
-    expect(stub.calls[0].headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(stub.calls[0].headers.get("authorization")).toBeNull();
     expect(res.status).toBe(303);
     // 相对地址：容器内 request.url 的主机可能是 0.0.0.0，不能拿它拼绝对地址
     expect(res.headers.get("location")).toBe("/login");
@@ -84,7 +83,6 @@ describe("POST /logout", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     const logged = JSON.stringify(warn.mock.calls);
     expect(logged).not.toContain(SESSION_ID);
-    expect(logged).not.toContain(UAM_STUB_SERVICE_KEY);
   });
 
   it("UAM 连接失败 / 超时：同样清 cookie 回 /login", async () => {
@@ -93,15 +91,6 @@ describe("POST /logout", () => {
     expect(res.status).toBe(303);
     expectCookieCleared(res);
     expect(warn).toHaveBeenCalledTimes(1);
-  });
-
-  it("UAM 拒绝了 Admin Center（服务密钥 / 权限配置错误）：仍清 cookie 回 /login，并写运维告警", async () => {
-    stub.respond("logout", { status: 403, body: problemBody(403, "client_forbidden") });
-    const res = await call();
-    expect(res.status).toBe(303);
-    expectCookieCleared(res);
-    expect(error).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(error.mock.calls)).not.toContain(SESSION_ID);
   });
 
   it("本来就没有 cookie：不调 UAM，直接回 /login", async () => {
@@ -134,7 +123,7 @@ describe("POST /logout", () => {
   });
 
   it("非 UAM 错误是程序问题（如配置缺失）：不吞掉", async () => {
-    delete process.env.UAM_SERVICE_KEY;
+    delete process.env.UAM_BASE_URL;
     await expect(call()).rejects.toThrow();
   });
 

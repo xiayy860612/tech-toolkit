@@ -10,7 +10,6 @@ import {
   FIXTURE_IDS,
   problemBody,
   UAM_STUB_BASE_URL,
-  UAM_STUB_SERVICE_KEY,
   verifyResponseBody,
 } from "../../support/uam-stub";
 import { makeDetail, USER_IDS } from "../../support/users-fixtures";
@@ -44,7 +43,6 @@ beforeAll(() => stub.listen());
 afterAll(() => stub.close());
 beforeEach(() => {
   process.env.UAM_BASE_URL = UAM_STUB_BASE_URL;
-  process.env.UAM_SERVICE_KEY = UAM_STUB_SERVICE_KEY;
   requestHeaders();
   jest.mocked(getSession).mockResolvedValue({ status: "authenticated", session: verifyResponseBody() as never });
   logs.push(
@@ -53,8 +51,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   expect(stub.violations).toEqual([]);
-  const logged = JSON.stringify(logs.flatMap((l) => l.mock.calls));
-  expect(logged).not.toContain(UAM_STUB_SERVICE_KEY);
   logs.splice(0).forEach((l) => l.mockRestore());
   stub.reset();
   jest.clearAllMocks();
@@ -116,7 +112,7 @@ describe("disableUser 动作：成功与 UAM 的结论", () => {
     expect(call.operationId).toBe("disableUser");
     expect(call.method).toBe("POST");
     expect(call.path).toBe(`/v1/users/${TARGET}/disable`);
-    expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(call.headers.get("authorization")).toBeNull();
     expect(call.headers.get("x-operator-user-id")).toBe(FIXTURE_IDS.userId);
     expect(call.headers.get("x-operator-account-id")).toBe(FIXTURE_IDS.accountId);
     expect(call.headers.get("x-operator-session-ref")).toBe(FIXTURE_IDS.sessionRef);
@@ -152,12 +148,6 @@ describe("disableUser 动作：成功与 UAM 的结论", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("UAM 拒绝了 Admin Center（服务密钥错误）：对用户只显示「操作未生效」，运维告警一条（不含秘密）", async () => {
-    stub.respond("disableUser", { status: 403, body: problemBody(403, "client_forbidden") });
-    expect(await disableUser(TARGET)).toEqual({ ok: false, message: "操作未生效" });
-    expect(console.error).toHaveBeenCalledTimes(1);
-  });
-
   it("其它业务问题码（operator_required、bad_request 或未知）：「操作未生效」，不刷新", async () => {
     for (const code of ["operator_required", "bad_request", "brand_new_code"]) {
       stub.respond("disableUser", { status: 400, body: problemBody(400, code) });
@@ -189,11 +179,5 @@ describe("enableUser 动作：成功与 UAM 的结论", () => {
     stub.respond("enableUser", { networkError: true });
     expect(await enableUser(TARGET)).toEqual({ ok: false, message: "操作未生效" });
     expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("UAM 拒绝了 Admin Center：「操作未生效」，运维告警一条", async () => {
-    stub.respond("enableUser", { status: 401, body: problemBody(401, "client_unauthenticated") });
-    expect(await enableUser(TARGET)).toEqual({ ok: false, message: "操作未生效" });
-    expect(console.error).toHaveBeenCalledTimes(1);
   });
 });

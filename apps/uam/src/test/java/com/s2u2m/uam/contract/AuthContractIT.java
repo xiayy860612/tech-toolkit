@@ -34,7 +34,7 @@ class AuthContractIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     alice = provisioning.createUserWithAccount("爱丽丝", "Alice", PASSWORD);
   }
 
@@ -193,15 +193,6 @@ class AuthContractIT extends IntegrationTestBase {
     assertProblem(api.verify(" "), 401, "session_invalid");
     assertProblem(api.verify("x".repeat(500)), 401, "session_invalid");
     assertProblem(api.postJson("/v1/auth/sessions/verify", Map.of()), 401, "session_invalid");
-  }
-
-  @Test
-  void authEndpointsNeedNoOperatorHeadersButNeedTheServiceKey() {
-    assertThat(login("alice", PASSWORD, "203.0.113.7").status()).isEqualTo(200);
-
-    ApiClient anonymous = new ApiClient(port, null);
-    assertProblem(anonymous.login("alice", PASSWORD, "203.0.113.7"), 401, "client_unauthenticated");
-    assertProblem(anonymous.verify("A".repeat(43)), 401, "client_unauthenticated");
   }
 
   @Test

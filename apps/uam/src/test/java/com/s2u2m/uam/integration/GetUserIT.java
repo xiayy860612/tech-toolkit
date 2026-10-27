@@ -30,7 +30,7 @@ class GetUserIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     data = new UserFixtures(jdbc);
   }
 
@@ -149,12 +149,9 @@ class GetUserIT extends IntegrationTestBase {
   }
 
   @Test
-  void operatorHeadersAreOptionalAndAServiceKeyIsRequired() {
+  void operatorHeadersAreOptional() {
     UUID user = data.user("读操作", "ACTIVE", BASE);
 
     assertThat(get(user).status()).isEqualTo(200);
-    Response anonymous = new ApiClient(port, null).get("/v1/users/" + user);
-    assertThat(anonymous.status()).isEqualTo(401);
-    assertThat(anonymous.json().get("code").asString()).isEqualTo("client_unauthenticated");
   }
 }

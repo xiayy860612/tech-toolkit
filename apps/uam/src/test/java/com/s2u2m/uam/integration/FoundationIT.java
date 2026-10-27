@@ -24,7 +24,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.core.env.Environment;
 
-/** T022 / T025 / T028 的装配验证：服务密钥过滤器已生效、就绪探针依赖 PostgreSQL 与 Redis、WAIT 辅助方法可用。 */
+/** T022 / T025 / T028 的装配验证：路由与错误体、就绪探针依赖 PostgreSQL 与 Redis、WAIT 辅助方法可用。 */
 @ExtendWith(OutputCaptureExtension.class)
 class FoundationIT extends IntegrationTestBase {
 
@@ -47,19 +47,8 @@ class FoundationIT extends IntegrationTestBase {
   }
 
   @Test
-  void requestsWithoutTheServiceKeyAreRejectedAsProblemJson() throws Exception {
-    HttpResponse<String> response = get("/v1/users", null);
-
-    assertThat(response.statusCode()).isEqualTo(401);
-    assertThat(response.headers().firstValue("Content-Type").orElse(""))
-        .startsWith("application/problem+json");
-    assertThat(response.body()).contains("\"code\":\"client_unauthenticated\"");
-    assertThat(response.headers().firstValue("traceparent")).isPresent();
-  }
-
-  @Test
-  void requestsWithAValidKeyReachTheDispatcher() throws Exception {
-    HttpResponse<String> response = get("/v1/does-not-exist", "Bearer " + TEST_SERVICE_KEY);
+  void unknownRoutesAreProblemJsonWithoutAnyAuthorization() throws Exception {
+    HttpResponse<String> response = get("/v1/does-not-exist", null);
 
     assertThat(response.statusCode()).isEqualTo(404);
     assertThat(response.headers().firstValue("Content-Type").orElse(""))
@@ -67,7 +56,7 @@ class FoundationIT extends IntegrationTestBase {
   }
 
   @Test
-  void readinessProbeIsUpAndNeedsNoServiceKey() throws Exception {
+  void readinessProbeIsUp() throws Exception {
     HttpResponse<String> response = get("/actuator/health/readiness", null);
 
     assertThat(response.statusCode()).isEqualTo(200);
@@ -105,7 +94,6 @@ class FoundationIT extends IntegrationTestBase {
       writeLog.record(
           new WriteOperationEvent(
               new OperatorContext(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID()),
-              "admin-center",
               Action.USER_DISABLE,
               "user",
               "target-1",
@@ -126,7 +114,7 @@ class FoundationIT extends IntegrationTestBase {
         .contains("\"traceId\":\"4bf92f3577b34da6a3ce929d0e0e4736\"")
         .contains("\"action\":\"user.disable\"")
         .contains("\"outcome\":\"rejected\"")
-        .contains("\"clientId\":\"admin-center\"")
+        .doesNotContain("\"clientId\"")
         .doesNotContain("Sup3rSecret");
   }
 }

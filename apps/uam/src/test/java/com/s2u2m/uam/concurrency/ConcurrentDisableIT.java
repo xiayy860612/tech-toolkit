@@ -38,7 +38,7 @@ class ConcurrentDisableIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     data = new UserFixtures(jdbc);
   }
 

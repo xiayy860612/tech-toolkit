@@ -12,7 +12,7 @@ import { isSafeNextPath } from "./next-path";
  * - `authenticated`：`verify` 返回 200；
  * - `anonymous`：没有 cookie，或 UAM 明确 401 `session_invalid`（`hadCookie` 表示带过 cookie，需要经 `/session/expire` 清掉；
  *   `reason: "terminated"` 表示该会话刚被管理员强制下线——UAM 只在这一种情形下给出，登录页据此显示专门的提示）；
- * - `unverified`：UAM 超时、5xx、连接失败，或拒绝了 Admin Center 本身（服务密钥配置错误）——保留 cookie，提示服务暂不可用。
+ * - `unverified`：UAM 超时、5xx、连接失败，或 UAM 给出了其它非会话结论——保留 cookie，提示服务暂不可用。
  *
  * 会话数据只存在于单次请求的服务端内存：不写 cookie、不传给浏览器端组件、不进日志。
  */

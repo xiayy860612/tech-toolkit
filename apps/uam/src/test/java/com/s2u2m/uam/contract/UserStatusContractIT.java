@@ -32,7 +32,7 @@ class UserStatusContractIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     data = new UserFixtures(jdbc);
     operatorUser = data.user("运维甲");
     target = data.user("张三");
@@ -129,14 +129,5 @@ class UserStatusContractIT extends IntegrationTestBase {
         post("disable", operatorUser, headers(UUID.randomUUID())),
         409,
         "cannot_disable_last_active_user");
-  }
-
-  @Test
-  void aMissingServiceKeyIs401() {
-    assertProblem(
-        new ApiClient(port, null)
-            .postJson("/v1/users/" + target + "/disable", Map.of(), headers(operatorUser)),
-        401,
-        "client_unauthenticated");
   }
 }

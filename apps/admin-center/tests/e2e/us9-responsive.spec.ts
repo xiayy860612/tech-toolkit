@@ -18,7 +18,7 @@ import {
 
 /**
  * US9：Admin Center 在桌面、平板、手机上自适应（quickstart S12；FR-035；SC-008）。
- * 前提：栈已按 infra/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。
+ * 前提：栈已按 devops/local/scripts/bootstrap.sh 起好，且已 init-admin（见 support/fixtures.ts）。
  * 本规格在 playwright.config.ts 的六个视口 project（320 / 375 / 768 / 1024 / 1440 / 2560）上各跑一遍。
  *
  * 完整旅程：登录 → 用户列表 → 新建 → 详情 → 停用 → 会话 → 强制下线 → 修改密码 → 退出。

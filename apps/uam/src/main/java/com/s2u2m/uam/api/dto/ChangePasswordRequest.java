@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 /**
  * {@code POST /v1/accounts/{accountId}/password} 的请求体（契约 {@code
  * ChangePasswordRequest}）。新密码的规则（含必填）由用例按密码强度策略校验并给出 422 {@code weak_password}；{@code clientIp}
- * 由被授予断言权限的客户端提供。
+ * 由调用方提供。
  */
 public record ChangePasswordRequest(
     @NotEmpty @Size(max = 256) String currentPassword,

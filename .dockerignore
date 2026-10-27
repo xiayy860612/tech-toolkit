@@ -1,7 +1,7 @@
 # 根 .dockerignore：compose 的构建上下文是仓库根目录（context: ../..），
 # Docker 只读取上下文根下的 .dockerignore，各 apps/*/.dockerignore 不会生效，故统一在此维护。
 # 两个 Dockerfile 只 COPY：apps/uam/pom.xml、apps/uam/src、apps/admin-center/**（含 package*.json）；
-# contracts/（类型已提交入库）、docs、specs、infra 构建期均不需要。
+# contracts/（类型已提交入库）、docs、specs、devops 构建期均不需要。
 
 # 版本控制与工具链
 .git
@@ -28,7 +28,7 @@
 # 仓库内与镜像构建无关的目录
 docs
 specs
-infra
+devops
 contracts
 
 # IDE / OS / 日志

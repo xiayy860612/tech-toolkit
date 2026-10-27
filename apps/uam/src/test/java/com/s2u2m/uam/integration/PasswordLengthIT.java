@@ -23,7 +23,7 @@ class PasswordLengthIT extends IntegrationTestBase {
     String widest = "😀".repeat(PasswordPolicy.MAX_LENGTH - 2) + "a1";
     provisioning.createUserWithAccount("长密码", "long-password", widest);
 
-    ApiClient api = new ApiClient(port, TEST_SERVICE_KEY);
+    ApiClient api = new ApiClient(port);
 
     assertThat(api.login("long-password", widest, "203.0.113.7").status()).isEqualTo(200);
   }
