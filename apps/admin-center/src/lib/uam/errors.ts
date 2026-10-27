@@ -1,14 +1,11 @@
 import "server-only";
 
 /**
- * UAM 调用失败的三类：
+ * UAM 调用失败的两类：
  * - `problem`：UAM 明确给出业务结论（RFC 9457 problem，带稳定 `code`），界面据此显示文案；
  * - `unavailable`：超时、连接失败、5xx、响应无法理解——UAM 当前不可用；
- * - `misconfigured`：UAM 拒绝了 Admin Center 本身（401 `client_unauthenticated` / 403 `client_forbidden`，
- *   通常是服务密钥配置错误）。**不是**用户会话问题：不登出用户、不清 cookie，按「不可用」呈现；
- *   运维告警由 `uamRequest` 经 `lib/logging.ts` 统一写出（限流、不含机密）。
  */
-export type UamErrorKind = "problem" | "unavailable" | "misconfigured";
+export type UamErrorKind = "problem" | "unavailable";
 
 export interface FieldError {
   field: string;

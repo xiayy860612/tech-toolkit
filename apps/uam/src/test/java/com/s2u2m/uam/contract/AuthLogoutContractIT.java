@@ -33,7 +33,7 @@ class AuthLogoutContractIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     provisioning.createUserWithAccount("爱丽丝", "Alice", PASSWORD);
     provisioning.createUserWithAccount("鲍勃", "bob", PASSWORD);
   }
@@ -101,25 +101,5 @@ class AuthLogoutContractIT extends IntegrationTestBase {
 
     assertThat(api.verify(alice).status()).isEqualTo(401);
     assertThat(api.verify(bob).status()).isEqualTo(200);
-  }
-
-  @Test
-  void aMissingOrWrongServiceKeyIs401AndTheSessionSurvives() {
-    String sessionId = login("alice");
-
-    Response missing =
-        new ApiClient(port, null).postJson("/v1/auth/logout", Map.of("sessionId", sessionId));
-    Response wrong =
-        new ApiClient(port, "uamk_wrong_key")
-            .postJson("/v1/auth/logout", Map.of("sessionId", sessionId));
-
-    for (Response response : new Response[] {missing, wrong}) {
-      assertThat(response.status()).isEqualTo(401);
-      assertThat(response.contentType()).startsWith("application/problem+json");
-      JsonNode problem = response.json();
-      assertConforms("Problem", problem);
-      assertThat(problem.get("code").asString()).isEqualTo("client_unauthenticated");
-    }
-    assertThat(api.verify(sessionId).status()).isEqualTo(200);
   }
 }

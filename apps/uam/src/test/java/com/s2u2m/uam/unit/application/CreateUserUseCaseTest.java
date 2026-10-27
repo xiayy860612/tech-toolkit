@@ -44,7 +44,6 @@ class CreateUserUseCaseTest {
 
   private static final Instant T0 = Instant.parse("2026-10-24T08:00:00Z");
   private static final String PASSWORD = "Passw0rd-fake-1";
-  private static final String CLIENT = "admin-center";
   private static final String KEY = "0123456789abcdef-key";
 
   private final JsonMapper json = JsonMapper.builder().build();
@@ -84,7 +83,7 @@ class CreateUserUseCaseTest {
   }
 
   private CreateUserCommand command(String key, String userName, String accountName, String pwd) {
-    return new CreateUserCommand(operator, CLIENT, key, userName, accountName, pwd);
+    return new CreateUserCommand(operator, key, userName, accountName, pwd);
   }
 
   private CreateUserCommand command() {
@@ -128,7 +127,6 @@ class CreateUserUseCaseTest {
     assertThat(event.action()).isEqualTo(Action.USER_CREATE);
     assertThat(event.outcome()).isEqualTo(Outcome.SUCCESS);
     assertThat(event.operator()).isEqualTo(operator);
-    assertThat(event.clientId()).isEqualTo(CLIENT);
     assertThat(event.targetType()).isEqualTo("user");
     assertThat(event.targetId()).isEqualTo(result.user().id().toString());
     assertThat(event.reason()).isNull();
@@ -139,7 +137,7 @@ class CreateUserUseCaseTest {
     useCase.create(command());
 
     assertThat(store.completed).hasSize(1);
-    String snapshot = store.snapshotOf(CLIENT, KEY);
+    String snapshot = store.snapshotOf(KEY);
     assertThat(snapshot).contains("Zhang.San").doesNotContain(PASSWORD).doesNotContain("fake$");
     assertThat(writeLog.events.toString()).doesNotContain(PASSWORD).doesNotContain("fake$");
   }
@@ -227,7 +225,7 @@ class CreateUserUseCaseTest {
   void aRejectedAttemptDoesNotBurnTheKeySoACorrectedRetryWithTheSameKeySucceeds() {
     failure(command(KEY, "张三", "zhangsan", "short"));
     assertThat(store.released).hasSize(1);
-    assertThat(store.holds(CLIENT, KEY)).isFalse();
+    assertThat(store.holds(KEY)).isFalse();
 
     GetUserUseCase.Result result = useCase.create(command(KEY, "张三", "zhangsan", PASSWORD));
 
@@ -270,7 +268,7 @@ class CreateUserUseCaseTest {
     WriteOperationEvent event = onlyEvent();
     assertThat(event.outcome()).isEqualTo(Outcome.FAILED);
     assertThat(event.reason()).isEqualTo("internal_error");
-    assertThat(store.holds(CLIENT, KEY)).isFalse();
+    assertThat(store.holds(KEY)).isFalse();
     assertThat(users.byId).isEmpty();
     assertThat(accounts.byId).isEmpty();
   }
@@ -278,7 +276,7 @@ class CreateUserUseCaseTest {
   /** 完成快照时总是失败的幂等存储。 */
   private static final class CompleteFailingStore extends FakeIdempotencyStore {
     @Override
-    public void complete(String scope, String key, String fingerprint, String response) {
+    public void complete(String key, String fingerprint, String response) {
       throw new IllegalStateException("模拟 Redis 在提交后不可用");
     }
   }
@@ -301,7 +299,7 @@ class CreateUserUseCaseTest {
     assertThat(result.user().name()).isEqualTo("张三");
     assertThat(users.byId).hasSize(1);
     assertThat(failing.released).as("提交之后不能释放占位").isEmpty();
-    assertThat(failing.holds(CLIENT, KEY)).as("进行中标记留给 TTL 过期").isTrue();
+    assertThat(failing.holds(KEY)).as("进行中标记留给 TTL 过期").isTrue();
     WriteOperationEvent event = onlyEvent();
     assertThat(event.outcome()).isEqualTo(Outcome.SUCCESS);
     assertThat(event.targetId()).isEqualTo(result.user().id().toString());
@@ -348,7 +346,7 @@ class CreateUserUseCaseTest {
   @Test
   void aDuplicateWhileTheFirstIsInFlightWaitsAndReturnsTheFirstResult() {
     String fingerprint = CreateUserUseCase.fingerprint("张三", "Zhang.San");
-    store.claim(CLIENT, KEY, fingerprint); // 另一个请求已占位、尚未完成
+    store.claim(KEY, fingerprint); // 另一个请求已占位、尚未完成
     GetUserUseCase.Result[] original = new GetUserUseCase.Result[1];
     store.onInFlight =
         count -> {
@@ -357,7 +355,7 @@ class CreateUserUseCaseTest {
             CreateUserUseCase owner =
                 new CreateUserUseCase(provisioning, getUser, ownerStore, writeLog, json);
             original[0] = owner.create(command());
-            store.complete(CLIENT, KEY, fingerprint, ownerStore.snapshotOf(CLIENT, KEY));
+            store.complete(KEY, fingerprint, ownerStore.snapshotOf(KEY));
           }
         };
 
@@ -371,8 +369,8 @@ class CreateUserUseCaseTest {
 
   @Test
   void ifTheFirstRequestFailsAndReleasesTheKeyTheWaitingDuplicateTakesOver() {
-    store.claim(CLIENT, KEY, CreateUserUseCase.fingerprint("张三", "Zhang.San"));
-    store.onInFlight = count -> store.release(CLIENT, KEY);
+    store.claim(KEY, CreateUserUseCase.fingerprint("张三", "Zhang.San"));
+    store.onInFlight = count -> store.release(KEY);
 
     GetUserUseCase.Result result = useCase.create(command());
 
@@ -383,7 +381,7 @@ class CreateUserUseCaseTest {
 
   @Test
   void aDuplicateThatWaitsTooLongGetsIdempotencyInProgressAndCreatesNothing() {
-    store.claim(CLIENT, KEY, CreateUserUseCase.fingerprint("张三", "Zhang.San"));
+    store.claim(KEY, CreateUserUseCase.fingerprint("张三", "Zhang.San"));
     useCase = useCase(Duration.ofMillis(40));
 
     DomainException error = failure(command());
@@ -398,7 +396,7 @@ class CreateUserUseCaseTest {
 
   @Test
   void anInFlightRequestWithADifferentFingerprintIsRejectedWithoutWaiting() {
-    store.claim(CLIENT, KEY, CreateUserUseCase.fingerprint("李四", "lisi.account"));
+    store.claim(KEY, CreateUserUseCase.fingerprint("李四", "lisi.account"));
 
     DomainException error = failure(command());
 

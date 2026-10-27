@@ -55,7 +55,7 @@ class ChangePasswordIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     UserFixtures data = new UserFixtures(jdbc);
     userId = data.user("运维甲");
     accountId = data.account(userId, "ops");
@@ -248,7 +248,7 @@ class ChangePasswordIT extends IntegrationTestBase {
             operator(accountId));
 
     assertThat(response.status()).isEqualTo(403);
-    assertThat(response.json().get("code").asString()).isEqualTo("client_forbidden");
+    assertThat(response.json().get("code").asString()).isEqualTo("operator_forbidden");
     assertThat(api.login("ops-2", CURRENT, IP).status()).isEqualTo(200);
     assertThat(redis.keys("uam:throttle:pwchg:*")).isEmpty();
   }
@@ -288,7 +288,7 @@ class ChangePasswordIT extends IntegrationTestBase {
       assertThat(field(event, "targetId")).isEqualTo(accountId.toString());
       assertThat(field(event, "operatorUserId")).isEqualTo(userId.toString());
       assertThat(field(event, "operatorAccountId")).isEqualTo(accountId.toString());
-      assertThat(field(event, "clientId")).isEqualTo("admin-center");
+      assertThat(field(event, "clientId")).isNull();
     }
     String everything =
         List.copyOf(logs.list).stream()

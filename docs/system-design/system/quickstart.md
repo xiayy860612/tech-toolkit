@@ -10,7 +10,7 @@
 
 - JDK 21、Maven、Node.js LTS、Docker（含 Compose）。
 - 已有 PostgreSQL 16 与 Redis 7（本地用 `devops/local` 的 Compose 启动）。
-- **网络边界**：UAM 只对 Admin Center 实例开放（网络边界，与服务密钥一起构成两层保护）；本地 Compose 里 UAM 不映射到宿主机端口，只在内部网络上被 Admin Center 访问。
+- **网络边界**：UAM 只对 Admin Center 实例开放（网络边界，**目前是唯一的保护**，服务密钥已移除）；本地 Compose 里 UAM 不映射到宿主机端口，只在内部网络上被 Admin Center 访问。
 - 本机 `/etc/hosts` 或测试环境提供 HTTPS 入口（`__Host-` 前缀的 cookie 要求 HTTPS；开发环境可用 `SESSION_COOKIE_NAME=asid` 去掉前缀）。
 
 ## 启动（目标形态）
@@ -18,11 +18,6 @@
 ```bash
 # 1. 依赖：PostgreSQL、Redis
 docker compose -f devops/local/docker-compose.yml --env-file devops/local/.env up -d
-
-# 1b. 生成 Admin Center 的服务密钥（密钥只输出一次）
-java -jar apps/uam/target/uam.jar generate-service-key --client admin-center
-#   → 标准输出：服务密钥，存入 Admin Center 的密钥存储（UAM_SERVICE_KEY）
-#   → 标准错误：对应的 sha256 哈希与 UAM_CLIENTS 配置片段，写进 UAM 的配置
 
 # 2. UAM：首次部署的一次性初始化（不是运维入口）。密码只经标准输入
 printf '%s\n' "$INITIAL_PASSWORD" | java -jar apps/uam/target/uam.jar init-admin --account-name admin --user-name "系统管理员"
@@ -37,12 +32,11 @@ Admin Center 的环境变量（示例占位，真实值只经部署环境注入�
 | 变量 | 说明 | 默认 |
 |---|---|---|
 | `UAM_BASE_URL` | UAM 地址 | 必填 |
-| `UAM_SERVICE_KEY` | Admin Center 调用 UAM 的服务密钥（`generate-service-key` 生成，仅输出一次） | 必填，缺失则启动失败 |
 | `UAM_TIMEOUT_MS` | 调用 UAM 的超时 | `1500` |
 | `SESSION_COOKIE_NAME` | 会话 cookie 名 | `__Host-asid` |
 | `TRUSTED_PROXY_HOPS` | 取客户端地址时信任的代理跳数 | 部署相关 |
 
-UAM 的关键配置（`UAM_CLIENTS` 必填：客户端名称、至多两个密钥哈希、权限；其余均有默认值，可调）：会话空闲 30 分钟 / 绝对 12 小时、登录失败 5 次 / 15 分钟、密码最短 10 位且含字母与数字。
+UAM 的关键配置（均有默认值，可调；没有客户端清单 / 服务密钥配置）：会话空闲 30 分钟 / 绝对 12 小时、登录失败 5 次 / 15 分钟、密码最短 10 位且含字母与数字。
 
 ## 验证场景
 
@@ -69,10 +63,10 @@ printf '%s\n' "$SECOND_PASSWORD" | java -jar apps/uam/target/uam.jar add-account
 | S13 | 无会话粘滞与多实例一致 | 起 3 个 Admin Center + 3 个 UAM（`docker-compose.scale.yml`，nginx 轮询），登录一次后让请求分到各实例；经一个实例新建用户、强制下线 | 全部实例都识别为已登录；其他实例立即看到新用户；被强制下线的会话在任一实例的下一次请求都被视为未登录 | US10、FR-037 ~ FR-040、SC-010、SC-013 |
 | S14 | 滚动重启 | 在持续访问下依次重启全部实例（`devops/local/scripts/rolling-restart.sh`） | 0 个用户被意外登出；重启结束后原会话仍有效 | FR-039、SC-012 |
 | S15 | 规模与吞吐 | k6：10 万用户、1 万有效会话下压测列表与详情；实例数 1 → 4 对比吞吐 | 列表与详情 95% ≤ 2 秒；4 实例吞吐 ≥ 单实例 3.2 倍 | SC-009、SC-011 |
-| S16 | UAM 直连：服务密钥、权限与操作人 | 直接调 UAM：不带密钥、错密钥、已撤销的旧密钥各调一个读接口和一个写接口；用没有断言权限的密钥调登录与写接口、再调只读接口；用有权限的密钥调写接口但不带操作人请求头；强制下线时把目标会话引用同时填作操作人会话引用；停用时把目标用户填作操作人用户；从非 Admin Center 的主机连接 UAM | 无 / 错 / 已撤销密钥 → 401 `client_unauthenticated`（响应不透露哪里不对）；无断言权限 → 登录与写接口 403 `client_forbidden`、只读接口可用；缺少操作人请求头的写请求 → 400 `operator_required`；目标等于操作人会话引用 → 409 `cannot_terminate_own_session`；目标等于操作人用户 → 409 `cannot_disable_self`；非 Admin Center 的主机连不上 UAM（网络边界） | FR-008、FR-042、FR-043、research R4、R5 |
-| S17 | 安全与日志抽查 | 扫描页面、响应体、浏览器包、UAM 与 Admin Center 日志；从另一个站点伪造新建 / 停用 / 强制下线请求；检查写操作日志 | 没有明文密码（含新建与修改密码时的）、哈希、会话标识、服务密钥；伪造请求 100% 被拒；每次写操作（含被拒绝的）都有一条含操作人、对象、动作、时间、结果的日志，且不含敏感信息 | FR-031、FR-033、FR-034、SC-014 |
+| S16 | UAM 直连：操作人与网络边界 | 直接调 UAM（不带任何 `Authorization`）：调一个读接口和一个写接口；写接口不带操作人请求头；强制下线时把目标会话引用同时填作操作人会话引用；停用时把目标用户填作操作人用户；改密时路径账号不是操作人自己的账号；从非 Admin Center 的主机连接 UAM | 不带 `Authorization` 的读写调用都被正常处理（UAM 不认证调用方）；缺少操作人请求头的写请求 → 400 `operator_required`；目标等于操作人会话引用 → 409 `cannot_terminate_own_session`；目标等于操作人用户 → 409 `cannot_disable_self`；改他人账号密码 → 403 `operator_forbidden`（提议名，待用户确认）；非 Admin Center 的主机连不上 UAM（网络边界，部署验证） | FR-008、research R4、R5 |
+| S17 | 安全与日志抽查 | 扫描页面、响应体、浏览器包、UAM 与 Admin Center 日志；从另一个站点伪造新建 / 停用 / 强制下线请求；检查写操作日志 | 没有明文密码（含新建与修改密码时的）、哈希、会话标识；伪造请求 100% 被拒；每次写操作（含被拒绝的）都有一条含操作人、对象、动作、时间、结果的日志，且不含敏感信息 | FR-031、FR-033、FR-034、SC-014 |
 | S18 | **评审界面设计原型（现在可做）** | 打开 [prototype/index.html](../admin-center/prototype/index.html)，逐个场景与视口点一遍 | 覆盖 FR-041 列出的全部页面与状态，且没有范围外的入口；经你确认后才开始界面实现 | US11、FR-041、SC-015 |
-| S19 | 服务密钥轮换与配置错误 | ① 给 `admin-center` 加第二个哈希并滚动发布 UAM，再让 Admin Center 换新密钥，最后删旧哈希；全程持续访问。② 把 Admin Center 的密钥故意配错，刷新已登录页面，再改回 | ① 全程 0 个用户被登出、0 个请求因密钥失败；删旧哈希后旧密钥 → 401；② 用户不被登出、cookie 不清除，页面提示服务暂不可用，UAM 与 Admin Center 日志有告警（不含密钥）；改回后无需重新登录 | US12、FR-044、SC-016 |
+| S19 | ~~服务密钥轮换与配置错误~~ | **已移除**（服务密钥与 clients 功能已删除，服务身份后续另行实现） | — | ~~US12、FR-044、SC-016~~（占位） |
 
 ## 自动化对应
 

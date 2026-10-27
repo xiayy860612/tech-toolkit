@@ -40,11 +40,9 @@ public class AccountsController {
       @Valid @RequestBody ChangePasswordRequest request,
       HttpServletRequest http) {
     var operator = operators.resolve(http).orElseThrow();
-    var clientId = (String) http.getAttribute(ClientAuthFilter.CLIENT_ID_ATTRIBUTE);
     changePassword.change(
         new ChangePasswordCommand(
             operator,
-            clientId,
             accountId,
             request.clientIp(),
             request.currentPassword(),

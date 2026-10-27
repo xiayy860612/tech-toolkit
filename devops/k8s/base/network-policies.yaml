@@ -1,4 +1,5 @@
-# 入站默认拒绝，再放行 Admin Center → UAM。入口 → Admin Center 由 components/ingress 或 components/local-edge 放行，
+# 入站默认拒绝，再放行 Admin Center → UAM。UAM 不认证调用方，这条策略是它**唯一**的保护（服务身份后续另行实现），
+# 所以必须有支持 NetworkPolicy 的 CNI；不支持时 UAM 对集群内所有 Pod 敞开。入口 → Admin Center 由 components/ingress 或 components/local-edge 放行，
 # UAM → 数据层由 components/in-cluster-data 放行（托管数据库在集群外，不受入站策略管）。
 # 只限制入站；出站不限制（Pod 需要 DNS、访问托管数据库等）。NetworkPolicy 需要 CNI 支持（Calico、Cilium、云厂商的策略插件等），
 # 不支持的集群里这些对象不生效，但也无害。

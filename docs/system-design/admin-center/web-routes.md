@@ -51,7 +51,7 @@ Admin Center 是接入层 Web Server（Next.js SSR）：浏览器对它的访问
 |---|---|---|
 | `authenticated` | `verify` 返回 200 | 正常渲染，顶栏显示用户名 |
 | `anonymous` | 无 cookie，或 `verify` 返回 401 `session_invalid` | 受保护页面 → `/login`；若带过 cookie 则经 `/session/expire` 清除，并在登录页提示「会话已结束，请重新登录」；若该 401 带 `reason: terminated`（管理员强制下线后 10 分钟内），改提示「你的会话已被管理员强制下线」 |
-| `unverified` | `verify` 超时（默认 1.5 秒）、5xx、连接失败，或 UAM 返回 401 `client_unauthenticated` / 403 `client_forbidden`（服务密钥配置错误） | 受保护页面显示「服务暂不可用，请稍后重试」，**保留 cookie** |
+| `unverified` | `verify` 超时（默认 1.5 秒）、5xx、连接失败 | 受保护页面显示「服务暂不可用，请稍后重试」，**保留 cookie** |
 
 ## 4. 写操作（Server Actions / POST）
 
@@ -76,6 +76,7 @@ Admin Center 是接入层 Web Server（Next.js SSR）：浏览器对它的访问
 | `account_name_taken` | 新建用户 | 账号名已被使用（字段旁，保留已填内容，不含密码） |
 | `validation_failed`（UAM 一律 422） | 新建用户 / 修改密码 | 按 `errors[].field` 与 `reason` 在字段旁给出明确原因 |
 | `bad_request`（UAM 400，请求无法解析） | 任意 | 按「服务暂不可用 / 操作未生效」处理（Admin Center 自己构造请求，出现即为缺陷；不显示字段错误） |
+| `operator_forbidden`（UAM 403，改密路径账号不是操作人自己的账号） | 修改密码 | 按「操作未生效」处理（Admin Center 只传操作人自己的账号，出现即为缺陷） |
 | `cannot_disable_self` | 停用 | 不能停用当前登录的用户（入口已禁用并说明，服务端同样拒绝） |
 | `cannot_disable_last_active_user` | 停用 | 不能停用最后一个正常用户（同上） |
 | `cannot_terminate_own_session` | 强制下线 | 这是你当前使用的会话，请改用「退出登录」 |
@@ -83,15 +84,13 @@ Admin Center 是接入层 Web Server（Next.js SSR）：浏览器对它的访问
 | `user_not_found` | 详情 / 会话 | 用户不存在 |
 | `current_password_incorrect` | 修改密码 | 当前密码不正确 |
 | `weak_password` / `same_as_current` | 修改密码 | 新密码不满足强度要求 / 不能与当前密码相同 |
-| `client_unauthenticated` / `client_forbidden` | 任意 | 读：服务暂不可用，请稍后重试；写：操作未生效；**不登出用户、不清 cookie**，并写运维告警日志（UAM 拒绝了 Admin Center，通常是服务密钥配置错误） |
 | 超时、5xx、连接失败 | 任意 | 读：服务暂不可用，请稍后重试；写：操作未生效 |
 
 ## 6. 响应头与浏览器侧安全
 
 - CSP（含 nonce）、`X-Content-Type-Options: nosniff`、`Referrer-Policy: same-origin`、`frame-ancestors 'none'`，由 middleware 设置；middleware **不发网络请求**。
-- Admin Center 对 UAM 的每个请求都带 `Authorization: Bearer <UAM_SERVICE_KEY>`；缺少该环境变量时服务启动失败。
 - 页面、响应与日志中不出现密码、密码哈希、会话标识；表单密码字段为 `type=password`、`autocomplete` 设为 `current-password` / `new-password`；失败回显时**不回填密码**。
-- 服务密钥（`UAM_SERVICE_KEY`）与任何与 UAM 通信相关的令牌**只在服务端**：`src/lib` 下的服务端模块一律 `import "server-only"`，由安全检查脚本核对浏览器包。
+- UAM 地址与任何与 UAM 通信相关的配置**只在服务端**：`src/lib` 下的服务端模块一律 `import "server-only"`，由安全检查脚本核对浏览器包。
 
 ## 7. 响应式契约（FR-035、FR-036）
 

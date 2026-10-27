@@ -29,7 +29,7 @@ class UsersWriteContractIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
   }
 
   private Map<String, String> headers(String key) {
@@ -140,13 +140,5 @@ class UsersWriteContractIT extends IntegrationTestBase {
         api.postJson("/v1/users", body("zhangsan", PASSWORD), headers(null)),
         422,
         "validation_failed");
-  }
-
-  @Test
-  void aMissingServiceKeyIs401() {
-    assertProblem(
-        new ApiClient(port, null).postJson("/v1/users", body("zhangsan", PASSWORD), headers(KEY)),
-        401,
-        "client_unauthenticated");
   }
 }

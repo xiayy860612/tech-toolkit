@@ -20,14 +20,13 @@ PlantUML 源文件与 SVG 在 [`diagrams/`](./diagrams/)；改图后重新渲染
 
 | 层 | 组件 | 职责 |
 |---|---|---|
-| api | `ClientAuthFilter` | 校验服务密钥与客户端权限（401 `client_unauthenticated` / 403 `client_forbidden`） |
 | api | `OperatorContextResolver` | 解析 `X-Operator-*`；写操作缺失 → 400 `operator_required` |
 | api | `ProblemAdvice` · `ProblemCatalog` | 统一 `problem+json` 错误体；**一个错误码对应一个状态码**：`validation_failed` 一律 422（含请求体 Bean Validation 失败，带 `errors[]`），无法解析 / 类型不符的请求 → 400 `bad_request`（不回显请求值），`operator_required` 仍为 400 |
 | api | `AuthController` · `UsersController` · `SessionsController` · `AccountsController` | 对应 OpenAPI 的四组接口，只做协议转换，不含业务规则 |
 | application | 认证 · 用户 · 会话 · 改密用例，以及 `AccountProvisioningService`（创建用户 / 追加账号，供「新建用户」用例与部署期命令共用） | 编排领域对象与端口；事务边界；写操作日志 |
 | domain | 领域模型与规则 | 见下面的「L3 领域模型」；纯 Java，不依赖框架 |
-| infrastructure | JDBC 仓储 · `RedisSessionStore` · `RedisGuards` · `PasswordHasher` · `ClientRegistry` · `WriteOperationLogger` | 端口的实现；`ClientRegistry` 只被 api 层的过滤器直接使用，不是领域端口 |
-| cli | 部署期命令 | `init-admin` · `add-account` · `generate-service-key`；复用用例，不是运维入口 |
+| infrastructure | JDBC 仓储 · `RedisSessionStore` · `RedisGuards` · `PasswordHasher` · `WriteOperationLogger` | 端口的实现 |
+| cli | 部署期命令 | `init-admin` · `add-account`；复用用例，不是运维入口 |
 
 **用例与端口**（端口定义在 domain，由 infrastructure 实现）：
 
@@ -57,15 +56,14 @@ PlantUML 源文件与 SVG 在 [`diagrams/`](./diagrams/)；改图后重新渲染
 | 凭据（Credential） | 密码账号的密码哈希（Argon2id）；明文永不落库、不进日志 |
 | 会话（Session） | 账号一次成功登录的登录态；**与账号一对一**；通过账号隶属于唯一的用户 |
 | 会话标识 / 会话引用 | 标识是机密（只在 cookie 里，Redis 只存哈希）；引用是非机密的 UUID，页面与接口只用它 |
-| 操作人（OperatorContext） | 发起操作的运维人员：用户、账号、会话引用；请求级，由客户端传入，UAM 信任 |
-| 客户端（Client） | 调用 UAM 的服务（**不是浏览器**），由服务密钥识别；有名称、至多两把密钥、权限；部署配置，不入库 |
+| 操作人（OperatorContext） | 发起操作的运维人员：用户、账号、会话引用；请求级，由调用方传入，UAM 信任 |
 | 在线用户 | 至少有一个未过期、未终止的会话的用户 |
 
 **聚合**：
 
 - **User 聚合（PostgreSQL）**：根是 `User`，内含 `Account`（0..*）与 `Credential`（每个密码账号一条）。一致性边界：新建用户时「用户 + 账号 + 凭据」在同一个事务里创建；停用 / 启用只改 `User`。
 - **Session 聚合（Redis）**：根是 `Session`，只以 `accountId` / `userId` 引用 User 聚合，不嵌入它。用户与会话之间没有外键，一致性靠用例保证（停用后终止会话、登录后复查用户状态）。
-- `OperatorContext` 与 `Client` 不是业务数据：`Client` 决定「谁能调」，`OperatorContext` 说明「代谁调」。
+- `OperatorContext` 不是业务数据，说明「代谁调」。UAM 目前不识别「谁在调」（无调用方认证，只靠网络隔离；服务身份后续实现）。
 
 **不变量**（每条都要有测试，并发规则要有确定性的并发测试）：
 
@@ -79,7 +77,7 @@ PlantUML 源文件与 SVG 在 [`diagrams/`](./diagrams/)；改图后重新渲染
 | 停用用户后其全部会话立即结束，且不会留下已停用用户的有效会话（含并发登录） | 停用用例（提交后终止会话）+ 登录用例（写会话后复查状态） | FR-016、FR-024 |
 | 新建用户：用户 + 账号 + 凭据同事务；同键重放返回原结果；并发抢同一账号名只有一个成功 | 创建用例 + `IdempotencyStore` + 唯一索引 | FR-021 ~ FR-023 |
 | 改密只改指定账号，需要当前密码，当前密码连续错误按来源地址限制 | `Credential.change` + 改密用例 + `PasswordChangeThrottle` | FR-026、FR-027 |
-| 机密会话标识只存哈希，对外只用会话引用；密码、哈希、服务密钥不进日志 | `RedisSessionStore` + 统一脱敏 | FR-031、FR-042 |
+| 机密会话标识只存哈希，对外只用会话引用；密码、哈希不进日志 | `RedisSessionStore` + 统一脱敏 | FR-031 |
 | 写操作必须带操作人，缺失即拒绝；每次写操作留一条日志 | `OperatorContextResolver` + `WriteOperationLog` | FR-008、FR-034 |
 
 **状态**：
@@ -99,11 +97,11 @@ PlantUML 源文件与 SVG 在 [`diagrams/`](./diagrams/)；改图后重新渲染
 ├── uam/                                  # Spring Boot 4 · 用户 / 账号 / 会话的权威服务
 │   ├── AGENTS.md  CLAUDE.md  pom.xml  .env.example
 │   ├── src/main/java/com/s2u2m/uam/
-│   │   ├── api/                          # REST 控制器、DTO、problem+json 映射、客户端认证过滤器（服务密钥，所有接口）、操作人请求头解析（资源接口）
+│   │   ├── api/                          # REST 控制器、DTO、problem+json 映射、操作人请求头解析（资源接口）
 │   │   ├── application/                  # 用例：Login、VerifySession、Logout、用户查询/新建/停用/启用、在线用户、会话终止、改密、AccountProvisioningService（创建用户 / 追加账号，被新建用例与 cli 共用）
 │   │   ├── domain/                       # User、Account、Credential、Session、策略（密码、账号名、限流）；仓储与会话存储接口
 │   │   ├── infrastructure/               # JDBC 仓储、Redis 会话存储与 Lua、Argon2id 编码器、写操作日志、脱敏
-│   │   └── cli/                          # init-admin、add-account、generate-service-key：部署期一次性命令（不是运维入口）
+│   │   └── cli/                          # init-admin、add-account：部署期一次性命令（不是运维入口）
 │   ├── src/main/resources/
 │   │   ├── application.yml
 │   │   ├── db/migration/                 # Flyway：V1 表结构与 pg_trgm 索引 …

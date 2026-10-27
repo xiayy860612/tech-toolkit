@@ -43,8 +43,7 @@ class ProblemAdviceTest {
       List.of(
           "invalid_credentials",
           "session_invalid",
-          "client_unauthenticated",
-          "client_forbidden",
+          "operator_forbidden",
           "operator_required",
           "bad_request",
           "throttled",
@@ -141,8 +140,7 @@ class ProblemAdviceTest {
     return Stream.of(
         Arguments.of("invalid_credentials", 401),
         Arguments.of("session_invalid", 401),
-        Arguments.of("client_unauthenticated", 401),
-        Arguments.of("client_forbidden", 403),
+        Arguments.of("operator_forbidden", 403),
         Arguments.of("operator_required", 400),
         Arguments.of("bad_request", 400),
         Arguments.of("throttled", 429),

@@ -42,7 +42,6 @@ import org.junit.jupiter.api.Test;
 class DisableEnableUserUseCaseTest {
 
   private static final Instant T0 = Instant.parse("2026-10-24T08:00:00Z");
-  private static final String CLIENT = "admin-center";
   private static final SessionPolicy POLICY =
       new SessionPolicy(Duration.ofMinutes(30), Duration.ofHours(12), Duration.ofSeconds(60));
 
@@ -115,7 +114,7 @@ class DisableEnableUserUseCaseTest {
   }
 
   private UserStatusCommand command(UUID userId) {
-    return new UserStatusCommand(operator, CLIENT, userId);
+    return new UserStatusCommand(operator, userId);
   }
 
   private DomainException rejection(Runnable action) {
@@ -252,7 +251,6 @@ class DisableEnableUserUseCaseTest {
     assertThat(event.action()).isEqualTo(Action.USER_DISABLE);
     assertThat(event.outcome()).isEqualTo(Outcome.SUCCESS);
     assertThat(event.operator()).isEqualTo(operator);
-    assertThat(event.clientId()).isEqualTo(CLIENT);
     assertThat(event.targetType()).isEqualTo("user");
     assertThat(event.targetId()).isEqualTo(target.id().toString());
     assertThat(event.reason()).isNull();
@@ -361,7 +359,6 @@ class DisableEnableUserUseCaseTest {
     assertThat(event.action()).isEqualTo(Action.USER_ENABLE);
     assertThat(event.outcome()).isEqualTo(Outcome.SUCCESS);
     assertThat(event.operator()).isEqualTo(operator);
-    assertThat(event.clientId()).isEqualTo(CLIENT);
     assertThat(event.targetType()).isEqualTo("user");
     assertThat(event.targetId()).isEqualTo(target.id().toString());
   }

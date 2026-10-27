@@ -30,11 +30,10 @@
 | 路由处理器 | `app/logout/route.ts`（仅 POST）、`app/session/expire/route.ts` | 退出；重新 `verify` 仍无效才清 cookie（页面渲染期间不能写 cookie，故单设此路由） |
 | `getSession` | `lib/session/get-session.ts` | 读 cookie → `verify`；三态 `authenticated` / `anonymous` / `unverified`；请求内 React `cache` 去重 |
 | `cookie` | `lib/session/cookie.ts` | 写 / 读 / 清会话 cookie |
-| `UamClient` | `lib/uam/client.ts`、`errors.ts` | **唯一**调用 UAM 的出口：服务密钥、`X-Operator-*`、超时（默认 1.5 秒）、透传请求自带的 `traceparent`；错误分类 `problem` / `unavailable` / `misconfigured`；`server-only` |
+| `UamClient` | `lib/uam/client.ts`、`errors.ts` | **唯一**调用 UAM 的出口：`X-Operator-*`、超时（默认 1.5 秒）、透传请求自带的 `traceparent`；错误分类 `problem` / `unavailable`；`server-only` |
 | `OriginCheck` | `lib/security/origin-check.ts` | 同源校验（CSRF） |
 | `ClientIp` | `lib/session/client-ip.ts` | 按 `TRUSTED_PROXY_HOPS` 取 `X-Forwarded-For` 右数第 N 项并校验为合法 IP |
-| 运维告警日志 | `lib/logging.ts` | `admin-center.uam.misconfigured` |
-| 配置与启动校验 | `lib/config.ts`、`instrumentation.ts` | zod 解析环境变量（运行期解析，不在构建期）；缺 `UAM_SERVICE_KEY` / `UAM_BASE_URL` 即启动失败 |
+| 配置与启动校验 | `lib/config.ts`、`instrumentation.ts` | zod 解析环境变量（运行期解析，不在构建期）；缺 `UAM_BASE_URL` 即启动失败 |
 | 表单校验 | `lib/validation/*`、`lib/session/next-path.ts` | 字段级校验；`next` 站内路径白名单 |
 
 `src/lib` 下的服务端模块一律 `import "server-only"`（纯函数 / 生成类型的例外见 `security-check.sh` 的允许名单）。
@@ -48,14 +47,13 @@
 | **cookie** | `__Host-asid`（开发可用 `SESSION_COOKIE_NAME=asid`）：`HttpOnly; Secure; SameSite=Strict; Path=/`，无 `Domain`；清除时用同样属性写立即过期的空值。本地 http 下 Safari 通常不接受 Secure cookie（用 HTTPS 入口或换浏览器）。 |
 | **同源校验（CSRF）** | 所有写入口第一步 `isSameOriginRequest`：非 GET / HEAD / OPTIONS 时，有 `Sec-Fetch-Site` 须为 `same-origin`；有 `Origin` 时其主机须等于 `X-Forwarded-Host` 第一个值（否则 `Host`）；二者都没有则拒绝；失败 403。`SameSite=Strict` 是第二层。`POST /logout` 只接受 POST（GET 回 405）。UAM 不处理 cookie，无 CSRF 面。 |
 | **CSP 与响应头** | `middleware` 为每个请求生成 nonce：`default-src 'self'`；`script-src 'self' 'nonce-…' 'strict-dynamic'`（开发模式加 `'unsafe-eval'`）；`style-src 'self' 'unsafe-inline'`（Radix / shadcn 依赖内联样式属性）；`img-src 'self' data:`；`font-src 'self'`；`connect-src 'self'`；`object-src 'none'`；`base-uri 'self'`；`form-action 'self'`；`frame-ancestors 'none'`。另设 `X-Content-Type-Options: nosniff`、`Referrer-Policy: same-origin`；`poweredByHeader: false`。 |
-| **启动与构建** | Admin Center 缺 `UAM_SERVICE_KEY` / `UAM_BASE_URL` 启动失败（`instrumentation.ts`，只列变量名不回显值）；`UAM_SERVICE_KEY` 只在服务端，`src/lib` 服务端模块一律 `server-only`；`package.json` 不得出现数据库驱动 / ORM。 |
+| **启动与构建** | Admin Center 缺 `UAM_BASE_URL` 启动失败（`instrumentation.ts`，只列变量名不回显值）；`src/lib` 服务端模块一律 `server-only`；UAM 本身不校验调用方，访问控制靠网络隔离（UAM 只对 Admin Center 实例开放），服务身份认证留待后续特性；`package.json` 不得出现数据库驱动 / ORM。 |
 | **来源地址** | 见 [系统级 §4.3](../system/README.md)。 |
 
 ## 4. 可观测性
 
 | 项 | 实现 |
 |---|---|
-| 事件 `admin-center.uam.misconfigured` | Admin Center 的 `console.error` JSON：UAM 拒绝了 Admin Center 本身（401 / 403）时写出；字段 `event`、`time`、`code`、`status`、`operation`（路径泛化为 `:id`）、`traceId`、`suppressed`；同一（错误码，操作）每 60 秒一条；**不含密钥** |
 | 指标 / 探针 | Admin Center **没有**专门的指标端点与探针端点；编排用 `GET /login` 探活（匿名不调用 UAM，只反映本进程是否在服务）。 |
 
 ## 5. CI 与质量门禁

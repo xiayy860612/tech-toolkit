@@ -36,7 +36,7 @@ class ListUsersIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     data = new UserFixtures(jdbc);
   }
 
@@ -417,13 +417,5 @@ class ListUsersIT extends IntegrationTestBase {
     Response withOperator = api.get("/v1/users", operator);
     assertThat(withOperator.status()).isEqualTo(200);
     assertThat(withOperator.json().get("total").asLong()).isEqualTo(2);
-  }
-
-  @Test
-  void aMissingServiceKeyIsRejected() {
-    Response response = new ApiClient(port, null).get("/v1/users");
-
-    assertThat(response.status()).isEqualTo(401);
-    assertThat(response.json().get("code").asString()).isEqualTo("client_unauthenticated");
   }
 }

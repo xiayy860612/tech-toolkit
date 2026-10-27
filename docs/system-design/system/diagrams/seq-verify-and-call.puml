@@ -3,17 +3,17 @@ title 每个请求：校验会话并调用 UAM
 autonumber
 
 participant "浏览器" as B
-participant "Admin Center\n（UAM 的客户端）" as AC
+participant "Admin Center\n（UAM 的调用方）" as AC
 participant "UAM" as U
 database "Redis" as R
 database "PostgreSQL" as P
 
 B -> AC : GET /sessions（cookie: session id）
-AC -> U : POST /v1/auth/sessions/verify {sessionId}\nAuthorization: Bearer 服务密钥
+AC -> U : POST /v1/auth/sessions/verify {sessionId}
 U -> R : 读 uam:sess:{sha256(sessionId)}（HASH 内已含用户名、账号名、种类、到期）\n距上次写入 > 60 秒才 Lua touch 续期
 U --> AC : 200 {user, account, sessionRef, expiresAt}（verify 全程不访问 PostgreSQL）
-AC -> U : GET /v1/online-users\nAuthorization: Bearer 服务密钥
-U -> U : 识别客户端：校验服务密钥\n只读接口只需有效密钥；不使用用户凭据
+AC -> U : GET /v1/online-users
+U -> U : 不认证调用方（只靠网络边界）；不使用用户凭据
 U -> R : Lua online.lua：清理到期条目，扫描 uam:online
 U -> P : 批量取当页用户的名称
 U --> AC : 200 在线用户分页
@@ -22,7 +22,7 @@ AC --> B : 渲染页面（会话数据不出 Admin Center）
 note over AC, U
   verify 返回 401 session_invalid → anonymous（经 /session/expire 清 cookie，回登录页）
   管理员强制下线后 10 分钟内，401 另带 reason=terminated（UAM 查 uam:term:{sha}）→ 登录页提示「你的会话已被管理员强制下线」
-  超时 / 5xx / 401 client_unauthenticated / 403 client_forbidden
-  → unverified（保留 cookie，提示服务暂不可用；后两者另写 admin-center.uam.misconfigured 告警）
+  超时 / 5xx / 连接失败
+  → unverified（保留 cookie，提示服务暂不可用）
 end note
 @enduml

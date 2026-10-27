@@ -245,9 +245,8 @@ export interface components {
             /**
              * @example invalid_credentials
              * @example session_invalid
-             * @example client_unauthenticated
-             * @example client_forbidden
              * @example operator_required
+             * @example operator_forbidden
              * @example bad_request
              * @example throttled
              * @example account_name_taken
@@ -427,24 +426,6 @@ export interface components {
         };
     };
     responses: {
-        /** @description 服务密钥缺失、无效或已撤销（`client_unauthenticated`）；响应不透露是哪一部分不对 */
-        ClientUnauthenticated: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
-        };
-        /** @description 客户端未被授予「可代用户断言操作人与来源地址」权限（`client_forbidden`） */
-        ClientForbidden: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
-        };
         /** @description 缺少操作人请求头（`operator_required`） */
         OperatorRequired: {
             headers: {
@@ -562,7 +543,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
-            /** @description `invalid_credentials`（账号名或密码错误），或 `client_unauthenticated`（服务密钥缺失 / 无效） */
+            /** @description `invalid_credentials`（账号名或密码错误） */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -571,7 +552,6 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            403: components["responses"]["ClientForbidden"];
             422: components["responses"]["ValidationFailed"];
             429: components["responses"]["Throttled"];
         };
@@ -599,7 +579,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
-            /** @description `session_invalid`（会话无效、过期、被取代或被终止；被管理员强制终止且仍在通知窗口内时带 `reason: terminated`），或 `client_unauthenticated`（服务密钥缺失 / 无效） */
+            /** @description `session_invalid`（会话无效、过期、被取代或被终止；被管理员强制终止且仍在通知窗口内时带 `reason: terminated`） */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -608,7 +588,6 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            403: components["responses"]["ClientForbidden"];
         };
     };
     logout: {
@@ -632,8 +611,6 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
-            401: components["responses"]["ClientUnauthenticated"];
-            403: components["responses"]["ClientForbidden"];
         };
     };
     listUsers: {
@@ -669,7 +646,6 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
-            401: components["responses"]["ClientUnauthenticated"];
             422: components["responses"]["ValidationFailed"];
         };
     };
@@ -705,8 +681,6 @@ export interface operations {
                 };
             };
             400: components["responses"]["OperatorRequiredOrBadRequest"];
-            401: components["responses"]["ClientUnauthenticated"];
-            403: components["responses"]["ClientForbidden"];
             /** @description 账号名已被使用（`account_name_taken`），或同一 `Idempotency-Key` 的请求仍在处理中、等待超时（`idempotency_in_progress`） */
             409: {
                 headers: {
@@ -747,7 +721,6 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
-            401: components["responses"]["ClientUnauthenticated"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -779,8 +752,6 @@ export interface operations {
                 };
             };
             400: components["responses"]["OperatorRequiredOrBadRequest"];
-            401: components["responses"]["ClientUnauthenticated"];
-            403: components["responses"]["ClientForbidden"];
             404: components["responses"]["NotFound"];
             /** @description 规则不允许（`cannot_disable_self` / `cannot_disable_last_active_user`） */
             409: {
@@ -821,8 +792,6 @@ export interface operations {
                 };
             };
             400: components["responses"]["OperatorRequiredOrBadRequest"];
-            401: components["responses"]["ClientUnauthenticated"];
-            403: components["responses"]["ClientForbidden"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -857,7 +826,6 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
-            401: components["responses"]["ClientUnauthenticated"];
             422: components["responses"]["ValidationFailed"];
         };
     };
@@ -887,7 +855,6 @@ export interface operations {
                 };
             };
             400: components["responses"]["OperatorRequiredOrBadRequest"];
-            401: components["responses"]["ClientUnauthenticated"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -917,8 +884,6 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["OperatorRequiredOrBadRequest"];
-            401: components["responses"]["ClientUnauthenticated"];
-            403: components["responses"]["ClientForbidden"];
             /** @description 会话不存在或已结束（`session_not_found`） */
             404: {
                 headers: {
@@ -969,8 +934,15 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["OperatorRequiredOrBadRequest"];
-            401: components["responses"]["ClientUnauthenticated"];
-            403: components["responses"]["ClientForbidden"];
+            /** @description 路径账号不是操作人自己的账号（`operator_forbidden`）；改密只允许改操作人自己的账号 */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description 校验失败：`validation_failed`（请求体字段缺失 / 为空 / 过长，带 `errors`），或 `current_password_incorrect` / `weak_password` / `same_as_current` */
             422: {
                 headers: {

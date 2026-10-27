@@ -7,7 +7,6 @@ import {
   FIXTURE_IDS,
   problemBody,
   UAM_STUB_BASE_URL,
-  UAM_STUB_SERVICE_KEY,
   verifyResponseBody,
 } from "../support/uam-stub";
 
@@ -24,7 +23,6 @@ beforeAll(() => stub.listen());
 afterAll(() => stub.close());
 beforeEach(() => {
   process.env.UAM_BASE_URL = UAM_STUB_BASE_URL;
-  process.env.UAM_SERVICE_KEY = UAM_STUB_SERVICE_KEY;
   process.env.UAM_TIMEOUT_MS = "1500";
 });
 afterEach(() => {
@@ -139,7 +137,7 @@ describe("UamClient 契约", () => {
     const res = await verifySession("opaque-session-id");
     expect(res.user.name).toBe("张三");
     expect(stub.calls[0].body).toEqual({ sessionId: "opaque-session-id" });
-    expect(stub.calls[0].headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(stub.calls[0].headers.get("authorization")).toBeNull();
   });
 
   it("verifySession：401 session_invalid 解析为问题类错误", async () => {

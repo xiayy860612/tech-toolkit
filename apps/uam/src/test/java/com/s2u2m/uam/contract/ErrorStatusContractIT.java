@@ -54,7 +54,7 @@ class ErrorStatusContractIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
   }
 
   private static Case c(

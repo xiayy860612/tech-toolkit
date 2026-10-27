@@ -106,8 +106,8 @@ describe("/users 列表页", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it.each(["unavailable", "misconfigured"] as const)("UAM %s：读错误态「服务暂不可用，请稍后重试」，保留页头与重试链接（带原搜索词与页码）", async (kind) => {
-    jest.mocked(listUsers).mockRejectedValue(new UamError(kind, "x"));
+  it("UAM unavailable：读错误态「服务暂不可用，请稍后重试」，保留页头与重试链接（带原搜索词与页码）", async () => {
+    jest.mocked(listUsers).mockRejectedValue(new UamError("unavailable", "x"));
     render(await UsersPage(listProps({ q: "li", page: "2" })));
     expect(screen.getByText("服务暂不可用，请稍后重试")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "用户管理" })).toBeInTheDocument();

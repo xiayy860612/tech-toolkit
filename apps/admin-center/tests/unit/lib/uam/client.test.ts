@@ -9,7 +9,6 @@ import {
   FIXTURE_IDS,
   problemBody,
   UAM_STUB_BASE_URL,
-  UAM_STUB_SERVICE_KEY,
   verifyResponseBody,
 } from "../../../support/uam-stub";
 
@@ -24,7 +23,6 @@ beforeAll(() => stub.listen());
 afterAll(() => stub.close());
 beforeEach(() => {
   process.env.UAM_BASE_URL = UAM_STUB_BASE_URL;
-  process.env.UAM_SERVICE_KEY = UAM_STUB_SERVICE_KEY;
   process.env.UAM_TIMEOUT_MS = "1500";
   jest.mocked(headers).mockRejectedValue(new Error("outside request scope"));
 });
@@ -35,14 +33,14 @@ afterEach(() => {
 });
 
 describe("请求头", () => {
-  it("每个请求都带 Authorization: Bearer <UAM_SERVICE_KEY>（读与写）", async () => {
+  it("不带 Authorization（UAM 不认证调用方；读与写都一样）", async () => {
     stub.respond("listUsers", { status: 200, body: { items: [], page: 1, size: 20, total: 0 } });
     stub.respond("verifySession", { status: 200, body: verifyResponseBody() });
     await uamRequest({ method: "GET", path: "/v1/users" });
     await verifySession("sid");
     expect(stub.calls).toHaveLength(2);
     for (const call of stub.calls) {
-      expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+      expect(call.headers.get("authorization")).toBeNull();
     }
   });
 
@@ -147,16 +145,7 @@ describe("错误归类", () => {
     stub.violations.length = 0;
   });
 
-  it("401 client_unauthenticated → misconfigured（不是 session_invalid）", async () => {
-    process.env.UAM_SERVICE_KEY = "wrong-key"; // 桩会回 401 client_unauthenticated
-    stub.respond("listUsers", { status: 200, body: { items: [], page: 1, size: 20, total: 0 } });
-    const error = await read().catch((e) => e);
-    expect(error).toBeInstanceOf(UamError);
-    expect(error).toMatchObject({ kind: "misconfigured", status: 401, code: "client_unauthenticated" });
-    expect(error.code).not.toBe("session_invalid");
-  });
-
-  it("400 bad_request → problem（不是 misconfigured / 凭据错误），不带字段错误，也不写运维告警", async () => {
+  it("400 bad_request → problem（不是凭据错误），不带字段错误，也不写运维告警", async () => {
     const spy = jest.spyOn(console, "error").mockImplementation(() => undefined);
     stub.respond("listUsers", { status: 400, body: problemBody(400, "bad_request") });
     const error = await read().catch((e) => e);
@@ -167,9 +156,13 @@ describe("错误归类", () => {
     spy.mockRestore();
   });
 
-  it("403 client_forbidden → misconfigured", async () => {
-    stub.respond("verifySession", { status: 403, body: problemBody(403, "client_forbidden") });
-    await expect(verifySession("s")).rejects.toMatchObject({ kind: "misconfigured", code: "client_forbidden" });
+  it("403 operator_forbidden → problem（业务结论，不是配置错误，也不写运维告警）", async () => {
+    const spy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    stub.respond("changeOwnPassword", { status: 403, body: problemBody(403, "operator_forbidden") });
+    const error = await changePassword(FIXTURE_IDS.accountId, { currentPassword: "a", newPassword: "b", clientIp: "203.0.113.7" }, operator).catch((e) => e);
+    expect(error).toMatchObject({ kind: "problem", status: 403, code: "operator_forbidden" });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it("verify 的 401 session_invalid 带 reason: terminated → UamError.reason 为 terminated（被管理员强制下线）", async () => {
@@ -262,7 +255,7 @@ describe("listUsers / getUser（读用户，T081）", () => {
     await listUsers({ query: "" }, operator);
     for (const call of stub.calls) {
       expect([...call.query.keys()]).toEqual([]);
-      expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+      expect(call.headers.get("authorization")).toBeNull();
       expect(call.headers.get("x-operator-user-id")).toBe(operator.userId);
       expect(call.headers.get("x-operator-account-id")).toBe(operator.accountId);
       expect(call.headers.get("x-operator-session-ref")).toBe(operator.sessionRef);
@@ -335,7 +328,7 @@ describe("listOnlineUsers / listUserSessions（读会话，T093）", () => {
     expect(call.path).toBe("/v1/online-users");
     expect(call.query.get("page")).toBe("2");
     expect(call.query.get("size")).toBe("50");
-    expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(call.headers.get("authorization")).toBeNull();
     expect(call.headers.get("x-operator-user-id")).toBe(operator.userId);
   });
 
@@ -361,7 +354,7 @@ describe("listOnlineUsers / listUserSessions（读会话，T093）", () => {
     await expect(listUserSessions(FIXTURE_IDS.userId, operator)).resolves.toEqual([session]);
     const call = stub.calls[0];
     expect(call.path).toBe(`/v1/users/${FIXTURE_IDS.userId}/sessions`);
-    expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(call.headers.get("authorization")).toBeNull();
     expect(call.headers.get("x-operator-session-ref")).toBe(operator.sessionRef);
     expect(call.headers.get("x-operator-user-id")).toBe(operator.userId);
     expect(call.headers.get("x-operator-account-id")).toBe(operator.accountId);
@@ -420,8 +413,6 @@ describe("问题码 → 界面文案（与 contracts/web-routes.md §5 一致）
   it.each([
     ["unavailable", "read", "服务暂不可用，请稍后重试"],
     ["unavailable", "write", "操作未生效"],
-    ["misconfigured", "read", "服务暂不可用，请稍后重试"],
-    ["misconfigured", "write", "操作未生效"],
   ] as const)("%s（%s）→ %s", (kind, mode, message) => {
     expect(uamErrorMessage(new UamError(kind, "x"), mode)).toBe(message);
   });
@@ -429,6 +420,10 @@ describe("问题码 → 界面文案（与 contracts/web-routes.md §5 一致）
   it("bad_request 没有专门文案：读提示服务暂不可用，写提示操作未生效（不是输入有误）", () => {
     expect(uamErrorMessage(problem("bad_request"), "read")).toBe("服务暂不可用，请稍后重试");
     expect(uamErrorMessage(problem("bad_request"), "write")).toBe("操作未生效");
+  });
+
+  it("operator_forbidden（改密越权，Admin Center 只传操作人自己的账号，出现即为缺陷）按「操作未生效」处理", () => {
+    expect(uamErrorMessage(problem("operator_forbidden"), "write")).toBe("操作未生效");
   });
 
   it("未知问题码按不可用处理", () => {
@@ -448,7 +443,7 @@ describe("createUser", () => {
     const [call] = stub.calls;
     expect(call.method).toBe("POST");
     expect(call.path).toBe("/v1/users");
-    expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(call.headers.get("authorization")).toBeNull();
     expect(call.headers.get("idempotency-key")).toBe(KEY);
     expect(call.headers.get("x-operator-user-id")).toBe(operator.userId);
     expect(call.body).toEqual(input);
@@ -481,7 +476,7 @@ describe("disableUser / enableUser（T122）", () => {
     const [sent] = stub.calls;
     expect(sent.method).toBe("POST");
     expect(sent.path).toBe(`/v1/users/${id}/${suffix}`);
-    expect(sent.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(sent.headers.get("authorization")).toBeNull();
     expect(sent.headers.get("x-operator-user-id")).toBe(operator.userId);
     expect(sent.headers.get("x-operator-account-id")).toBe(operator.accountId);
     expect(sent.headers.get("x-operator-session-ref")).toBe(operator.sessionRef);
@@ -514,7 +509,7 @@ describe("terminateSession（T132）", () => {
     const [sent] = stub.calls;
     expect(sent.method).toBe("DELETE");
     expect(sent.path).toBe(`/v1/sessions/${ref}`);
-    expect(sent.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(sent.headers.get("authorization")).toBeNull();
     expect(sent.headers.get("x-operator-user-id")).toBe(operator.userId);
     expect(sent.headers.get("x-operator-account-id")).toBe(operator.accountId);
     expect(sent.headers.get("x-operator-session-ref")).toBe(operator.sessionRef);
@@ -543,19 +538,17 @@ describe("logout", () => {
     const [sent] = stub.calls;
     expect(sent.method).toBe("POST");
     expect(sent.path).toBe("/v1/auth/logout");
-    expect(sent.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(sent.headers.get("authorization")).toBeNull();
     expect(sent.headers.get("x-operator-user-id")).toBeNull();
     expect(sent.body).toEqual({ sessionId: "sid-123" });
   });
 
-  it("UAM 不可用或拒绝服务调用时抛 UamError，信息不含会话标识", async () => {
+  it("UAM 不可用时抛 UamError，信息不含会话标识", async () => {
     stub.respond("logout", { status: 503, body: undefined });
     const unavailable = await logout("sid-secret").catch((e) => e);
     stub.violations.length = 0; // 契约没声明 5xx：这里只测归类，清掉桩记录的违约
     expect(unavailable).toMatchObject({ kind: "unavailable" });
     expect(unavailable.message).not.toContain("sid-secret");
-    stub.respond("logout", { status: 403, body: problemBody(403, "client_forbidden") });
-    await expect(logout("sid-secret")).rejects.toMatchObject({ kind: "misconfigured", code: "client_forbidden" });
   });
 });
 
@@ -568,7 +561,7 @@ describe("changePassword", () => {
     const [sent] = stub.calls;
     expect(sent.method).toBe("POST");
     expect(sent.path).toBe(`/v1/accounts/${FIXTURE_IDS.accountId}/password`);
-    expect(sent.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(sent.headers.get("authorization")).toBeNull();
     expect(sent.headers.get("x-operator-user-id")).toBe(operator.userId);
     expect(sent.headers.get("x-operator-account-id")).toBe(operator.accountId);
     expect(sent.headers.get("x-operator-session-ref")).toBe(operator.sessionRef);

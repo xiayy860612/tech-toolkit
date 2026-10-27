@@ -2,9 +2,8 @@
 #
 # 部署前由部署方准备（清单里没有任何密钥值）：
 #   kubectl create namespace <命名空间>   # 与下面的 namespace 一致
-#   Secret uam-runtime            SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD、SPRING_DATA_REDIS_HOST / _PORT、UAM_CLIENTS
+#   Secret uam-runtime            SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD、SPRING_DATA_REDIS_HOST / _PORT
 #                                 （托管 Redis 要密码 / TLS：再加 SPRING_DATA_REDIS_PASSWORD、SPRING_DATA_REDIS_SSL_ENABLED）
-#   Secret admin-center-runtime   UAM_SERVICE_KEY（与 UAM_CLIENTS 里的哈希成对，由 generate-service-key 生成）
 #   Secret admin-center-tls       TLS 证书（或让 cert-manager 按 Ingress 注解签发）
 # 部署：kubectl apply -k devops/k8s/overlays/cloud
 # 上线前把镜像钉到构建号或 sha：cd devops/k8s/overlays/cloud && kustomize edit set image uam=<仓库>/uam:<构建号>（admin-center 同理）。

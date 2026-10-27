@@ -13,9 +13,6 @@ ADMIN_ACCOUNT="${E2E_ADMIN_ACCOUNT:-admin}"
 ADMIN_PASSWORD="${E2E_ADMIN_PASSWORD:-E2e-Admin-Pass-1}"
 ADMIN_NAME="${E2E_ADMIN_NAME:-系统管理员}"
 
-# e2e.env 里的 UAM_SERVICE_KEY 仅用于下面读取 UAM 的 /actuator/prometheus（本地测试值）
-UAM_SERVICE_KEY="$(sed -n 's/^UAM_SERVICE_KEY=//p' "$local_dir/e2e.env")"
-
 compose() {
   # 显式 -p：COMPOSE_PROJECT_NAME 会盖过编排文件的 name，scale_down 的 `down -v` 可能误删别的项目
   docker compose -p "$PROJECT" -f "$local_dir/docker-compose.scale.yml" --env-file "$local_dir/e2e.env" "$@"
@@ -126,12 +123,12 @@ page_state() { # <base> <sid> <path>
   rm -f "$body_file"
 }
 
-# ---- 直接调 UAM（UAM 不对宿主机开放：借 admin-center-1 容器里的 node 与它自己的 UAM_BASE_URL / UAM_SERVICE_KEY 调 uam-lb）----
+# ---- 直接调 UAM（UAM 不对宿主机开放：借 admin-center-1 容器里的 node 与它自己的 UAM_BASE_URL 调 uam-lb；UAM 不认证调用方）----
 # 输出：第一行 HTTP 状态码，其后是响应体。第 4 个参数是操作人 JSON（写操作用），第 5 个是 Idempotency-Key（创建用户用）。
 uam_api() { # <METHOD> <PATH> [json-body] [operator-json] [idempotency-key]
   compose exec -T admin-center-1 node -e '
     const [method, path, body, operator, idem] = process.argv.slice(1);
-    const headers = { Authorization: "Bearer " + process.env.UAM_SERVICE_KEY, Accept: "application/json" };
+    const headers = { Accept: "application/json" };
     if (body) headers["Content-Type"] = "application/json";
     if (idem) headers["Idempotency-Key"] = idem;
     if (operator) {
@@ -165,10 +162,9 @@ container_ip() { # <服务名> <网络名后缀>
 
 # 某个 UAM 实例处理过的 verify 请求累计数（读该实例自己的 Prometheus 指标）
 uam_verify_count() { # <uam 服务名>
-  # shellcheck disable=SC2016  # 单引号里的 $UAM_KEY 由容器内的 bash 展开，这正是本意
-  compose exec -T -e UAM_KEY="$UAM_SERVICE_KEY" "$1" bash -c '
+  compose exec -T "$1" bash -c '
     exec 3<>/dev/tcp/127.0.0.1/8080
-    printf "GET /actuator/prometheus HTTP/1.0\r\nAuthorization: Bearer %s\r\n\r\n" "$UAM_KEY" >&3
+    printf "GET /actuator/prometheus HTTP/1.0\r\n\r\n" >&3
     cat <&3
   ' 2>/dev/null | awk '/^http_server_requests_seconds_count/ && /uri="\/v1\/auth\/sessions\/verify"/ {s += $NF} END {printf "%d\n", s}'
 }

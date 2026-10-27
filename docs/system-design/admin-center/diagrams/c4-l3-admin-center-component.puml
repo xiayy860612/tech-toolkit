@@ -7,7 +7,6 @@ title L3 组件视图：Admin Center
 
 Person(operator, "运维人员", "浏览器")
 Container(uam, "UAM", "Spring Boot 4", "领域服务")
-System_Ext(secrets, "密钥管理", "注入 UAM_SERVICE_KEY")
 
 Container_Boundary(admin, "Admin Center（Next.js 15 · SSR）") {
   Component(mw, "middleware", "Next.js middleware", "设置 CSP nonce 与安全响应头；不发网络请求")
@@ -19,11 +18,10 @@ Container_Boundary(admin, "Admin Center（Next.js 15 · SSR）") {
   Component(origin, "OriginCheck", "lib/security", "同源校验（CSRF）")
   Component(valid, "表单校验", "zod", "字段级校验与原因提示")
   Component(clientip, "ClientIp", "lib/session", "按可信代理跳数取终端来源地址")
-  Component(uamClient, "UamClient", "lib/uam", "作为 UAM 的客户端 admin-center，带服务密钥与 X-Operator-* 调用 UAM；错误码 → 界面文案；超时 1.5 秒")
+  Component(uamClient, "UamClient", "lib/uam", "带 X-Operator-* 调用 UAM；错误码 → 界面文案；超时 1.5 秒")
   Component(ui, "UI 组件", "shadcn/ui + Tailwind", "表格 / 卡片、对话框、侧边栏、抽屉")
   Component(cookie, "cookie", "lib/session", "读 / 写 / 清除会话 cookie：HttpOnly; Secure; SameSite=Strict; Path=/，不设 Domain")
-  Component(config, "config · instrumentation", "lib/config · src/instrumentation.ts", "zod 解析环境变量（运行期解析，不在构建期）；服务启动时校验：缺 UAM_SERVICE_KEY / UAM_BASE_URL 即启动失败")
-  Component(alarm, "运维告警日志", "lib/logging", "admin-center.uam.misconfigured：UAM 拒绝了 Admin Center 本身（401 / 403）；同一（错误码，操作）每 60 秒一条；不含密钥")
+  Component(config, "config · instrumentation", "lib/config · src/instrumentation.ts", "zod 解析环境变量（运行期解析，不在构建期）；服务启动时校验：缺 UAM_BASE_URL 即启动失败")
 }
 
 Rel(operator, mw, "请求", "HTTPS · cookie")
@@ -44,8 +42,6 @@ Rel(session, cookie, "读 cookie")
 Rel(routes, session, "重新校验后清 cookie")
 Rel(routes, uamClient, "logout")
 Rel(session, uamClient, "verify")
-Rel(uamClient, uam, "调用", "REST/JSON · TLS · Bearer 服务密钥")
-Rel(uamClient, alarm, "401 client_unauthenticated / 403 client_forbidden 时写告警")
+Rel(uamClient, uam, "调用", "REST/JSON · TLS")
 Rel(uamClient, config, "读取配置")
-Rel(config, secrets, "读取 UAM_SERVICE_KEY", "启动时；缺失即启动失败")
 @enduml

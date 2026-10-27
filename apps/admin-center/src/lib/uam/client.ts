@@ -1,7 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
 import { getConfig } from "@/lib/config";
-import { logUamMisconfigured } from "@/lib/logging";
 import { parseProblemReason, UamError, type FieldError } from "./errors";
 import type { components } from "./types.generated";
 
@@ -69,8 +68,8 @@ async function readProblem(res: Response): Promise<Problem | undefined> {
 }
 
 /**
- * 调用 UAM。每个请求都带服务密钥；失败一律抛 `UamError`，按 kind 区分「业务结论 / 不可用 / 配置错误」。
- * 密钥、会话标识与密码不进入错误信息与日志。
+ * 调用 UAM（UAM 不认证调用方，不带 Authorization；保护靠网络边界）。失败一律抛 `UamError`，按 kind 区分「业务结论 / 不可用」。
+ * 会话标识与密码不进入错误信息与日志。
  */
 export async function uamRequest<T = unknown>(init: UamRequestInit): Promise<UamResponse<T>> {
   const config = getConfig();
@@ -80,7 +79,6 @@ export async function uamRequest<T = unknown>(init: UamRequestInit): Promise<Uam
   }
 
   const requestHeaders: Record<string, string> = {
-    Authorization: `Bearer ${config.uamServiceKey}`,
     Accept: "application/json",
     ...init.headers,
   };
@@ -119,14 +117,6 @@ export async function uamRequest<T = unknown>(init: UamRequestInit): Promise<Uam
 
   const problem = await readProblem(res);
   const code = problem?.code;
-  // 服务密钥缺失 / 无效、客户端无权限：UAM 拒绝的是 Admin Center，不是用户会话
-  const rejectedClient =
-    res.status === 403 || (res.status === 401 && code !== "session_invalid" && code !== "invalid_credentials");
-  if (rejectedClient) {
-    // 运维告警的唯一出口：所有调用路径（页面读、会话校验、登录、写操作、退出）都经此，不在各处重复写
-    logUamMisconfigured({ method: init.method, path: init.path, status: res.status, code, traceparent });
-    throw new UamError("misconfigured", `UAM 拒绝了服务调用（${res.status}）`, { status: res.status, code });
-  }
   if (!problem) throw new UamError("unavailable", `UAM 返回 ${res.status}`, { status: res.status });
 
   const retryAfter = Number(res.headers.get("retry-after"));
@@ -151,7 +141,7 @@ export async function verifySession(sessionId: string): Promise<VerifyResponse> 
 }
 
 /**
- * 终止会话（`POST /v1/auth/logout`，幂等：会话不存在也是 204）。只带服务密钥，不带操作人请求头；
+ * 终止会话（`POST /v1/auth/logout`，幂等：会话不存在也是 204）。不带操作人请求头；
  * 会话标识只出现在请求体里。失败抛 `UamError`（调用方决定是否容忍，见 `POST /logout`）。
  */
 export async function logout(sessionId: string): Promise<void> {

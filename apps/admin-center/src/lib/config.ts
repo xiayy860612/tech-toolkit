@@ -9,7 +9,6 @@ import { z } from "zod";
  */
 const schema = z.object({
   UAM_BASE_URL: z.url(),
-  UAM_SERVICE_KEY: z.string().min(1),
   UAM_TIMEOUT_MS: z.coerce.number().int().positive().default(1500),
   SESSION_COOKIE_NAME: z.string().min(1).default("__Host-asid"),
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).default(1),
@@ -17,7 +16,6 @@ const schema = z.object({
 
 export interface AppConfig {
   uamBaseUrl: string;
-  uamServiceKey: string;
   uamTimeoutMs: number;
   sessionCookieName: string;
   trustedProxyHops: number;
@@ -25,7 +23,7 @@ export interface AppConfig {
 
 export class ConfigError extends Error {
   constructor(variables: string[]) {
-    // 只报变量名，绝不回显值（其中有服务密钥）
+    // 只报变量名，绝不回显值
     super(`环境变量缺失或不合法：${variables.join("、")}`);
     this.name = "ConfigError";
   }
@@ -42,14 +40,13 @@ export function parseConfig(env: Record<string, string | undefined>): AppConfig 
   const v = result.data;
   return {
     uamBaseUrl: v.UAM_BASE_URL.replace(/\/+$/, ""),
-    uamServiceKey: v.UAM_SERVICE_KEY,
     uamTimeoutMs: v.UAM_TIMEOUT_MS,
     sessionCookieName: v.SESSION_COOKIE_NAME,
     trustedProxyHops: v.TRUSTED_PROXY_HOPS,
   };
 }
 
-/** 读取并校验当前进程的配置；每次调用都解析（五个变量，开销可忽略），不缓存。 */
+/** 读取并校验当前进程的配置；每次调用都解析（四个变量，开销可忽略），不缓存。 */
 export function getConfig(): AppConfig {
   return parseConfig(process.env);
 }

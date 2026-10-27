@@ -5,13 +5,13 @@ info:
   summary: User Account Management — RESTful 领域服务（访问不基于会话）
   description: |
     UAM 是用户、账号、会话的唯一权威，是通用的 RESTful 领域服务。**对 UAM 的访问不基于用户会话**：
-    不使用 cookie、会话标识或 JWT 等任何用户凭据来识别或授权客户端。UAM 只识别**调用它的服务**：
-    每个接口都要带**静态服务密钥**（`Authorization: Bearer <服务密钥>`），缺失、无效或已撤销返回 401 `client_unauthenticated`。
+    不使用 cookie、会话标识或 JWT 等任何用户凭据来识别或授权调用方。**UAM 目前也不识别调用它的服务**，
+    不校验任何服务凭据，只靠网络隔离（内网 / 网络策略只放行受信任的服务）保护；服务身份留待后续特性实现。
 
     - `/v1/auth/*`：登录、校验会话、退出。会话标识只作为这里的输入出现。
     - 资源接口 `/v1/users`、`/v1/online-users`、`/v1/sessions`、`/v1/accounts/{accountId}/password`：路径按资源命名，不带客户端名。
-      客户端（Admin Center）把**操作人**作为请求头传入：`X-Operator-User-Id`、`X-Operator-Account-Id`、`X-Operator-Session-Ref`。
-      UAM 信任**已通过服务密钥校验、且被授予「可代用户断言操作人与来源地址」权限**的客户端传来的操作人，
+      调用方（Admin Center）把**操作人**作为请求头传入：`X-Operator-User-Id`、`X-Operator-Account-Id`、`X-Operator-Session-Ref`。
+      UAM 信任调用方传来的操作人，
       只用于自我保护规则（不能停用自己、不能强制下线自己的会话、标注 `current`）和写操作日志；它不是认证，也不用于授权。
       写操作必须带操作人请求头，缺失返回 400 `operator_required`；读操作可选。
 
@@ -19,21 +19,16 @@ info:
     请求无法解析或类型不符（JSON 格式错误 / 为空、JSON 类型不对、路径变量或查询参数类型不符）一律 HTTP 400 `bad_request`；
     `operator_required` 仍为 400（缺失或不合法的 `X-Operator-*` 头）。
 
-    每个客户端有独立的名称、至多两把同时有效的密钥（用于不停机轮换）和权限。未被授予断言权限的客户端调用登录、校验会话、退出、
-    修改密码与所有写接口返回 403 `client_forbidden`，只读查询可用。
-
-    UAM 只在内网访问，且只对客户端开放（网络边界与服务密钥是两层保护）。`clientIp` 与操作人都由被授权的客户端提供。
+    UAM 只在内网访问，且只对受信任的服务开放（目前仅靠网络边界）。`clientIp` 与操作人都由调用方提供。
     会话标识（`sessionId`）是机密，只在 `login` 的响应和 `verify` / `logout` 的请求里出现；
     页面与其他接口只使用非机密的会话引用（`sessionRef`）。
     本文件是 UAM 接口契约的唯一权威（特性 `002-admin-center-uam` 定义，T005 起位于仓库根 `contracts/uam/openapi.yaml`）；变更须先改本文件与失败用例，再改实现与客户端。
 servers:
   - url: https://uam.internal.example
     description: 内网 / VPN 内，示例地址
-security:
-  - serviceKey: []
 tags:
   - name: auth
-    description: 登录、校验会话、退出（本期无客户端凭据）
+    description: 登录、校验会话、退出
   - name: users
     description: 用户查询与管理
   - name: sessions
@@ -56,7 +51,6 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/LoginRequest" }
       responses:
-        "403": { $ref: "#/components/responses/ClientForbidden" }
         "200":
           description: 登录成功
           content:
@@ -65,7 +59,7 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "422": { $ref: "#/components/responses/ValidationFailed" }
         "401":
-          description: "`invalid_credentials`（账号名或密码错误），或 `client_unauthenticated`（服务密钥缺失 / 无效）"
+          description: "`invalid_credentials`（账号名或密码错误）"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -86,7 +80,6 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/VerifyRequest" }
       responses:
-        "403": { $ref: "#/components/responses/ClientForbidden" }
         "200":
           description: 会话有效
           content:
@@ -94,7 +87,7 @@ paths:
               schema: { $ref: "#/components/schemas/VerifyResponse" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401":
-          description: "`session_invalid`（会话无效、过期、被取代或被终止；被管理员强制终止且仍在通知窗口内时带 `reason: terminated`），或 `client_unauthenticated`（服务密钥缺失 / 无效）"
+          description: "`session_invalid`（会话无效、过期、被取代或被终止；被管理员强制终止且仍在通知窗口内时带 `reason: terminated`）"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -110,9 +103,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/VerifyRequest" }
       responses:
-        "403": { $ref: "#/components/responses/ClientForbidden" }
         "400": { $ref: "#/components/responses/BadRequest" }
-        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "204": { description: 会话已终止（或本来就不存在） }
 
   /v1/users:
@@ -133,7 +124,6 @@ paths:
         - $ref: "#/components/parameters/OptionalOperatorSessionRef"
       responses:
         "400": { $ref: "#/components/responses/BadRequest" }
-        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "200":
           description: 用户分页
           content:
@@ -158,8 +148,6 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/CreateUserRequest" }
       responses:
-        "403": { $ref: "#/components/responses/ClientForbidden" }
-        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
         "201":
           description: 已创建
@@ -186,7 +174,6 @@ paths:
         - $ref: "#/components/parameters/OptionalOperatorSessionRef"
       responses:
         "400": { $ref: "#/components/responses/BadRequest" }
-        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "200":
           description: 用户详情
           content:
@@ -208,8 +195,6 @@ paths:
         - $ref: "#/components/parameters/OperatorAccountId"
         - $ref: "#/components/parameters/OperatorSessionRef"
       responses:
-        "403": { $ref: "#/components/responses/ClientForbidden" }
-        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
         "200":
           description: 已停用（或本来就是已停用）
@@ -235,8 +220,6 @@ paths:
         - $ref: "#/components/parameters/OperatorAccountId"
         - $ref: "#/components/parameters/OperatorSessionRef"
       responses:
-        "403": { $ref: "#/components/responses/ClientForbidden" }
-        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
         "200":
           description: 已启用（或本来就是正常）
@@ -259,7 +242,6 @@ paths:
         - $ref: "#/components/parameters/OptionalOperatorSessionRef"
       responses:
         "400": { $ref: "#/components/responses/BadRequest" }
-        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "200":
           description: 在线用户分页，按最近活动时间倒序
           content:
@@ -282,7 +264,6 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
-        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "200":
           description: 会话列表（可能为空）
           content:
@@ -313,8 +294,6 @@ paths:
         - $ref: "#/components/parameters/OperatorAccountId"
         - $ref: "#/components/parameters/OperatorSessionRef"
       responses:
-        "403": { $ref: "#/components/responses/ClientForbidden" }
-        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
         "204": { description: 会话已终止 }
         "404":
@@ -348,10 +327,13 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
       responses:
-        "403": { $ref: "#/components/responses/ClientForbidden" }
-        "401": { $ref: "#/components/responses/ClientUnauthenticated" }
         "400": { $ref: "#/components/responses/OperatorRequiredOrBadRequest" }
         "204": { description: 密码已修改 }
+        "403":
+          description: 路径账号不是操作人自己的账号（`operator_forbidden`）；改密只允许改操作人自己的账号
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
         "422":
           description: 校验失败：`validation_failed`（请求体字段缺失 / 为空 / 过长，带 `errors`），或 `current_password_incorrect` / `weak_password` / `same_as_current`
           content:
@@ -360,12 +342,6 @@ paths:
         "429": { $ref: "#/components/responses/Throttled" }
 
 components:
-  securitySchemes:
-    serviceKey:
-      type: http
-      scheme: bearer
-      description: 静态服务密钥（32 字节随机数，带 `uamk_` 前缀）。每个客户端独立；UAM 配置里只存 SHA-256 哈希，至多两把同时有效以便不停机轮换。
-
   parameters:
     Page:
       name: page
@@ -432,16 +408,6 @@ components:
       schema: { type: string, format: uuid }
 
   responses:
-    ClientUnauthenticated:
-      description: 服务密钥缺失、无效或已撤销（`client_unauthenticated`）；响应不透露是哪一部分不对
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/Problem" }
-    ClientForbidden:
-      description: 客户端未被授予「可代用户断言操作人与来源地址」权限（`client_forbidden`）
-      content:
-        application/problem+json:
-          schema: { $ref: "#/components/schemas/Problem" }
     OperatorRequired:
       description: 缺少操作人请求头（`operator_required`）
       content:
@@ -494,7 +460,7 @@ components:
         status: { type: integer }
         code:
           type: string
-          examples: [invalid_credentials, session_invalid, client_unauthenticated, client_forbidden, operator_required, bad_request, throttled, account_name_taken, idempotency_in_progress, validation_failed,
+          examples: [invalid_credentials, session_invalid, operator_required, operator_forbidden, bad_request, throttled, account_name_taken, idempotency_in_progress, validation_failed,
                      cannot_disable_self, cannot_disable_last_active_user, cannot_terminate_own_session,
                      session_not_found, user_not_found, current_password_incorrect, weak_password, same_as_current]
         detail: { type: string }

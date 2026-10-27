@@ -14,7 +14,7 @@
 | 存储 | PostgreSQL 16.15（`shared_buffers=256MB`），Redis 7.4.11（AOF everysec） |
 | 入口 / 内部负载均衡 | nginx 1.27.5，各 1 个 worker，轮询、无粘滞、上游 keepalive |
 | 压测 | k6 v2.3.0（`grafana/k6`，作为 compose 的 `k6` 服务运行，与入口和 uam-lb 同网） |
-| 配置 | `devops/local/e2e.env` 的本地测试值；UAM 与 Admin Center 的 `UAM_TIMEOUT_MS` 为默认 1500 |
+| 配置 | `devops/local/e2e.env` 的本地测试值；UAM 与 Admin Center 的 `UAM_TIMEOUT_MS` 为默认 1500。测量时 UAM 还要求服务密钥（每次调用校验一次 SHA-256），该开销可忽略；2026-10-27 起 UAM 不再认证调用方，下文数字未重测 |
 
 资源快照（10 万用户 / 1 万会话、压测刚结束，`docker stats`）：每个 UAM 约 515 ~ 593 MiB，每个 Admin Center 约 146 ~ 152 MiB，PostgreSQL 约 1018 MiB，Redis 约 35 MiB（`used_memory` 15.7 MiB）。
 

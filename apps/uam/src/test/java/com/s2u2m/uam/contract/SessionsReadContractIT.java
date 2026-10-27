@@ -40,7 +40,7 @@ class SessionsReadContractIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     data = new UserFixtures(jdbc);
     sessions = new SessionFixtures(store);
     now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
@@ -117,10 +117,5 @@ class SessionsReadContractIT extends IntegrationTestBase {
     assertProblem(api.get("/v1/users/" + UUID.randomUUID() + "/sessions"), 404, "user_not_found");
     assertProblem(api.get("/v1/online-users?size=101"), 422, "validation_failed");
     assertProblem(api.get("/v1/online-users?page=0"), 422, "validation_failed");
-    assertProblem(new ApiClient(port, null).get("/v1/online-users"), 401, "client_unauthenticated");
-    assertProblem(
-        new ApiClient(port, null).get("/v1/users/" + multi + "/sessions"),
-        401,
-        "client_unauthenticated");
   }
 }

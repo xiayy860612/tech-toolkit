@@ -1,7 +1,7 @@
 /**
  * UAM 桩（msw）：按 `contracts/uam/openapi.yaml` 校验每个请求与响应。
  *
- * - 服务密钥缺失 / 不匹配 → 桩自己回 401 `client_unauthenticated`（与真实 UAM 一致）。
+ * - UAM 不认证调用方：请求带了 `Authorization` 头即算违约（记入 `violations`），Admin Center 不应再发它。
  * - 写操作缺操作人请求头 → 桩回 400 `operator_required`（与真实 UAM 一致）。
  * - 请求违反契约时桩同样模拟真实 UAM 的拒绝：请求体字段不符 → 422 `validation_failed`；读不懂的请求
  *   （请求头 / 路径 / 查询参数类型不符、无请求体等）→ 400 `bad_request`。
@@ -18,8 +18,6 @@ import { delay, http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 
 export const UAM_STUB_BASE_URL = "http://uam.test";
-/** 测试专用的假密钥（不带真实密钥前缀，避免被密钥扫描误报）。 */
-export const UAM_STUB_SERVICE_KEY = "test-service-key-not-a-secret";
 
 type Json = Record<string, unknown>;
 type Method = "get" | "post" | "delete";
@@ -58,8 +56,7 @@ function problem(status: number, code: string, title: string): StubReply {
   return { status, body: { type: "about:blank", title, status, code } };
 }
 
-export function createUamStub(options: { serviceKey?: string } = {}) {
-  const serviceKey = options.serviceKey ?? UAM_STUB_SERVICE_KEY;
+export function createUamStub() {
   const spec = loadSpec();
   const ajv = new Ajv2020({ strict: false, allErrors: true });
   addFormats(ajv);
@@ -131,10 +128,8 @@ export function createUamStub(options: { serviceKey?: string } = {}) {
         : problem(400, "bad_request", "stub: request violates contract");
     };
 
-    // 服务密钥
-    if (req.headers.get("authorization") !== `Bearer ${serviceKey}`) {
-      return problem(401, "client_unauthenticated", "Unauthorized");
-    }
+    // UAM 不认证调用方：不应带 Authorization
+    if (req.headers.has("authorization")) violations.push(`[${op.operationId}] 请求不应带 Authorization 头（UAM 不认证调用方）`);
 
     // 操作人请求头：缺失按真实 UAM 回 400 operator_required；格式错误算违约
     for (const p of op.parameters) {

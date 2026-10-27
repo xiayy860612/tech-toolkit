@@ -23,8 +23,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>改密限流（当前密码连续错误）口径相同，键为 {@code uam:throttle:pwchg:{sha256(账号标识|来源地址)}}，与登录计数互不影响。
  *
- * <p>幂等（新建用户）：键 {@code uam:idem:{sha256(客户端|幂等键)}}，值为字符串：进行中 {@code P|<指纹>}（TTL 30 秒）或完成 {@code
- * D|<指纹>|<响应快照>}（TTL 10 分钟）；{@code SET NX} 抢占，按客户端隔离，原始键不进 Redis 键名。
+ * <p>幂等（新建用户）：键 {@code uam:idem:{sha256(幂等键)}}，值为字符串：进行中 {@code P|<指纹>}（TTL 30 秒）或完成 {@code
+ * D|<指纹>|<响应快照>}（TTL 10 分钟）；{@code SET NX} 抢占，原始键不进 Redis 键名。
  */
 @Component
 @Profile("!cli")
@@ -81,8 +81,8 @@ public class RedisGuards implements LoginThrottle, PasswordChangeThrottle, Idemp
   }
 
   @Override
-  public Claim claim(String scope, String key, String fingerprint) {
-    String redisKey = idempotencyKey(scope, key);
+  public Claim claim(String key, String fingerprint) {
+    String redisKey = idempotencyKey(key);
     // 值在两次读取之间过期或被释放时重试；损坏的值（不是本类写入的）丢弃后重新抢占
     while (true) {
       if (Boolean.TRUE.equals(
@@ -106,22 +106,21 @@ public class RedisGuards implements LoginThrottle, PasswordChangeThrottle, Idemp
   }
 
   @Override
-  public void complete(String scope, String key, String fingerprint, String response) {
+  public void complete(String key, String fingerprint, String response) {
     redis
         .opsForValue()
-        .set(idempotencyKey(scope, key), DONE + fingerprint + "|" + response, REPLAY_WINDOW);
+        .set(idempotencyKey(key), DONE + fingerprint + "|" + response, REPLAY_WINDOW);
   }
 
   @Override
-  public void release(String scope, String key) {
-    redis.delete(idempotencyKey(scope, key));
+  public void release(String key) {
+    redis.delete(idempotencyKey(key));
   }
 
-  private static String idempotencyKey(String scope, String key) {
+  private static String idempotencyKey(String key) {
     try {
       byte[] digest =
-          MessageDigest.getInstance("SHA-256")
-              .digest((scope + "|" + key).getBytes(StandardCharsets.UTF_8));
+          MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
       return IDEMPOTENCY_PREFIX + HexFormat.of().formatHex(digest);
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException(e);

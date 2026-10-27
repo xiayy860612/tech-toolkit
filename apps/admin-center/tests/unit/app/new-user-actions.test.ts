@@ -9,7 +9,6 @@ import {
   FIXTURE_IDS,
   problemBody,
   UAM_STUB_BASE_URL,
-  UAM_STUB_SERVICE_KEY,
   verifyResponseBody,
 } from "../../support/uam-stub";
 import { makeDetail } from "../../support/users-fixtures";
@@ -56,7 +55,6 @@ beforeAll(() => stub.listen());
 afterAll(() => stub.close());
 beforeEach(() => {
   process.env.UAM_BASE_URL = UAM_STUB_BASE_URL;
-  process.env.UAM_SERVICE_KEY = UAM_STUB_SERVICE_KEY;
   requestHeaders();
   jest.mocked(getSession).mockResolvedValue({ status: "authenticated", session: verifyResponseBody() as never });
   logs.push(
@@ -65,10 +63,9 @@ beforeEach(() => {
 });
 afterEach(() => {
   expect(stub.violations).toEqual([]);
-  // 任何日志都不能带出密码或服务密钥
+  // 任何日志都不能带出密码
   const logged = JSON.stringify(logs.flatMap((l) => l.mock.calls));
   expect(logged).not.toContain(PASSWORD);
-  expect(logged).not.toContain(UAM_STUB_SERVICE_KEY);
   logs.splice(0).forEach((l) => l.mockRestore());
   stub.reset();
   jest.clearAllMocks();
@@ -189,7 +186,7 @@ describe("createUser 动作：成功", () => {
     expect(stub.calls).toHaveLength(1);
     const [call] = stub.calls;
     expect(call.operationId).toBe("createUser");
-    expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(call.headers.get("authorization")).toBeNull();
     expect(call.headers.get("idempotency-key")).toBe(KEY);
     expect(call.headers.get("x-operator-user-id")).toBe(FIXTURE_IDS.userId);
     expect(call.headers.get("x-operator-account-id")).toBe(FIXTURE_IDS.accountId);
@@ -272,14 +269,6 @@ describe("createUser 动作：UAM 的结论", () => {
     expect(state.idempotencyKey).toBe(KEY);
     expect(state.values).toEqual({ userName: "王五", accountName: "wangwu" });
     expect(JSON.stringify(state)).not.toContain(PASSWORD);
-  });
-
-  it("UAM 拒绝了 Admin Center（服务密钥错误）：对用户只显示「操作未生效」，运维告警一条（不含秘密）", async () => {
-    stub.respond("createUser", { status: 403, body: problemBody(403, "client_forbidden") });
-    const state = await createUser({}, form());
-    expect(state.formError).toBe("操作未生效");
-    expect(state.idempotencyKey).toBe(KEY);
-    expect(console.error).toHaveBeenCalledTimes(1);
   });
 
   it("其它业务问题码（operator_required、bad_request 或未知）：「操作未生效」，保持原幂等键，不回显密码", async () => {

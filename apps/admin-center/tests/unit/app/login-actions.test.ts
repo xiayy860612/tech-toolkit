@@ -9,7 +9,6 @@ import {
   loginResponseBody,
   problemBody,
   UAM_STUB_BASE_URL,
-  UAM_STUB_SERVICE_KEY,
 } from "../../support/uam-stub";
 
 jest.mock("next/headers", () => ({ headers: jest.fn(), cookies: jest.fn() }));
@@ -54,7 +53,6 @@ beforeAll(() => stub.listen());
 afterAll(() => stub.close());
 beforeEach(() => {
   process.env.UAM_BASE_URL = UAM_STUB_BASE_URL;
-  process.env.UAM_SERVICE_KEY = UAM_STUB_SERVICE_KEY;
   process.env.SESSION_COOKIE_NAME = "asid";
   process.env.TRUSTED_PROXY_HOPS = "1";
   jest.mocked(cookies).mockResolvedValue({ set: cookieSet } as never);
@@ -65,10 +63,9 @@ beforeEach(() => {
 });
 afterEach(() => {
   expect(stub.violations).toEqual([]);
-  // 任何日志都不能带出密码或服务密钥
+  // 任何日志都不能带出密码
   const logged = JSON.stringify(logs.flatMap((l) => l.mock.calls));
   expect(logged).not.toContain(PASSWORD);
-  expect(logged).not.toContain(UAM_STUB_SERVICE_KEY);
   logs.splice(0).forEach((l) => l.mockRestore());
   stub.reset();
   cookieSet.mockClear();
@@ -214,14 +211,6 @@ describe("login 动作：UAM 的结论", () => {
     expect(state.formError).toBe("服务暂不可用，请稍后重试");
     expect(cookieSet).not.toHaveBeenCalled();
   });
-
-  it("UAM 拒绝了 Admin Center（服务密钥错误）：对用户显示服务暂不可用，并写运维告警（不含秘密）", async () => {
-    stub.respond("login", { status: 403, body: problemBody(403, "client_forbidden") });
-    const state = await login({}, form());
-    expect(state.formError).toBe("服务暂不可用，请稍后重试");
-    expect(console.error).toHaveBeenCalledTimes(1);
-    expect(cookieSet).not.toHaveBeenCalled();
-  });
 });
 
 describe("login 动作：成功", () => {
@@ -235,7 +224,7 @@ describe("login 动作：成功", () => {
   it("带服务密钥与规范化后的输入调用 UAM；写 cookie（属性齐全、Max-Age 取 UAM 返回值）并跳 /users", async () => {
     await expect(login({}, form({ accountName: "  zhangsan  " }))).rejects.toThrow("NEXT_REDIRECT:/users");
     expect(stub.calls).toHaveLength(1);
-    expect(stub.calls[0].headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(stub.calls[0].headers.get("authorization")).toBeNull();
     expect(stub.calls[0].body).toEqual({ accountName: "zhangsan", password: PASSWORD, clientIp: "203.0.113.7" });
     expect(cookieSet).toHaveBeenCalledWith("asid", "sid-from-uam", {
       httpOnly: true,

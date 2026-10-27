@@ -1,4 +1,4 @@
-# Admin Center：无状态接入层。UAM_SERVICE_KEY 来自 Secret admin-center-runtime（envFrom）。
+# Admin Center：无状态接入层，没有必填 Secret（只需 UAM_BASE_URL）。
 # SESSION_COOKIE_NAME 不在这里设：默认 __Host-asid（要求 HTTPS，云上用这个）；本地 http 由 overlays/kind 改为 asid。
 # TRUSTED_PROXY_HOPS 必须等于前面可信代理的层数，按环境在 overlay 里确认（见 docs/system-design/system/README.md §4.2.1）。
 apiVersion: v1
@@ -40,8 +40,6 @@ spec:
           image: admin-center # 占位，由 overlay 的 images 替换
           ports:
             - {name: http, containerPort: 3000}
-          envFrom:
-            - secretRef: {name: admin-center-runtime}
           env:
             - {name: UAM_BASE_URL, value: "http://uam:8080"}
             - {name: TRUSTED_PROXY_HOPS, value: "1"}

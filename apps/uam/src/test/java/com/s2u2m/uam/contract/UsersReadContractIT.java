@@ -29,7 +29,7 @@ class UsersReadContractIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     data = new UserFixtures(jdbc);
     multi = data.user("多账号用户", "ACTIVE", BASE);
     data.account(multi, "Multi.One", "ACTIVE", BASE.plusSeconds(1));
@@ -95,8 +95,5 @@ class UsersReadContractIT extends IntegrationTestBase {
   void errorsConformToProblem() {
     assertProblem(api.get("/v1/users/" + UUID.randomUUID()), 404, "user_not_found");
     assertProblem(api.get("/v1/users?size=101"), 422, "validation_failed");
-    assertProblem(new ApiClient(port, null).get("/v1/users"), 401, "client_unauthenticated");
-    assertProblem(
-        new ApiClient(port, null).get("/v1/users/" + multi), 401, "client_unauthenticated");
   }
 }

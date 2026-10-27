@@ -430,7 +430,7 @@ public final class Fakes {
     }
   }
 
-  /** 内存幂等存储：按「范围 + 键」保存进行中标记或完成快照；{@code onInFlight} 在每次返回「进行中」时回调（参数为第几次）， 用来模拟占位方在等待期间完成或放弃。 */
+  /** 内存幂等存储：按键保存进行中标记或完成快照；{@code onInFlight} 在每次返回「进行中」时回调（参数为第几次）， 用来模拟占位方在等待期间完成或放弃。 */
   public static class FakeIdempotencyStore implements IdempotencyStore {
     private record Entry(String fingerprint, String response) {}
 
@@ -441,25 +441,21 @@ public final class Fakes {
     public int inFlightReturned;
     public IntConsumer onInFlight = count -> {};
 
-    private static String id(String scope, String key) {
-      return scope + "|" + key;
+    public boolean holds(String key) {
+      return entries.containsKey(key);
     }
 
-    public boolean holds(String scope, String key) {
-      return entries.containsKey(id(scope, key));
-    }
-
-    public String snapshotOf(String scope, String key) {
-      Entry entry = entries.get(id(scope, key));
+    public String snapshotOf(String key) {
+      Entry entry = entries.get(key);
       return entry == null ? null : entry.response();
     }
 
     @Override
-    public Claim claim(String scope, String key, String fingerprint) {
+    public Claim claim(String key, String fingerprint) {
       claims++;
-      Entry entry = entries.get(id(scope, key));
+      Entry entry = entries.get(key);
       if (entry == null) {
-        entries.put(id(scope, key), new Entry(fingerprint, null));
+        entries.put(key, new Entry(fingerprint, null));
         return new Claim.Acquired();
       }
       if (entry.response() != null) {
@@ -471,15 +467,15 @@ public final class Fakes {
     }
 
     @Override
-    public void complete(String scope, String key, String fingerprint, String response) {
-      completed.add(id(scope, key));
-      entries.put(id(scope, key), new Entry(fingerprint, response));
+    public void complete(String key, String fingerprint, String response) {
+      completed.add(key);
+      entries.put(key, new Entry(fingerprint, response));
     }
 
     @Override
-    public void release(String scope, String key) {
-      released.add(id(scope, key));
-      entries.remove(id(scope, key));
+    public void release(String key) {
+      released.add(key);
+      entries.remove(key);
     }
   }
 }

@@ -10,7 +10,6 @@ import {
   FIXTURE_IDS,
   problemBody,
   UAM_STUB_BASE_URL,
-  UAM_STUB_SERVICE_KEY,
   verifyResponseBody,
 } from "../../support/uam-stub";
 import { SESSION_REFS } from "../../support/sessions-fixtures";
@@ -47,7 +46,6 @@ beforeAll(() => stub.listen());
 afterAll(() => stub.close());
 beforeEach(() => {
   process.env.UAM_BASE_URL = UAM_STUB_BASE_URL;
-  process.env.UAM_SERVICE_KEY = UAM_STUB_SERVICE_KEY;
   requestHeaders();
   jest.mocked(getSession).mockResolvedValue({ status: "authenticated", session: verifyResponseBody() as never });
   logs.push(
@@ -56,8 +54,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   expect(stub.violations).toEqual([]);
-  const logged = JSON.stringify(logs.flatMap((l) => l.mock.calls));
-  expect(logged).not.toContain(UAM_STUB_SERVICE_KEY);
   logs.splice(0).forEach((l) => l.mockRestore());
   stub.reset();
   jest.clearAllMocks();
@@ -119,7 +115,7 @@ describe("terminateSession 动作：成功与 UAM 的结论", () => {
     expect(call.operationId).toBe("terminateSession");
     expect(call.method).toBe("DELETE");
     expect(call.path).toBe(`/v1/sessions/${TARGET}`);
-    expect(call.headers.get("authorization")).toBe(`Bearer ${UAM_STUB_SERVICE_KEY}`);
+    expect(call.headers.get("authorization")).toBeNull();
     expect(call.headers.get("x-operator-user-id")).toBe(FIXTURE_IDS.userId);
     expect(call.headers.get("x-operator-account-id")).toBe(FIXTURE_IDS.accountId);
     expect(call.headers.get("x-operator-session-ref")).toBe(FIXTURE_IDS.sessionRef);
@@ -153,13 +149,6 @@ describe("terminateSession 动作：成功与 UAM 的结论", () => {
     process.env.UAM_TIMEOUT_MS = "40";
     stub.respond("terminateSession", reply);
     expect(await terminateSession(USER, TARGET)).toEqual({ ok: false, message: "操作未生效" });
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-
-  it("UAM 拒绝了 Admin Center（服务密钥错误）：对用户只显示「操作未生效」，运维告警一条（不含秘密）", async () => {
-    stub.respond("terminateSession", { status: 403, body: problemBody(403, "client_forbidden") });
-    expect(await terminateSession(USER, TARGET)).toEqual({ ok: false, message: "操作未生效" });
-    expect(console.error).toHaveBeenCalledTimes(1);
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 

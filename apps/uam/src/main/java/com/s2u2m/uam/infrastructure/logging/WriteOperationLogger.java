@@ -38,7 +38,6 @@ public class WriteOperationLogger implements WriteOperationLog {
       builder = field(builder, "operatorUserId", operator.userId());
       builder = field(builder, "operatorAccountId", operator.accountId());
     }
-    builder = field(builder, "clientId", event.clientId());
     builder = field(builder, "action", event.action().value());
     builder = field(builder, "targetType", event.targetType());
     builder = field(builder, "targetId", event.targetId());

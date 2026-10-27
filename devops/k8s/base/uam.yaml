@@ -1,6 +1,7 @@
 # UAM：只有 ClusterIP Service，且 NetworkPolicy 只放行 Admin Center（spec 假设：UAM 只在内网可达）。
-# 连接与客户端清单全部来自 Secret uam-runtime（envFrom）：
-#   SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD、SPRING_DATA_REDIS_HOST / _PORT、UAM_CLIENTS
+# UAM 不认证调用方，NetworkPolicy 是唯一保护（服务身份后续另行实现）。
+# 连接信息全部来自 Secret uam-runtime（envFrom）：
+#   SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD、SPRING_DATA_REDIS_HOST / _PORT
 # 托管 Redis 需要密码 / TLS 时，在同一个 Secret 里追加 SPRING_DATA_REDIS_PASSWORD、SPRING_DATA_REDIS_SSL_ENABLED 即可。
 apiVersion: v1
 kind: Service

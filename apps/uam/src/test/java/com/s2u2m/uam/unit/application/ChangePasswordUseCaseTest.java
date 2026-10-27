@@ -30,7 +30,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 /** T134：改密用例（假端口）——校验当前密码、新密码强度与「不同于当前」、只改路径里的账号、限流先于校验、写 {@code account.password.change} 日志。 */
 class ChangePasswordUseCaseTest {
 
-  private static final String CLIENT = "admin-center";
   private static final String IP = "203.0.113.7";
   private static final String CURRENT = "Passw0rd-fake-1";
   private static final String NEW = "Another-fake-2";
@@ -60,7 +59,7 @@ class ChangePasswordUseCaseTest {
   }
 
   private ChangePasswordCommand command(String current, String next) {
-    return new ChangePasswordCommand(operator, CLIENT, accountId, IP, current, next);
+    return new ChangePasswordCommand(operator, accountId, IP, current, next);
   }
 
   private String subject() {
@@ -91,7 +90,6 @@ class ChangePasswordUseCaseTest {
     assertThat(event.outcome()).isEqualTo(Outcome.SUCCESS);
     assertThat(event.reason()).isNull();
     assertThat(event.operator()).isEqualTo(operator);
-    assertThat(event.clientId()).isEqualTo(CLIENT);
   }
 
   @Test
@@ -124,7 +122,6 @@ class ChangePasswordUseCaseTest {
     ChangePasswordCommand command =
         new ChangePasswordCommand(
             new OperatorContext(operator.userId(), unknown, operator.sessionRef()),
-            CLIENT,
             unknown,
             IP,
             CURRENT,
@@ -216,17 +213,17 @@ class ChangePasswordUseCaseTest {
   @Test
   void anOperatorChangingAnotherAccountIsForbiddenBeforeAnythingIsChecked() {
     ChangePasswordCommand command =
-        new ChangePasswordCommand(operator, CLIENT, otherAccountId, IP, CURRENT, NEW);
+        new ChangePasswordCommand(operator, otherAccountId, IP, CURRENT, NEW);
 
     DomainException e = rejection(command);
 
-    assertThat(e.errorCode()).isEqualTo(ErrorCode.CLIENT_FORBIDDEN);
+    assertThat(e.errorCode()).isEqualTo(ErrorCode.OPERATOR_FORBIDDEN);
     assertThat(credentials.hashes.get(otherAccountId)).isEqualTo("fake$" + CURRENT);
     assertThat(hasher.comparedHashes).isEmpty();
     assertThat(throttle.failures).isEmpty();
     WriteOperationEvent event = onlyEvent();
     assertThat(event.outcome()).isEqualTo(Outcome.REJECTED);
-    assertThat(event.reason()).isEqualTo("client_forbidden");
+    assertThat(event.reason()).isEqualTo("operator_forbidden");
     assertThat(event.targetId()).isEqualTo(otherAccountId.toString());
   }
 
