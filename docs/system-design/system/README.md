@@ -87,10 +87,11 @@ PostgreSQL、Redis、UAM、Admin Center 各一个；仅 Admin Center 向宿主�
 | 位置 | 内容 |
 |---|---|
 | `base/` | UAM ×2、Admin Center ×2（Deployment + ClusterIP Service + PodDisruptionBudget）、入站默认拒绝与「Admin Center → UAM」放行的 NetworkPolicy。**不含** Namespace、数据库、入口、Secret、环境专属镜像名 |
-| `components/ingress` | 标准 `Ingress`（`ingressClassName` / host / TLS 由 overlay 补丁）+ 放行 ingress controller → Admin Center 的 NetworkPolicy；kind 与云上共用 |
+| `components/ingress` | 标准 `Ingress`（`ingressClassName` / host / TLS 由 overlay 补丁）+ 放行 ingress controller → Admin Center 的 NetworkPolicy；云上用（Ingress 路径，kind 不用） |
+| `components/gateway` | Gateway API：`Gateway`（监听）+ `HTTPRoute`（路由到 Admin Center）+ 放行数据面代理 → Admin Center 的 NetworkPolicy；`gatewayClassName`、监听 / TLS 由 overlay 补丁。目前只有 kind 用 |
 | `components/in-cluster-data` | PostgreSQL 16 / Redis 7 的 StatefulSet + PVC + 「UAM → 数据层」放行策略；**仅用于 kind / 开发**，云上用托管服务 |
-| `overlays/kind` | base + ingress + in-cluster-data；Ingress 去掉 host / TLS（经 port-forward 用 IP 访问）；镜像 `tech-toolkit/*:local`；`SESSION_COOKIE_NAME=asid`（本地 http） |
-| `cluster/ingress-nginx.yaml` | 固定版本（v1.15.1，baremetal 变体）的 ingress controller，**只给 kind 装**（`deploy.sh up` 按需应用）；上游仓库已于 2026-03 归档、不再有安全修复，云上请用有人维护的 controller |
+| `overlays/kind` | base + gateway + in-cluster-data；入口为 Gateway API（Envoy Gateway），经 port-forward 用 IP 访问；镜像 `tech-toolkit/*:local`；`SESSION_COOKIE_NAME=asid`（本地 http） |
+| `cluster/envoy-gateway-class.yaml` | Envoy Gateway 的 `GatewayClass` + `EnvoyProxy`（数据面 Service 用 ClusterIP：kind 没有 LoadBalancer，否则 Gateway 停在 `Programmed=False`）。Envoy Gateway v1.9.3（含 Gateway API v1.6.1 的 CRD，约 4 MB）由 `deploy.sh up` 按固定版本从官方 release 安装，**只给 kind 装** |
 | `overlays/cloud` | base + ingress；镜像取 CI 推送的 ACR 仓库；cookie 用默认 `__Host-asid`（要求 HTTPS）；**示例**，host / 镜像标签 / ingress 类按实际环境改 |
 
 **Secret 契约**（清单只按固定名字引用，不含任何值；kind 由 `scripts/deploy.sh` 生成，云上由云密钥服务 / External Secrets / CI 创建）：
