@@ -1,0 +1,7 @@
+# Gateway API 入口：Gateway（监听）+ HTTPRoute（路由到 Admin Center）+ 放行代理 → Admin Center 的 NetworkPolicy。
+# gatewayClassName、监听端口 / TLS 由 overlay 补丁。目前只有 overlays/kind 使用（Envoy Gateway）。
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - gateway.yaml
+  - network-policy.yaml

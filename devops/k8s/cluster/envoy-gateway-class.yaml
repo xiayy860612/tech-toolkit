@@ -1,0 +1,27 @@
+# Envoy Gateway 的 GatewayClass（集群级，由 Envoy Gateway 的 controller 处理），随 deploy.sh up 在安装 Envoy Gateway 之后应用。
+# kind 没有 LoadBalancer：默认的 LoadBalancer Service 永远拿不到地址，Gateway 会停在 Programmed=False（AddressNotAssigned），
+# 所以通过 EnvoyProxy 把数据面 Service 改成 ClusterIP（访问靠 kubectl port-forward）。
+# 云上的 GatewayClass 由平台提供（名字与参数不同），在 overlay 里补丁 Gateway 的 gatewayClassName。
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: kind
+  namespace: envoy-gateway-system
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: ClusterIP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: eg
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: kind
+    namespace: envoy-gateway-system

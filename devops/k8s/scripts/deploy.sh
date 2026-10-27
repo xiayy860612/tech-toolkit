@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 把 UAM 与 Admin Center（连同 PostgreSQL、Redis，入口由 ingress-nginx 提供）部署到本地 kind 集群（overlays/kind）。兼容 macOS 自带的 bash 3.2。
+# 把 UAM 与 Admin Center（连同 PostgreSQL、Redis，入口由 Envoy Gateway（Gateway API）提供）部署到本地 kind 集群（overlays/kind）。兼容 macOS 自带的 bash 3.2。
 # 只服务 kind：云上直接 kubectl apply -k devops/k8s/overlays/cloud（Secret 由部署方准备，见 overlays/cloud/kustomization.yaml）。
 #
 # 用法：devops/k8s/scripts/deploy.sh [up|down|status|forward]
@@ -23,6 +23,8 @@ cluster="${KIND_CLUSTER:-cka}"
 ns="${K8S_NAMESPACE:-tech-toolkit}"
 ctx="kind-$cluster"
 edge_port="${EDGE_PORT:-8088}"
+envoy_gateway_version="v1.9.3"
+envoy_gateway_url="https://github.com/envoyproxy/gateway/releases/download/$envoy_gateway_version/install.yaml"
 admin_account="${K8S_ADMIN_ACCOUNT:-admin}"
 admin_name="${K8S_ADMIN_NAME:-系统管理员}"
 admin_password_file="${ADMIN_PASSWORD_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/tech-toolkit/k8s-admin-password}"
@@ -117,14 +119,23 @@ wait_ready() {
   k rollout status deployment/admin-center --timeout=180s
 }
 
-# ingress controller（与云上相同的 Ingress 由它实现）。集群里没有就应用 cluster/ingress-nginx.yaml（固定版本），并等它就绪：
-# Ingress 的准入 webhook 由 controller 提供，controller 没起来时应用 Ingress 会失败。节点自己拉取镜像（registry.k8s.io）。
-ensure_ingress_controller() {
-  if ! kubectl --context "$ctx" get namespace ingress-nginx >/dev/null 2>&1; then
-    log "安装 ingress-nginx（cluster/ingress-nginx.yaml）"
-    kubectl --context "$ctx" apply -f "$here/../cluster/ingress-nginx.yaml" >/dev/null
+# Gateway API 入口：Envoy Gateway（连同 Gateway API 的 CRD，固定版本）+ GatewayClass。集群里没有就安装并等它就绪。
+# 安装清单约 4 MB（主要是 CRD），不放进仓库，按固定版本从官方 release 下载；CRD 很大，必须用 server-side apply。
+# 节点自己拉取镜像（docker.io/envoyproxy）。
+ensure_gateway_controller() {
+  if ! kubectl --context "$ctx" get namespace envoy-gateway-system >/dev/null 2>&1; then
+    log "安装 Envoy Gateway $envoy_gateway_version（含 Gateway API CRD）"
+    kubectl --context "$ctx" apply --server-side -f "$envoy_gateway_url" >/dev/null
   fi
-  kubectl --context "$ctx" -n ingress-nginx rollout status deployment/ingress-nginx-controller --timeout=300s
+  kubectl --context "$ctx" -n envoy-gateway-system wait --for=condition=Available deployment/envoy-gateway --timeout=300s >/dev/null
+  kubectl --context "$ctx" apply -f "$here/../cluster/envoy-gateway-class.yaml" >/dev/null
+}
+
+# Envoy Gateway 为 Gateway 创建的数据面 Service（在 envoy-gateway-system 里，名字带哈希，只能按标签找）
+gateway_proxy_service() {
+  kubectl --context "$ctx" -n envoy-gateway-system get service \
+    -l "gateway.envoyproxy.io/owning-gateway-name=admin-center,gateway.envoyproxy.io/owning-gateway-namespace=$ns" \
+    -o jsonpath='{.items[0].metadata.name}'
 }
 
 init_admin() {
@@ -161,7 +172,7 @@ case "$action" in
     # Secret 要先于工作负载存在，命名空间因此先建（kustomize 里的同名 Namespace 再 apply 是幂等的）
     kubectl --context "$ctx" create namespace "$ns" --dry-run=client -o yaml | kubectl --context "$ctx" apply -f - >/dev/null
     ensure_secrets
-    ensure_ingress_controller
+    ensure_gateway_controller
     apply_manifests
     wait_ready
     init_admin
@@ -178,8 +189,10 @@ case "$action" in
     ;;
   forward)
     require_cluster
-    log "http://127.0.0.1:$edge_port → ingress-nginx（Ctrl-C 结束）"
-    exec kubectl --context "$ctx" -n ingress-nginx port-forward --address 127.0.0.1 svc/ingress-nginx-controller "$edge_port:80"
+    proxy_svc="$(gateway_proxy_service)"
+    [ -n "$proxy_svc" ] || { echo "没有找到 Gateway 的代理 Service：先执行 up" >&2; exit 2; }
+    log "http://127.0.0.1:$edge_port → svc/$proxy_svc（Envoy Gateway，Ctrl-C 结束）"
+    exec kubectl --context "$ctx" -n envoy-gateway-system port-forward --address 127.0.0.1 "svc/$proxy_svc" "$edge_port:80"
     ;;
   *) usage ;;
 esac
