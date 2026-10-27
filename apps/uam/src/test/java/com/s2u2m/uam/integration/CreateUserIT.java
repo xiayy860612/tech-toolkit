@@ -38,7 +38,7 @@ class CreateUserIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     logs.start();
     rootLogger.addAppender(logs);
   }
@@ -142,7 +142,7 @@ class CreateUserIT extends IntegrationTestBase {
     assertThat(field(event, "targetType")).isEqualTo("user");
     assertThat(field(event, "targetId")).isEqualTo(userId);
     assertThat(field(event, "operatorUserId")).isEqualTo(operatorUser.toString());
-    assertThat(field(event, "clientId")).isEqualTo("admin-center");
+    assertThat(field(event, "clientId")).isNull();
   }
 
   @Test

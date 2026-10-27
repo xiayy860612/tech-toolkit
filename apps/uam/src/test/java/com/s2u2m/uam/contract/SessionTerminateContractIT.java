@@ -35,7 +35,7 @@ class SessionTerminateContractIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     UserFixtures data = new UserFixtures(jdbc);
     SessionFixtures sessions = new SessionFixtures(store);
     operatorUser = data.user("运维甲");
@@ -119,14 +119,5 @@ class SessionTerminateContractIT extends IntegrationTestBase {
         409,
         "cannot_terminate_own_session");
     assertThat(redis.hasKey("uam:sref:" + target.ref())).as("自己的会话没有被终止").isTrue();
-  }
-
-  @Test
-  void aMissingServiceKeyIs401() {
-    assertProblem(
-        new ApiClient(port, null)
-            .delete("/v1/sessions/" + target.ref(), headers(UUID.randomUUID())),
-        401,
-        "client_unauthenticated");
   }
 }

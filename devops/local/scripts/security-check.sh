@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# 安全检查（T185；FR-013、FR-033、SC-014、SC-016）：静态检查 + 对运行中 E2E 栈的运行期检查。
-# 兼容 macOS 自带的 bash 3.2：不用关联数组、mapfile。除 e2e.env 里公开标注为「仅限测试」的固定密钥外，不含任何密钥。
+# 安全检查（T185；FR-013、FR-033、SC-014）：静态检查 + 对运行中 E2E 栈的运行期检查。
+# 兼容 macOS 自带的 bash 3.2：不用关联数组、mapfile。除 e2e.env 里公开标注为「仅限测试」的固定配置外，不含任何机密。
 #
 # 用法：devops/local/scripts/security-check.sh [static|runtime|all]   （默认 all）
 #   static   不需要 Docker：
 #            S1 被跟踪的 .env 文件        S2 Admin Center 无数据库驱动 / ORM（FR-013）
-#            S3 仓库与历史里的密钥特征    S4 src/lib 服务端模块都有 import "server-only"
-#            S5 浏览器包（构建 .next/static）里没有服务密钥
+#            S3 仓库与历史里的私钥特征    S4 src/lib 服务端模块都有 import "server-only"
+#            S5 浏览器包（构建 .next/static）里没有服务端机密（测试数据库密码、密码哈希前缀）
 #            S6 写入口（Server Action 与 POST 路由）先做同源校验，并跑相关单元测试
 #   runtime  需要已启动的 E2E 栈（devops/local/scripts/bootstrap.sh up），否则退出码 2：
 #            用 curl 走一遍真实流程（登录、浏览、新建、强制下线、停用 / 启用、改密、退出），
 #            R1 ~ R8 跨站伪造矩阵：login、createUser、terminateSession、disableUser、enableUser、changePassword、POST /logout
 #               每个写入口都用「外站 Origin / Sec-Fetch-Site: cross-site / 两者都没有」各打一次，必须被拒且状态不变；
 #               同源请求作为对照必须成功（证明脚本真的驱动了这个入口）
-#            R9 响应与日志里没有密码、哈希、会话标识、服务密钥（SC-014）；运行中栈提供的浏览器包里没有服务密钥
+#            R9 响应与日志里没有密码、哈希、会话标识（SC-014）；运行中栈提供的浏览器包里也没有
 #            R10 RSC 局部渲染不能绕过登录：不带 cookie（及带失效 cookie）发 `RSC: 1` + 含 (shell) 段的 Next-Router-State-Tree，
 #               请求 /users、/users/<guid>、/sessions、/sessions/<guid>，响应里不得出现本脚本造的标记用户名（有效会话作对照）
 #   all      先 static，再 runtime；栈原本没启动则自己 up，结束时 down（原本已启动则保持原样）。
@@ -24,16 +24,13 @@
 #   E2E_ADMIN_ACCOUNT / E2E_ADMIN_PASSWORD   与 bootstrap.sh 一致的首个用户（仅限本地 E2E 的假密码）
 # 退出码：0 全部通过；1 有失败项；2 用法 / 环境错误（如 runtime 但栈没起来）。
 #
-# 密钥扫描的允许名单（保持最小，每项一句理由；其余路径出现完整长度的 uamk_ 密钥一律失败）：
-#   devops/local/e2e.env —— 本地 E2E 的固定测试密钥，文件头已注明「仅限本地 E2E」；脚本还会核对该文件里只有这一把、且没有私钥特征。
-#   （UAM 测试里的假密钥都不是完整长度，或在运行时拼出，无需允许。）
-#   历史扫描另有两处遗留占位 PEM 的路径允许（只放行私钥特征，不放行 uamk_ 密钥），理由写在 LEGACY_PEM_ALLOW 旁。
+# 私钥特征扫描只有一条历史允许名单（只放行私钥特征，理由写在 LEGACY_PEM_ALLOW 旁）；工作区没有任何例外。
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$here/../../.." && pwd)"
 app="$repo/apps/admin-center"
-# 复用 scale-lib.sh 的 log、page_state、E2E 的账号与固定测试密钥（只读 e2e.env）
+# 复用 scale-lib.sh 的 log、page_state、E2E 的账号（只读 e2e.env）
 # shellcheck source=scale-lib.sh
 source "$here/scale-lib.sh"
 
@@ -115,29 +112,24 @@ s2_no_db_deps() {
   ' "$app/package.json"
 }
 
-# S3：完整长度的 uamk_ 密钥（uamk_ + 43 个 base64url 字符）与私钥特征，扫描工作区（含未跟踪、未忽略的文件）与全部历史。
-KEY_RE='uamk_[A-Za-z0-9_-]{43}'
+# S3：私钥特征，扫描工作区（含未跟踪、未忽略的文件）与全部历史。
 PEM_RE='BEGIN [A-Z ]*PRIVATE KEY'
-ALLOW_KEY_FILE="devops/local/e2e.env"
-# 目录从 infra/ 改名为 devops/ 之前的提交里，同一个文件在旧路径下（内容就是那把标注过的测试密钥，没有别的密钥）。
-# 只在历史扫描里放行这个确切旧路径；工作区扫描与 s3_allowlist_minimal 仍只认新路径。
-LEGACY_ALLOW_KEY_FILE="infra/local/e2e.env"
 s3_worktree() {
   local files
-  files="$(git -C "$repo" grep --untracked -lIE -e "$KEY_RE" -e "$PEM_RE" -- . ":(exclude)$ALLOW_KEY_FILE" || true)"
+  files="$(git -C "$repo" grep --untracked -lIE -e "$PEM_RE" -- . || true)"
   if [ -n "$files" ]; then
     printf '%s\n' "$files" | sed 's/^/        命中文件（内容不打印）：/'
     return 1
   fi
 }
-# 历史里的允许名单（只放行私钥特征、且只放行这两个确切路径；密钥 uamk_ 在历史里没有任何例外）：
+# 历史里的允许名单（只放行私钥特征、且只放行这几个确切路径）：
 #   sb3-jdk17/examples/service-example-h2/src/main/resources/jwt-rsa-key.pem
 #   quick-starter/be-spring-mvc-h2/src/main/resources/jwt-rsa-key.pem
 #     —— 早期遗留示例项目的占位 PEM（正文只有一行 24 个字符，不是有效私钥），只存在于 quick-starter / fix-deploy /
 #        sb3-migrate-to-sb4 等旧分支，不在 main 与本特性分支的历史里，工作区也没有；与本特性无关，改写历史由仓库所有者决定。
 #   specs/002-admin-center-uam/tasks.md（归档后已移到 docs/system-design/system/tasks.md；历史里的命中仍在旧路径下）
 #     —— 提交 7e12020 的 T185 说明里写过私钥头标记的字面文字（只是解释上面那两个遗留占位，不是私钥）；已提交的历史改不了，
-#        该文件现在的版本已改成不含该字面文字（工作区扫描会照常失败来保证这一点）。只放行私钥特征，不放行 uamk_ 密钥。
+#        该文件现在的版本已改成不含该字面文字（工作区扫描会照常失败来保证这一点）。
 LEGACY_PEM_ALLOW="
 b/sb3-jdk17/examples/service-example-h2/src/main/resources/jwt-rsa-key.pem
 b/quick-starter/be-spring-mvc-h2/src/main/resources/jwt-rsa-key.pem
@@ -155,8 +147,8 @@ history_hits() {
 }
 s3_history() {
   local hits all_pem unallowed_pem
-  git -C "$repo" log --all --no-color -p --format='@@commit %h' -- . ":(exclude)$ALLOW_KEY_FILE" ":(exclude)$LEGACY_ALLOW_KEY_FILE" >"$work/history.diff"
-  hits="$({ history_hits "$KEY_RE"; history_hits "$PEM_RE" "$LEGACY_PEM_ALLOW"; } | sort -u | sed 's/^/        历史命中（内容不打印）：提交 /')"
+  git -C "$repo" log --all --no-color -p --format='@@commit %h' >"$work/history.diff"
+  hits="$(history_hits "$PEM_RE" "$LEGACY_PEM_ALLOW" | sort -u | sed 's/^/        历史命中（内容不打印）：提交 /')"
   all_pem="$(history_hits "$PEM_RE" | wc -l | tr -d ' ')"
   unallowed_pem="$(history_hits "$PEM_RE" "$LEGACY_PEM_ALLOW" | wc -l | tr -d ' ')"
   echo "        扫描了 $(grep -c '^@@commit ' "$work/history.diff") 个提交；允许名单放行 $((all_pem - unallowed_pem)) 处遗留占位 PEM（理由见脚本）"
@@ -165,13 +157,6 @@ s3_history() {
     return 1
   fi
 }
-# 允许名单本身要守住：只有一把标注过的测试密钥，没有私钥特征
-s3_allowlist_minimal() {
-  [ "$(grep -c 'uamk_' "$repo/$ALLOW_KEY_FILE")" = "1" ] &&
-    grep -q '^UAM_SERVICE_KEY=uamk_e2e_' "$repo/$ALLOW_KEY_FILE" &&
-    ! grep -qE "$PEM_RE" "$repo/$ALLOW_KEY_FILE"
-}
-
 # S4：src/lib 里的服务端模块都有 import "server-only"。
 # 允许名单（客户端组件也会引用或不含运行期服务端逻辑；其余文件一律必须有）：
 #   utils.ts            cn()：shadcn/ui 与业务组件（含客户端组件）共用的类名合并
@@ -211,7 +196,7 @@ s4_allowlist_exists() { # 允许名单里的文件必须真实存在（防止名
   [ "$miss" -eq 0 ]
 }
 
-# S5：构建浏览器包（不设运行期环境变量），在 .next/static 里找服务密钥
+# S5：构建浏览器包（不设运行期环境变量），在 .next/static 里找服务端机密
 s5_build() {
   if [ "${SECURITY_CHECK_SKIP_BUILD:-0}" = "1" ]; then
     echo "        SECURITY_CHECK_SKIP_BUILD=1：复用已有 .next（未重新构建）"
@@ -222,7 +207,7 @@ s5_build() {
     echo "        缺少 apps/admin-center/node_modules：先运行 npm ci"
     return 1
   fi
-  if (cd "$app" && env -u UAM_SERVICE_KEY -u UAM_BASE_URL npm run build >"$work/build.log" 2>&1); then
+  if (cd "$app" && env -u UAM_BASE_URL npm run build >"$work/build.log" 2>&1); then
     return 0
   fi
   echo "        构建失败，日志末尾："
@@ -302,20 +287,18 @@ run_static() {
   check "e2e.env 文件头标注「仅限本地 E2E」" s1_e2e_env_marked
   echo "S2 Admin Center 不含数据库驱动 / ORM（FR-013）"
   check "apps/admin-center/package.json 的 dependencies 与 devDependencies 里没有数据库驱动、ORM 或缓存客户端" s2_no_db_deps
-  echo "S3 密钥与私钥特征（工作区 + 全部历史）"
-  check "工作区没有完整长度的 uamk_ 密钥或私钥特征（允许名单：$ALLOW_KEY_FILE）" s3_worktree
-  check "全部提交历史（git log --all -p）没有完整长度的 uamk_ 密钥或私钥特征（允许名单：e2e.env + 两处遗留占位 PEM）" s3_history
-  check "允许名单文件只含一把标注过的测试密钥，且没有私钥特征" s3_allowlist_minimal
+  echo "S3 私钥特征（工作区 + 全部历史）"
+  check "工作区没有私钥特征" s3_worktree
+  check "全部提交历史（git log --all -p）没有私钥特征（允许名单：遗留占位 PEM 与说明文字，理由见脚本）" s3_history
   echo "S4 src/lib 服务端模块都有 import \"server-only\""
   check "允许名单里的客户端安全文件都真实存在" s4_allowlist_exists
   check "其余 src/lib 模块都有 import \"server-only\"" s4_server_only
-  echo "S5 浏览器包（.next/static）里没有服务密钥"
-  if check "npm run build（不设 UAM_SERVICE_KEY / UAM_BASE_URL）成功" s5_build; then
-    local e2e_key
-    e2e_key="$UAM_SERVICE_KEY"
-    check "浏览器包里没有 e2e.env 的测试密钥值" bundle_has "$e2e_key"
-    check "浏览器包里没有 UAM_SERVICE_KEY" bundle_has "UAM_SERVICE_KEY"
-    check "浏览器包里没有 uamk_" bundle_has "uamk_"
+  echo "S5 浏览器包（.next/static）里没有服务端机密"
+  if check "npm run build（不设 UAM_BASE_URL）成功" s5_build; then
+    local e2e_db_password
+    e2e_db_password="$(sed -n 's/^POSTGRES_PASSWORD=//p' "$E2E_ENV")"
+    check "浏览器包里没有 e2e.env 的测试数据库密码" bundle_has "$e2e_db_password"
+    check "浏览器包里没有密码哈希前缀 \$argon2" bundle_has '$argon2'
   fi
   echo "S6 写入口先做同源校验"
   check "写入口清单完整（5 个 Server Action 文件 + POST /logout 路由）" s6_entries_complete
@@ -474,7 +457,7 @@ run_runtime() {
   section "运行期检查（对运行中的 E2E 栈：$BASE）"
   local run
   run="$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
-  # 标记值：被注入请求的密码；它们、固定的管理员密码、服务密钥、会话标识与哈希前缀都不得出现在任何响应或日志里
+  # 标记值：被注入请求的密码；它们、固定的管理员密码、会话标识与哈希前缀都不得出现在任何响应或日志里
   local bad_login_pw="Mk-BadLogin-${run}-1" init_pw="Mk-Init-${run}-Pw1" wrong_cur_pw="Mk-WrongCur-${run}-1" new_pw="Mk-NewPw-${run}-9"
   local acct="sc${run}" uname="SecCheck-${run}" mode m
   local sid_admin sid_t sid_t2 sid_out
@@ -666,7 +649,6 @@ run_runtime() {
 改密的新密码标记|$new_pw
 登录错误密码标记|$bad_login_pw
 管理员密码|$ADMIN_PASSWORD
-服务密钥（e2e.env）|$UAM_SERVICE_KEY
 管理员会话标识|$sid_admin
 新用户会话标识（强制下线的）|$sid_t
 新用户会话标识（改密用的）|$sid_t2

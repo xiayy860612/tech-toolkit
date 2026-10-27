@@ -68,8 +68,6 @@ public class SessionsController {
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public void terminate(@PathVariable UUID sessionRef, HttpServletRequest request) {
     OperatorContext operator = operators.resolve(request).orElseThrow();
-    String clientId = (String) request.getAttribute(ClientAuthFilter.CLIENT_ID_ATTRIBUTE);
-    terminateSession.terminate(
-        new TerminateSessionCommand(operator, clientId, new SessionRef(sessionRef)));
+    terminateSession.terminate(new TerminateSessionCommand(operator, new SessionRef(sessionRef)));
   }
 }

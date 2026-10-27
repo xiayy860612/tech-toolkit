@@ -90,8 +90,8 @@ describe("/sessions 在线用户列表页", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it.each(["unavailable", "misconfigured"] as const)("UAM %s：读错误态，保留页头，重试链接带原页码", async (kind) => {
-    jest.mocked(listOnlineUsers).mockRejectedValue(new UamError(kind, "x"));
+  it("UAM unavailable：读错误态，保留页头，重试链接带原页码", async () => {
+    jest.mocked(listOnlineUsers).mockRejectedValue(new UamError("unavailable", "x"));
     render(await SessionsPage(listProps({ page: "2" })));
     expect(screen.getByText("服务暂不可用，请稍后重试")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "会话管理" })).toBeInTheDocument();

@@ -230,7 +230,6 @@ class DisableVsLoginRaceIT extends IntegrationTestBase {
                 disable.disable(
                     new UserStatusCommand(
                         new OperatorContext(operatorUser, UUID.randomUUID(), UUID.randomUUID()),
-                        "admin-center",
                         target)));
     Object outcome = loginOutcome.get(60, TimeUnit.SECONDS);
     disabled.get(60, TimeUnit.SECONDS);
@@ -250,7 +249,7 @@ class DisableVsLoginRaceIT extends IntegrationTestBase {
 
   @RepeatedTest(12)
   void realConcurrentLoginsAndDisablesNeverLeaveALiveSession() throws Exception {
-    ApiClient api = new ApiClient(port, TEST_SERVICE_KEY);
+    ApiClient api = new ApiClient(port);
     jdbc.update("UPDATE app_user SET status = 'ACTIVE' WHERE id = ?", target);
     CountDownLatch gate = new CountDownLatch(1);
     ExecutorService pool = Executors.newFixedThreadPool(4);

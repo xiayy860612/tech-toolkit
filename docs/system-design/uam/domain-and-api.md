@@ -1,6 +1,6 @@
 # UAM — 领域模型、接口与业务流程（现状归档）
 
-> **归档状态**：特性 `002-admin-center-uam` 已交付并归档。本文是UAM 的领域模型、接口与权限、业务流程的当前真实状态（技术性内容，故在 `docs/system-design/`；`docs/achieve-specs/admin-center/` 只放用户需求描述 [spec.md](../../achieve-specs/admin-center/spec.md)）。章节编号沿用归档前的合订本，便于对照：§3–4、§5.1、§5.3、§5.4 在本文；其余见 [需求对照与验证记录](../system/traceability.md)。
+> **归档状态**：特性 `002-admin-center-uam` 已交付并归档。本文是UAM 的领域模型、接口与错误模型、业务流程的当前真实状态（技术性内容，故在 `docs/system-design/`；`docs/achieve-specs/admin-center/` 只放用户需求描述 [spec.md](../../achieve-specs/admin-center/spec.md)）。章节编号沿用归档前的合订本，便于对照：§3–4、§5.1、§5.3、§5.4 在本文；其余见 [需求对照与验证记录](../system/traceability.md)。
 > 本文只记录能在代码、测试、脚本或文档中核实的内容。
 
 ## 3. 领域模型
@@ -11,7 +11,7 @@
 |---|---|---|---|
 | User 聚合 | `User`（含 `Account` 0..*、`Credential` 每个密码账号一条） | PostgreSQL | 新建用户时「用户 + 账号 + 凭据」同一事务；停用 / 启用只改 `User`。 |
 | Session 聚合 | `Session` | Redis | 只以 `accountId` / `userId` 引用 User 聚合，**无外键**；一致性靠用例保证（停用后终止会话、登录后复查用户状态）。 |
-| 请求上下文与配置 | `OperatorContext`、`ClientIdentity` | 请求头 / `UAM_CLIENTS` | 不是业务数据：`ClientIdentity` 决定「谁能调」，`OperatorContext` 说明「代谁调」。 |
+| 请求上下文 | `OperatorContext` | 请求头 | 不是业务数据：`OperatorContext` 说明「代谁调」。UAM 目前不识别「谁在调」（无调用方认证）。 |
 
 ### 3.2 不变量
 
@@ -24,8 +24,8 @@
 | 不能强制下线操作人自己正在使用的会话 | `SelfProtectionRule.checkTerminate`（先于任何终止动作） | FR-030 |
 | 停用用户后其全部会话立即结束，且不会留下已停用用户的有效会话（含并发登录） | 停用用例（**提交后**再终止其全部账号会话）+ 登录用例（写入会话后**复查**用户状态，已停用则终止刚建会话并拒绝） | FR-016、FR-024 |
 | 新建用户：用户 + 账号 + 凭据同事务；同键重放返回原结果；并发抢同一账号名只有一个成功 | `CreateUserUseCase` + `IdempotencyStore` + 唯一索引 | FR-021 ~ FR-023 |
-| 改密只能改**操作人自己的账号**（路径账号 ≠ 操作人账号 → 403 `client_forbidden`）；需要当前密码；当前密码连续错误按来源限制 | `ChangePasswordUseCase` + `PasswordChangeThrottle` | FR-026、FR-027 |
-| 机密会话标识只存哈希、对外只用会话引用；密码、哈希、服务密钥不进日志 | `RedisSessionStore` + `LogRedaction` | FR-031、FR-042 |
+| 改密只能改**操作人自己的账号**（路径账号 ≠ 操作人账号 → 403 `operator_forbidden`）；需要当前密码；当前密码连续错误按来源限制 | `ChangePasswordUseCase` + `PasswordChangeThrottle` | FR-026、FR-027 |
+| 机密会话标识只存哈希、对外只用会话引用；密码、哈希不进日志 | `RedisSessionStore` + `LogRedaction` | FR-031 |
 | 写操作必须带操作人，缺失即 400 `operator_required`；每次写操作（含被拒绝）留一条日志 | `OperatorContextResolver` + `WriteOperationLogger` | FR-008、FR-034 |
 
 ### 3.3 策略参数（默认值，均可配置，见 `apps/uam/AGENTS.md`）
@@ -46,43 +46,43 @@
 - **Session**：登录成功 → 有效；退出 / 强制下线 / 用户停用 / 被取代 / 空闲到期 / 绝对到期 → 结束（终态）；其中**只有管理员强制下线**会在终止的同时留下 10 分钟的墓碑 `uam:term:{sha}`，其余结束方式不留。图见 [domain-state-session.svg](./diagrams/domain-state-session.svg)。
 - 类图见 [domain-class.svg](./diagrams/domain-class.svg)。
 
-## 4. UAM 接口与权限模型
+## 4. UAM 接口与错误模型
 
 ### 4.1 接口（`contracts/uam/openapi.yaml`）
 
 | 接口 | 用途 | 需要 |
 |---|---|---|
-| `POST /v1/auth/login` | 账号名 / 密码登录，返回会话标识与会话数据；请求体含 `clientIp` | 服务密钥 + 断言权限 |
-| `POST /v1/auth/sessions/verify` | 校验会话标识，返回会话数据（只读 Redis） | 同上 |
-| `POST /v1/auth/logout` | 终止该会话标识对应的会话；幂等（未知标识也 204） | 同上 |
-| `GET /v1/users`、`GET /v1/users/{userId}` | 用户分页（`query` 搜索，默认每页 20、上限 100）、详情含全部账号 | 有效服务密钥即可 |
-| `GET /v1/online-users`、`GET /v1/users/{userId}/sessions` | 在线用户分页（按最近活动倒序）、某用户的有效会话（带 `current` 标注） | 同上（可选带 `X-Operator-*`） |
-| `POST /v1/users` | 新建用户 + 账号（`Idempotency-Key`） | 服务密钥 + 断言权限 + 操作人头 |
-| `POST /v1/users/{userId}/disable`、`/enable` | 停用 / 启用 | 同上 |
-| `DELETE /v1/sessions/{sessionRef}` | 强制下线 | 同上 |
-| `POST /v1/accounts/{accountId}/password` | 修改操作人自己账号的密码 | 同上 |
-| `/actuator/health/**` | 存活 / 就绪探针（只暴露 UP / DOWN），**免校验** | 无 |
-| `/actuator/prometheus` | 指标 | 有效服务密钥 |
+| `POST /v1/auth/login` | 账号名 / 密码登录，返回会话标识与会话数据；请求体含 `clientIp` | 无 |
+| `POST /v1/auth/sessions/verify` | 校验会话标识，返回会话数据（只读 Redis） | 无 |
+| `POST /v1/auth/logout` | 终止该会话标识对应的会话；幂等（未知标识也 204） | 无 |
+| `GET /v1/users`、`GET /v1/users/{userId}` | 用户分页（`query` 搜索，默认每页 20、上限 100）、详情含全部账号 | 无 |
+| `GET /v1/online-users`、`GET /v1/users/{userId}/sessions` | 在线用户分页（按最近活动倒序）、某用户的有效会话（带 `current` 标注） | 可选带 `X-Operator-*` |
+| `POST /v1/users` | 新建用户 + 账号（`Idempotency-Key`） | 操作人头 |
+| `POST /v1/users/{userId}/disable`、`/enable` | 停用 / 启用 | 操作人头 |
+| `DELETE /v1/sessions/{sessionRef}` | 强制下线 | 操作人头 |
+| `POST /v1/accounts/{accountId}/password` | 修改操作人自己账号的密码 | 操作人头 |
+| `/actuator/health/**` | 存活 / 就绪探针（只暴露 UP / DOWN）| 无 |
+| `/actuator/prometheus` | 指标 | 无 |
 
-### 4.2 客户端权限决策（`ClientPermissions`，唯一决策点）
+**UAM 目前不识别调用方**：所有接口都不校验服务凭据，只靠网络隔离保护；服务身份后续实现。
 
-按 **HTTP 方法**而非路径判定：`GET` / `HEAD` 只需**有效服务密钥**；其余方法（登录、校验、退出、改密与全部写操作）需要 `assert-end-user-context`。新增写接口默认受限（失败即关闭）；契约测试 `ClientAuthContractIT` 遍历契约的每个接口固定这一决定。
+### 4.2 错误映射
+
+写接口（`/v1/auth/**` 除外）必须带 `X-Operator-*`，读接口可选；契约测试 `ErrorStatusContractIT` 遍历契约的每个接口固定下列映射。
 
 | 情形 | 结果 |
 |---|---|
-| 缺失、格式不对、无效、已撤销的密钥 | 401 `client_unauthenticated`（响应不透露哪里不对，不回显密钥）；写拒绝日志 `uam.client.rejected` |
-| 密钥有效但缺权限 | 403 `client_forbidden` |
-| 有权限的客户端调写接口但缺 / 非法 `X-Operator-*`（`/v1/auth/**` 除外） | 400 `operator_required` |
+| 调写接口但缺 / 非法 `X-Operator-*`（`/v1/auth/**` 除外） | 400 `operator_required` |
 | 请求无法解析或类型不符（坏 JSON、非 UUID 路径 id、`page=abc` 等） | 400 `bad_request` |
 | 请求体 / 查询 / `Idempotency-Key` 不符合规则 | 422 `validation_failed`（带 `errors[]`） |
 | 操作人 `X-Operator-Session-Ref` == 强制下线目标 | 409 `cannot_terminate_own_session` |
 | 操作人用户 == 停用目标 | 409 `cannot_disable_self` |
 | 停用最后一个 `ACTIVE` 用户 | 409 `cannot_disable_last_active_user` |
-| 改密时路径账号 ≠ 操作人账号 | 403 `client_forbidden` |
+| 改密时路径账号 ≠ 操作人账号 | 403 `operator_forbidden` |
 
 ### 4.3 错误码
 
-`invalid_credentials`、`session_invalid`、`client_unauthenticated`、`client_forbidden`、`operator_required`、`bad_request`、`throttled`（带 `Retry-After`）、`account_name_taken`、`idempotency_in_progress`、`validation_failed`（一律 422，带 `errors[{field, reason}]`）、`cannot_disable_self`、`cannot_disable_last_active_user`、`cannot_terminate_own_session`、`session_not_found`、`user_not_found`、`current_password_incorrect`、`weak_password`、`same_as_current`、`internal_error`；错误体为 RFC 9457 `application/problem+json`。**一个错误码对应一个状态码**：`validation_failed` 一律 **422**（请求体字段缺失 / 为空 / 过长、`Idempotency-Key`、分页与查询规则 `page=0` / `size>100`、领域规则校验）；请求无法解析或类型不符（JSON 格式错误或为空、JSON 类型不对、路径变量或查询参数类型不符，如非 UUID 的 `userId`、`page=abc`）一律 **400** `bad_request`（不回显请求值、不带 `errors`）；`operator_required` 仍为 400；已知但不存在的 id 仍为 404。`Problem` 另有**可选**字段 `reason`（枚举 `terminated`），只出现在 `verify` 的 401 `session_invalid` 上，且仅当该会话在 10 分钟内被管理员强制下线，其余情形不带。Admin Center 的错误码 → 界面文案映射见 `web-routes.md` §5。
+`invalid_credentials`、`session_invalid`、`operator_required`、`operator_forbidden`、`bad_request`、`throttled`（带 `Retry-After`）、`account_name_taken`、`idempotency_in_progress`、`validation_failed`（一律 422，带 `errors[{field, reason}]`）、`cannot_disable_self`、`cannot_disable_last_active_user`、`cannot_terminate_own_session`、`session_not_found`、`user_not_found`、`current_password_incorrect`、`weak_password`、`same_as_current`、`internal_error`；错误体为 RFC 9457 `application/problem+json`。**一个错误码对应一个状态码**：`validation_failed` 一律 **422**（请求体字段缺失 / 为空 / 过长、`Idempotency-Key`、分页与查询规则 `page=0` / `size>100`、领域规则校验）；请求无法解析或类型不符（JSON 格式错误或为空、JSON 类型不对、路径变量或查询参数类型不符，如非 UUID 的 `userId`、`page=abc`）一律 **400** `bad_request`（不回显请求值、不带 `errors`）；`operator_required` 仍为 400；已知但不存在的 id 仍为 404。`Problem` 另有**可选**字段 `reason`（枚举 `terminated`），只出现在 `verify` 的 401 `session_invalid` 上，且仅当该会话在 10 分钟内被管理员强制下线，其余情形不带。Admin Center 的错误码 → 界面文案映射见 `web-routes.md` §5。
 
 ## 5. 核心业务流程
 
@@ -96,19 +96,9 @@
 | **停用用户** | 事务内取 `pg_advisory_xact_lock` → 读目标 → `SelfProtectionRule.checkDisable`（自己 / 最后一个）→ 置 `DISABLED`；**提交后**对其全部账号 `terminate-all.lua`（含 `WAIT 1`）。对已停用用户重复停用同样成功并再次确保会话已终止。账号自身状态不变。 |
 | **启用用户** | 事务内取同一把锁并置 `ACTIVE`；**不恢复**会话；幂等。 |
 | **强制下线** | `SelfProtectionRule.checkTerminate` → `terminate.lua`（按 `uam:sref:{ref}`，`acct` 指针仅在仍指向该会话时才删；同一脚本里原子写墓碑 `uam:term:{sha}`，TTL `uam.session.terminated-notice-ttl` 默认 10 分钟）→ `WAIT 1`；目标不存在 → 404 `session_not_found`。只终止该会话，不改账号与用户状态；被下线者之后可再次登录。图：[seq-terminate-session.svg](../system/diagrams/seq-terminate-session.svg)。 |
-| **新建用户** | 校验 `Idempotency-Key` → 抢占 `uam:idem:{sha256(clientId\|key)}`（`SET NX`）→ `AccountProvisioningService` 单事务创建用户 + 账号 + 凭据（账号名冲突 409 `account_name_taken`，规则校验失败 422 `validation_failed`，请求结构不合法 400）→ 成功缓存响应快照（不含密码 / 哈希）→ 写日志；被拒绝 / 失败释放占位。 |
+| **新建用户** | 校验 `Idempotency-Key` → 抢占 `uam:idem:{sha256(key)}`（`SET NX`）→ `AccountProvisioningService` 单事务创建用户 + 账号 + 凭据（账号名冲突 409 `account_name_taken`，规则校验失败 422 `validation_failed`，请求结构不合法 400）→ 成功缓存响应快照（不含密码 / 哈希）→ 写日志；被拒绝 / 失败释放占位。 |
 | **修改密码** | 路径账号须等于操作人账号 → 原子占用改密限流名额（超限 429）→ **总是做一次哈希比对**（账号不存在比对伪哈希）→ 当前密码错 `current_password_incorrect`（占用的名额即计为一次失败）→ 当前密码正确则清零 → 新密码强度（`weak_password`）与不同于当前（`same_as_current`）→ 只更新该账号的哈希。不触碰会话，不轮换会话标识（账号与会话一对一）。 |
-| **服务密钥轮换** | 见 §5.3。 |
 
-### 5.3 服务密钥轮换（FR-044）
-
-1. `generate-service-key --client admin-center` 生成新密钥（标准输出只出现一次，哈希与 `UAM_CLIENTS` 片段写标准错误）；该命令在 Spring 启动**之前**执行，不连库、不连 Redis、不需要环境变量。
-2. 把**新哈希加为第二个** `keyHashes`，滚动发布 UAM（此时同一客户端 2 个有效哈希；超过 2 个或重复则 UAM 启动失败）。
-3. Admin Center 换新 `UAM_SERVICE_KEY`，滚动发布。
-4. 从 `UAM_CLIENTS` 删旧哈希，再滚动发布 UAM；之后旧密钥 → 401。
-
-本地演练：`devops/local/scripts/rotate-key.sh rotate`。
-
-### 5.4 在线用户与会话查询
+### 5.3 在线用户与会话查询
 
 `GET /v1/online-users` 由 `online.lua` 清理到期条目并**扫描整个 `uam:online`**，UAM 内按用户聚合（会话数、最近活动），分页后回 PostgreSQL 批量取用户名。`GET /v1/users/{id}/sessions` 取该用户全部账号，逐个读 `uam:acct:{accountId}:sess`（一对一，账号数极少）。已知的规模上限见 [traceability §8](../system/traceability.md)。

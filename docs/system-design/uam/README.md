@@ -26,18 +26,16 @@
 | 层 | 组件 | 职责 |
 |---|---|---|
 | api | `TraceContextFilter` | 最先执行：传递并回显 W3C `traceparent`，trace id 放入 MDC |
-| api | `ClientAuthFilter` | 校验服务密钥并按 `ClientPermissions` 判权限（401 / 403）；写拒绝日志；`/actuator/health/**` 免校验 |
-| api | `ClientPermissions` | 唯一权限决策点：按 HTTP 方法，GET / HEAD 只需有效密钥，其余需要 `assert-end-user-context` |
 | api | `OperatorContextResolver` | 由控制器调用（不是拦截器）：解析 `X-Operator-*`，写操作（`/v1/auth/**` 除外）缺失或非法 → 400 `operator_required` |
 | api | `AuthController` · `UsersController` · `SessionsController` · `AccountsController` · `ProblemAdvice` | 协议转换与统一错误体；不含业务规则。错误码与状态码一一对应：`validation_failed` 一律 422（含请求体 Bean Validation 失败），无法解析 / 类型不符的请求 400 `bad_request`（不回显请求值） |
 | application | `LoginUseCase` · `VerifySessionUseCase` · `LogoutUseCase` · `ListUsers` / `GetUser` / `CreateUser` / `DisableUser` / `EnableUser` · `ListOnlineUsers` · `ListUserSessions` · `TerminateSession` · `ChangePassword` · `AccountProvisioningService` | 编排领域对象与端口；事务边界；写操作日志。`AccountProvisioningService`（创建用户 / 追加账号）被「新建用户」用例与部署期命令共用 |
-| domain | `model`、`policy`、`port` | 领域模型与规则；端口：`UserRepository` · `AccountRepository` · `CredentialRepository` · `SessionStore` · `UserStatusLock` · `TransactionRunner` · `LoginThrottle` · `PasswordChangeThrottle` · `IdempotencyStore` · `PasswordHasher` · `ClientAuthenticator` · `ClientRejectionLog` · `WriteOperationLog` · `Clock` |
+| domain | `model`、`policy`、`port` | 领域模型与规则；端口：`UserRepository` · `AccountRepository` · `CredentialRepository` · `SessionStore` · `UserStatusLock` · `TransactionRunner` · `LoginThrottle` · `PasswordChangeThrottle` · `IdempotencyStore` · `PasswordHasher` · `WriteOperationLog` · `Clock` |
 | infrastructure | JDBC 仓储（`JdbcUserRepository`、`JdbcAccountRepository`、`JdbcCredentialRepository`、`JdbcTransactionRunner`） | 实现仓储、`UserStatusLock`（`pg_advisory_xact_lock`）、`TransactionRunner` |
 | infrastructure | `RedisSessionStore`（+ `ReplicaWait`） | `SessionStore`：Lua 原子脚本；撤销后 `WAIT 1` |
 | infrastructure | `RedisGuards` | `LoginThrottle` · `PasswordChangeThrottle` · `IdempotencyStore` |
-| infrastructure | `Argon2PasswordHasher` · `ClientRegistry` · `ClientRejectionLogger` · `WriteOperationLogger` · `SystemClock` | `PasswordHasher` · `ClientAuthenticator`（SHA-256 常量时间比较）· 拒绝日志 · 写操作日志（`LogRedaction` 脱敏）· `Clock` |
-| infrastructure/config | `ClientRegistryConfig` · `PolicyConfig` · `RedisConfig` | 纯装配（覆盖率排除，见 §7） |
-| cli | `InitAdminCommand` · `AddAccountCommand`（`cli` profile）；`GenerateServiceKeyCommand`（`StandaloneCommands`） | 部署期一次性命令，不是运维入口 |
+| infrastructure | `Argon2PasswordHasher` · `WriteOperationLogger` · `SystemClock` | `PasswordHasher` · 写操作日志（`LogRedaction` 脱敏）· `Clock` |
+| infrastructure/config | `PolicyConfig` · `RedisConfig` | 纯装配（覆盖率排除，见 §7） |
+| cli | `InitAdminCommand` · `AddAccountCommand`（`cli` profile） | 部署期一次性命令，不是运维入口 |
 
 ### 2.2 领域模型
 
@@ -72,7 +70,7 @@
 | `uam:online` | ZSET | 成员 `{userId}\|{ref}`，分数 = 有效到期（epoch 秒） |
 | `uam:throttle:login:{sha256(规范化账号名\|来源地址)}` | STRING 计数 | 限流闸门的尝试计数（哈希比对之前 `INCR`，成功登录后删除）；首次设窗口 TTL，计数达到上限（默认 5）时 TTL 重置为封锁时长（15 分钟），超限后不刷新 |
 | `uam:throttle:pwchg:{sha256(accountId\|来源地址)}` | STRING 计数 | 改密限流闸门的尝试计数；口径同登录，当前密码验证通过后删除 |
-| `uam:idem:{sha256(clientId\|键)}` | STRING | 进行中 `P\|指纹`（TTL 30 秒）或完成 `D\|指纹\|响应快照`（TTL 10 分钟）；`SET NX` 抢占；**只缓存 201**；指纹与快照不含密码 / 哈希；按客户端隔离，原始键不进键名 |
+| `uam:idem:{sha256(键)}` | STRING | 进行中 `P\|指纹`（TTL 30 秒）或完成 `D\|指纹\|响应快照`（TTL 10 分钟）；`SET NX` 抢占；**只缓存 201**；指纹与快照不含密码 / 哈希；原始键不进键名 |
 
 ### 3.3 Lua 脚本（`apps/uam/src/main/resources/redis/`）
 
@@ -87,17 +85,12 @@
 
 撤销类写入（`terminateByRef`、`terminateAllForUser`）之后调用 `ReplicaWait`：`WAIT 1 200ms`（至多等一个副本确认；单主无副本时立即返回 0）。登录时顶掉旧会话**不** WAIT。接受的残余风险：Redis 主从切换瞬间，最后约 1 秒内尚未复制的撤销可能丢失。
 
-### 3.4 客户端清单（配置，不入库）
-
-`UAM_CLIENTS`（JSON：`id`、`keyHashes`（1–2 个 `sha256:<64 hex>`）、`permissions`）。启动校验（不合法 → UAM **启动失败**，错误信息不回显配置原文）：`id` 非空不重复；`keyHashes` 1–2 个、格式正确、同一哈希不得重复或分给两个客户端；`permissions` 只能取已知值（目前只有 `assert-end-user-context`）。密钥用 SHA-256（高熵，无需慢哈希）并**常量时间比较、遍历全部哈希不提前返回**。
-
 ## 4. 安全设计
 
 | 主题 | 设计与实现 |
 |---|---|
-| **客户端认证** | 每个接口（除 `/actuator/health/**`）先过 `ClientAuthFilter`：`Authorization: Bearer <服务密钥>`；缺失 / 格式不对 / 无效 / 已撤销一律 401 `client_unauthenticated`（`WWW-Authenticate: Bearer`，不透露哪里不对）；权限不足 403 `client_forbidden`。密钥只存哈希，不进日志 / 响应 / 页面。`ClientAuthenticator` 是替换接缝（将来换传输层身份只换它）。 |
-| **权限** | `ClientPermissions` 按 HTTP 方法：GET / HEAD 只需有效密钥，其余方法需要 `assert-end-user-context`；失败即关闭（新增写接口默认受限）。 |
-| **操作人上下文** | `X-Operator-*` 由客户端传入、UAM **信任**，仅用于自我保护、`current` 标注与日志，**不用于认证或授权**。写操作缺失 / 非法 → 400；`/v1/auth/**` 除外。改密只允许改操作人自己的账号。这意味着：持有服务密钥且被授予断言权限者可填任意操作人——服务密钥须与数据库密码同级保管，UAM 只在内网可达。 |
+| **调用方认证** | **目前没有**：UAM 不校验任何服务凭据，不识别调用方，所有接口（含 `/actuator/prometheus`）只靠网络隔离保护——k8s NetworkPolicy / 内网只放行 Admin Center。服务身份（服务间认证）留待后续特性实现，到时在 api 层加入认证过滤器与权限决策。**因此不得把 UAM 暴露到不受信任的网络。** |
+| **操作人上下文** | `X-Operator-*` 由调用方传入、UAM **信任**，仅用于自我保护、`current` 标注与日志，**不用于认证或授权**。写操作缺失 / 非法 → 400；`/v1/auth/**` 除外。改密只允许改操作人自己的账号（路径账号 ≠ 操作人账号 → 403 `operator_forbidden`）。这意味着：能到达 UAM 的调用方可填任意操作人——在服务身份落地前，网络隔离须与数据库密码同级保管，UAM 只在受信任的内网可达。 |
 | **会话** | 256 位随机标识；Redis 只存 SHA-256；对外只用 UUID 会话引用；会话数据不进 cookie / 浏览器 / 日志；不使用 JWT；每个浏览器请求 `verify`，撤销窗口为 0。 |
 | **登录防枚举 / 防撞库** | 账号不存在 / 密码错误 / 账号停用 / 用户停用统一 `invalid_credentials`，且都先做 Argon2 比对（`LoginTimingIT` 统计性验证耗时无可区分差别）；按「账号 + 来源」在比对之前原子占用名额（前 5 次放行、第 6 次起 429，封锁 15 分钟，不锁账号）。 |
 | **日志脱敏** | `LogRedaction` 两道防线：按键名（`password`、`currentPassword`、`newPassword`、`passwordHash`、`sessionId`、`serviceKey`、`authorization`、`token`、`secret`）整体遮蔽；按内容识别密码哈希（`{id}$…`、`$argon2…`）、`sha256:<64 hex>`、`uamk_…`、`Bearer …`、`key=value` 形式的机密与 ≥ 43 位的不透明令牌。 |
@@ -122,9 +115,8 @@
 | 项 | 实现 |
 |---|---|
 | UAM 日志 | 结构化 JSON（Spring `StructuredLogEncoder`，logstash 格式）输出到标准输出；`traceId`（来自 MDC）与事件键值对为顶层字段；`cli` profile 写标准错误（标准输出留给命令结果）。时间：事件的 `ts` 为 UTC（带 `Z`），`@timestamp` 跟随 JVM 时区 |
-| 事件 `uam.admin.write` | 每次写操作（`user.create` / `user.disable` / `user.enable` / `session.terminate` / `account.password.change`）一条；字段 `ts`、`operatorUserId`、`operatorAccountId`、`clientId`、`action`、`targetType`、`targetId`、`outcome`（`success` / `rejected` / `failed`）、`reason`、`traceId`；被拒绝的也记录；`failed` 为 WARN，其余 INFO。退出不属于写操作，不写此事件 |
-| 事件 `uam.client.rejected` | WARN；`ts`、`sourceAddress`、`reason`（`missing_key` / `malformed` / `unknown_key` / `forbidden`）、`status`、`method`、`path`（截断）、`clientId`；**不含密钥**；每秒至多 200 条，超出只计数，下一秒第一条带 `suppressedBefore` |
-| 指标 | UAM：Micrometer，`/actuator/prometheus`（需有效服务密钥），统一 tag `application=uam`；多实例验证用各实例的 `http_server_requests`。Admin Center **没有**专门的指标端点 |
+| 事件 `uam.admin.write` | 每次写操作（`user.create` / `user.disable` / `user.enable` / `session.terminate` / `account.password.change`）一条；字段 `ts`、`operatorUserId`、`operatorAccountId`、`action`、`targetType`、`targetId`、`outcome`（`success` / `rejected` / `failed`）、`reason`、`traceId`；被拒绝的也记录；`failed` 为 WARN，其余 INFO。退出不属于写操作，不写此事件 |
+| 指标 | UAM：Micrometer，`/actuator/prometheus`（不校验调用方，靠网络隔离），统一 tag `application=uam`；多实例验证用各实例的 `http_server_requests`。Admin Center **没有**专门的指标端点 |
 | 探针 | UAM：`/actuator/health/liveness`、`/actuator/health/readiness`（含 `readinessState`、`db`、`redis`；免校验，只暴露 UP / DOWN）。Admin Center 没有专用探针端点，编排用 `GET /login` 探活（匿名不调用 UAM） |
 
 ## 7. CI 与质量门禁
@@ -137,7 +129,7 @@
 | typecheck | `-DskipTests compile` |
 | 测试 | 单元（`*Test`）+ 集成 / 契约 / 并发（`*IT`，Testcontainers 的真实 PostgreSQL 16 与 Redis 7，需要 Docker）；契约测试按 `contracts/uam/openapi.yaml` 校验；ArchUnit 守分层 |
 | 覆盖率门禁 | JaCoCo **行覆盖率 ≥ 90%**（`jacoco.line.minimum`，作用于整个 BUNDLE，单元与集成合并统计）；`mvn verify` 低于阈值失败 |
-| 排除路径 | `**/UamApplication.class`（启动类）、`**/config/*Config.class`（纯装配：`ClientRegistryConfig`、`PolicyConfig`、`RedisConfig`）、`**/generated/**`（预留，目前无匹配）；`cli/StandaloneCommands` **不排除** |
+| 排除路径 | `**/UamApplication.class`（启动类）、`**/config/*Config.class`（纯装配：`PolicyConfig`、`RedisConfig`）、`**/generated/**`（预留，目前无匹配） |
 | build | `mvn verify` 打包 `target/uam.jar` |
 
 ## 8. 容器镜像

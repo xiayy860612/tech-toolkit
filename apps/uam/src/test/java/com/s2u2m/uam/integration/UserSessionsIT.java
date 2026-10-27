@@ -49,7 +49,7 @@ class UserSessionsIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     data = new UserFixtures(jdbc);
     sessions = new SessionFixtures(store);
     now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
@@ -237,13 +237,5 @@ class UserSessionsIT extends IntegrationTestBase {
     store.terminateByRef(one.ref(), false);
 
     assertThat(sessionsOf(user).json().get("items")).isEmpty();
-  }
-
-  @Test
-  void aServiceKeyIsRequired() {
-    Response anonymous = new ApiClient(port, null).get("/v1/users/" + user + "/sessions");
-
-    assertThat(anonymous.status()).isEqualTo(401);
-    assertThat(anonymous.json().get("code").asString()).isEqualTo("client_unauthenticated");
   }
 }

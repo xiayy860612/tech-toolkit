@@ -5,7 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
-/** 测试辅助：为明显是假的测试密钥计算 SHA-256 十六进制。 */
+/** 测试辅助：计算 SHA-256 十六进制（限流键、幂等键等的期望值）。 */
 public final class TestSecrets {
 
   private TestSecrets() {}

@@ -24,7 +24,8 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - UAM（Spring Boot）：`apps/uam/`，Java 根包 `com.s2u2m.uam`，即 `apps/uam/src/main/java/com/s2u2m/uam/{api,application,domain,infrastructure,cli}/`；资源 `apps/uam/src/main/resources/`；测试 `apps/uam/src/test/java/com/s2u2m/uam/{unit,integration,contract,concurrency,architecture,support}/`
 - Admin Center（Next.js）：`apps/admin-center/`，源码 `src/{app,components,lib}/`，测试 `tests/{unit,contract,e2e,support}/`
 - 共享契约：`contracts/uam/openapi.yaml`（T005 迁入）；本地与多实例编排 `devops/local/`；压测 `devops/load/k6/`；CI `.github/workflows/`
-- 术语：**客户端（Client）** 指调用 UAM 的服务（不是浏览器）；本期唯一的客户端是 `admin-center`
+- 术语：**客户端（Client）** 指调用 UAM 的服务（不是浏览器）；本期唯一的客户端是 `admin-center`（**2026-10-27 起 UAM 不再有 clients / 服务密钥概念，仅口语沿用该词；见末尾 Phase 16**）
+- **2026-10-27 变更**：用户决定移除 UAM 的 clients 功能（服务密钥、客户端清单与权限、轮换、拒绝日志），服务身份后续另行实现。下文凡带「〔已被 Phase 16 取代〕」的已完成任务，其产出将由 **Phase 16（T201 ~ T218）** 删除或改写；未标注的任务不受影响。
 
 ---
 
@@ -33,9 +34,9 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 **Purpose**: 两个应用的项目骨架、契约迁移、CI 与本地依赖
 
 - [X] T001 创建 UAM Maven 工程 `apps/uam/pom.xml`（Spring Boot 4.0.x 父工程，Java 21；依赖：`spring-boot-starter-web`、`-validation`、`-jdbc`、`-actuator`、`-data-redis`（Lettuce）、`spring-security-crypto`、`org.bouncycastle:bcprov-jdk18on`、`flyway-core` 与 `flyway-database-postgresql`（社区版）、`postgresql`、Micrometer；测试依赖：`spring-boot-starter-test`、Testcontainers（`junit-jupiter`、`postgresql`）、`archunit-junit5`、OpenAPI 请求校验库；插件：JaCoCo 行覆盖率 ≥ 0.90，排除 `**/UamApplication.class`、`**/config/*Config.class`、`**/generated/**`；Spotless + google-java-format）与启动类 `apps/uam/src/main/java/com/s2u2m/uam/UamApplication.java`
-- [X] T002 [P] 编写 `apps/uam/AGENTS.md` 与 `apps/uam/CLAUDE.md`（内容 `@AGENTS.md`）：技术栈与目录、命令（lint=`mvn -f apps/uam/pom.xml spotless:check`、typecheck=`-DskipTests compile`、test、`verify` 含覆盖率门禁）、覆盖率口径（行覆盖率 ≥ 90%，排除路径同 T001）、环境变量表（`UAM_CLIENTS`、会话与限流默认值）
+- [X] T002 [P] 编写 `apps/uam/AGENTS.md` 与 `apps/uam/CLAUDE.md`（内容 `@AGENTS.md`）：技术栈与目录、命令（lint=`mvn -f apps/uam/pom.xml spotless:check`、typecheck=`-DskipTests compile`、test、`verify` 含覆盖率门禁）、覆盖率口径（行覆盖率 ≥ 90%，排除路径同 T001）、环境变量表（`UAM_CLIENTS`、会话与限流默认值） 〔其中服务密钥 / `UAM_CLIENTS` 相关部分已被 Phase 16 取代〕
 - [X] T003 [P] 初始化 Admin Center 工程 `apps/admin-center/`：`package.json`（脚本 `dev`、`lint`、`typecheck`、`test`、`test:cov`（`coverageThreshold` 行覆盖率 90，排除 `src/components/ui/**`、`**/*.generated.ts`、`src/**/*.d.ts`）、`build`、`e2e`、`gen:api`）、`tsconfig.json`、`next.config.ts`、`eslint.config.mjs`、`jest.config.ts`、`jest.setup.ts`、`playwright.config.ts`（每个视口宽度 320 / 375 / 768 / 1024 / 1440 / 2560 一个 project）、`components.json`、`.env.example`（仅占位值）；Next.js 15、React 19、TypeScript 5、Tailwind CSS 4、zod、msw
-- [X] T004 [P] 编写 `apps/admin-center/AGENTS.md` 与 `apps/admin-center/CLAUDE.md`：技术栈与目录、命令、覆盖率口径与排除路径、环境变量表（`UAM_BASE_URL`、`UAM_SERVICE_KEY`、`UAM_TIMEOUT_MS`、`SESSION_COOKIE_NAME`、`TRUSTED_PROXY_HOPS`）、「`src/lib` 下的服务端模块一律 `import "server-only"`」
+- [X] T004 [P] 编写 `apps/admin-center/AGENTS.md` 与 `apps/admin-center/CLAUDE.md`：技术栈与目录、命令、覆盖率口径与排除路径、环境变量表（`UAM_BASE_URL`、`UAM_SERVICE_KEY`、`UAM_TIMEOUT_MS`、`SESSION_COOKIE_NAME`、`TRUSTED_PROXY_HOPS`）、「`src/lib` 下的服务端模块一律 `import "server-only"`」 〔其中服务密钥 / `UAM_CLIENTS` 相关部分已被 Phase 16 取代〕
 - [X] T005 把 `specs/002-admin-center-uam/contracts/uam/openapi.yaml` 迁到 `contracts/uam/openapi.yaml`（`git mv`，作为唯一权威），在原位置留 `specs/002-admin-center-uam/contracts/uam/README.md` 指向新位置，并修正 `plan.md`、`research.md`、`quickstart.md`、`contracts/web-routes.md`、`prototype/README.md`、本文件中的链接
 - [X] T006 [P] 更新仓库根 `.gitignore`：忽略 `apps/uam/target/`、`apps/admin-center/{node_modules,.next,coverage,playwright-report,test-results}/`、`.env*`（保留 `.env.example`）
 - [X] T007 [P] 创建 CI `.github/workflows/uam-ci.yml`：JDK 21，`spotless:check`、`compile`、`mvn verify`（Testcontainers + JaCoCo 行覆盖率 ≥ 90% 门禁）
@@ -58,28 +59,28 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 - [X] T013 [P] 测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/MigrationIT.java`：迁移可应用，并断言 `app_user.status` 的 `CHECK` 只允许 `ACTIVE` / `DISABLED`；`account.kind` 的 `CHECK` 只允许 `PASSWORD`；`account.status` 只允许 `ACTIVE` / `DISABLED` / `DELETED`；`account.login_name_norm` 上有**全局唯一索引**（含已停用用户的账号）；`account.user_id` 外键 → `app_user.id` 且有索引；`credential.account_id` 是主键并外键 → `account.id`；`app_user.name` 与 `account.login_name_norm` 上有 `pg_trgm` GIN 索引；`app_user.status` 上有普通索引
 - [X] T014 [P] 测试基座 `apps/uam/src/test/java/com/s2u2m/uam/support/IntegrationTestBase.java`：Testcontainers 启动 PostgreSQL 16 与 Redis 7，`@DynamicPropertySource` 注入，每个测试前清库与清 Redis
 - [X] T015 [P] 测试 `apps/uam/src/test/java/com/s2u2m/uam/architecture/ArchitectureTest.java`（ArchUnit）：依赖方向 `api → application → domain ← infrastructure`；`domain` 不依赖 Spring 与任何框架；`cli` 只依赖 `application`
-- [X] T016 [P] 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/ProblemAdviceTest.java`：错误体为 RFC 9457 `application/problem+json`，带稳定的 `code`（`invalid_credentials`、`session_invalid`、`client_unauthenticated`、`client_forbidden`、`operator_required`、`throttled`、`account_name_taken`、`validation_failed`、`cannot_disable_self`、`cannot_disable_last_active_user`、`cannot_terminate_own_session`、`session_not_found`、`user_not_found`、`current_password_incorrect`、`weak_password`、`same_as_current`）；字段级错误 `errors[{field, reason}]`；`throttled` 带 `Retry-After`；响应不含密码、哈希、会话标识
-- [X] T017 [P] 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/ClientRegistryTest.java`：解析 `UAM_CLIENTS`（`id`、`keyHashes`、`permissions`）；密钥 `uamk_…` 的 SHA-256 哈希（`sha256:<hex>`）常量时间比较；未知密钥返回空
-- [X] T018 [P] 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/ClientAuthFilterTest.java`：缺失、无效的服务密钥 → 401 `client_unauthenticated`，响应**不透露**是哪一部分不对；有效 → 放行并在请求属性里带客户端 `id`
+- [X] T016 [P] 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/ProblemAdviceTest.java`：错误体为 RFC 9457 `application/problem+json`，带稳定的 `code`（`invalid_credentials`、`session_invalid`、`client_unauthenticated`、`client_forbidden`、`operator_required`、`throttled`、`account_name_taken`、`validation_failed`、`cannot_disable_self`、`cannot_disable_last_active_user`、`cannot_terminate_own_session`、`session_not_found`、`user_not_found`、`current_password_incorrect`、`weak_password`、`same_as_current`）；字段级错误 `errors[{field, reason}]`；`throttled` 带 `Retry-After`；响应不含密码、哈希、会话标识 〔已被 Phase 16 取代：clients 移除〕
+- [X] T017 [P] 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/ClientRegistryTest.java`：解析 `UAM_CLIENTS`（`id`、`keyHashes`、`permissions`）；密钥 `uamk_…` 的 SHA-256 哈希（`sha256:<hex>`）常量时间比较；未知密钥返回空 〔已被 Phase 16 取代：clients 移除〕
+- [X] T018 [P] 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/ClientAuthFilterTest.java`：缺失、无效的服务密钥 → 401 `client_unauthenticated`，响应**不透露**是哪一部分不对；有效 → 放行并在请求属性里带客户端 `id` 〔已被 Phase 16 取代：clients 移除〕
 - [X] T019 [P] 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/OperatorContextResolverTest.java`：解析 `X-Operator-User-Id`、`X-Operator-Account-Id`、`X-Operator-Session-Ref`（UUID）；写操作（`POST` / `DELETE`，登录相关除外）缺失 → 400 `operator_required`；读操作可选
 - [X] T020 [P] 测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/WriteOperationLoggerTest.java` 与 `LogRedactionTest.java`：事件名 `uam.admin.write`，字段 `ts`、`operatorUserId`、`operatorAccountId`、`clientId`、`action`（`user.create` / `user.disable` / `user.enable` / `session.terminate` / `account.password.change`）、`targetType`、`targetId`、`outcome`（`success` / `rejected` / `failed`）、`reason`、`traceId`；被拒绝的操作也记录；用日志捕获断言**永不出现**密码、密码哈希、会话标识、服务密钥
 
 ### UAM：实现
 
 - [X] T021 创建 Flyway 迁移 `apps/uam/src/main/resources/db/migration/V1__init.sql`：`CREATE EXTENSION pg_trgm`；表 `app_user`（`id uuid` 主键；`name varchar(64)` 非空；去首尾空白后 1–64 字符；**不要求唯一**；`status text` 非空；`ACTIVE` / `DISABLED`（`CHECK`）；`created_at timestamptz` 非空，默认 `now()`；`updated_at timestamptz` 非空；索引：`name` 上 `pg_trgm` GIN（包含匹配）；`status` 上普通索引（统计正常用户数））、`account`（`id uuid` 主键；`user_id uuid` 非空，外键 → `app_user.id`；索引；`kind text` 非空；本期仅 `PASSWORD`（`CHECK`，日后扩展时放宽）；`login_name varchar(32)` 非空；创建时的原样账号名，**创建后不可改**；`login_name_norm varchar(32)` 非空；`lower(login_name)`；**全局唯一索引**（含已停用用户的账号）；`pg_trgm` GIN（搜索）；`status text` 非空；`ACTIVE` / `DISABLED` / `DELETED`；`DELETED` 为预留；`created_at timestamptz` 非空，默认 `now()`）、`credential`（`account_id uuid` 主键，外键 → `account.id`；`password_hash text` 非空；Argon2id（`DelegatingPasswordEncoder` 格式，可升级）；明文永不落库、不进日志；`updated_at timestamptz` 非空）；`app_user.updated_at` 与 `credential.updated_at` 没有数据库默认值，由仓储在每次插入与更新时显式设置（US1 的 JDBC 仓储、US5 的状态更新、US7 的改密各自负责）；使 T013 通过
-- [X] T022 配置 `apps/uam/src/main/resources/application.yml` 与 `apps/uam/src/main/resources/logback-spring.xml`：默认值 `uam.session.idle=30m`、`uam.session.absolute=12h`、`uam.session.touch-interval=60s`、`uam.login.throttle.max-failures=5`、`uam.login.throttle.block=15m`、`uam.password.min-length=10`、`uam.clients` 读自 `UAM_CLIENTS`；结构化 JSON 日志；`server.shutdown=graceful`；存活 / 就绪探针（就绪依赖 PostgreSQL 与 Redis）；Micrometer 指标；传递并记录 W3C `traceparent`
+- [X] T022 配置 `apps/uam/src/main/resources/application.yml` 与 `apps/uam/src/main/resources/logback-spring.xml`：默认值 `uam.session.idle=30m`、`uam.session.absolute=12h`、`uam.session.touch-interval=60s`、`uam.login.throttle.max-failures=5`、`uam.login.throttle.block=15m`、`uam.password.min-length=10`、`uam.clients` 读自 `UAM_CLIENTS`；结构化 JSON 日志；`server.shutdown=graceful`；存活 / 就绪探针（就绪依赖 PostgreSQL 与 Redis）；Micrometer 指标；传递并记录 W3C `traceparent` 〔其中服务密钥 / `UAM_CLIENTS` 相关部分已被 Phase 16 取代〕
 - [X] T023 [P] 实现 `Clock` 端口与 `SystemClock`：`apps/uam/src/main/java/com/s2u2m/uam/domain/port/Clock.java`、`apps/uam/src/main/java/com/s2u2m/uam/infrastructure/SystemClock.java`
 - [X] T024 实现统一错误：`apps/uam/src/main/java/com/s2u2m/uam/domain/DomainException.java`（带稳定 `code`）、`apps/uam/src/main/java/com/s2u2m/uam/api/ProblemAdvice.java`；使 T016 通过
-- [X] T025 实现客户端认证：`apps/uam/src/main/java/com/s2u2m/uam/infrastructure/security/ClientRegistry.java`（SHA-256 常量时间比较）与 `apps/uam/src/main/java/com/s2u2m/uam/api/ClientAuthFilter.java`（`Authorization: Bearer <服务密钥>`；本任务只做识别与 401，权限 403、双密钥轮换、拒绝日志在 US12）；使 T017、T018 通过
+- [X] T025 实现客户端认证：`apps/uam/src/main/java/com/s2u2m/uam/infrastructure/security/ClientRegistry.java`（SHA-256 常量时间比较）与 `apps/uam/src/main/java/com/s2u2m/uam/api/ClientAuthFilter.java`（`Authorization: Bearer <服务密钥>`；本任务只做识别与 401，权限 403、双密钥轮换、拒绝日志在 US12）；使 T017、T018 通过 〔已被 Phase 16 取代：clients 移除〕
 - [X] T026 实现操作人上下文：`apps/uam/src/main/java/com/s2u2m/uam/domain/model/OperatorContext.java`（`userId`、`accountId`、`sessionRef`）与 `apps/uam/src/main/java/com/s2u2m/uam/api/OperatorContextResolver.java`；使 T019 通过
 - [X] T027 实现写操作日志：`apps/uam/src/main/java/com/s2u2m/uam/domain/port/WriteOperationLog.java`、`apps/uam/src/main/java/com/s2u2m/uam/infrastructure/logging/WriteOperationLogger.java`、`apps/uam/src/main/java/com/s2u2m/uam/infrastructure/logging/LogRedaction.java`；使 T020 通过
 - [X] T028 [P] 配置 Redis 与健康检查：`apps/uam/src/main/java/com/s2u2m/uam/infrastructure/config/RedisConfig.java`（Lettuce，单主；撤销类写入后 `WAIT 1 <短超时>` 的辅助方法）
 
 ### Admin Center：测试先行
 
-- [X] T029 [P] 测试 `apps/admin-center/tests/unit/lib/config.test.ts`：缺少 `UAM_SERVICE_KEY` 或 `UAM_BASE_URL` 时启动失败；默认值 `UAM_TIMEOUT_MS=1500`、`SESSION_COOKIE_NAME=__Host-asid`；`TRUSTED_PROXY_HOPS` 解析；并在 `apps/admin-center/tests/unit/instrumentation.test.ts` 断言：服务启动时（`register()`）缺少 `UAM_SERVICE_KEY` 或 `UAM_BASE_URL` 即抛错；`next build` 在未设置运行期环境变量时不受影响
+- [X] T029 [P] 测试 `apps/admin-center/tests/unit/lib/config.test.ts`：缺少 `UAM_SERVICE_KEY` 或 `UAM_BASE_URL` 时启动失败；默认值 `UAM_TIMEOUT_MS=1500`、`SESSION_COOKIE_NAME=__Host-asid`；`TRUSTED_PROXY_HOPS` 解析；并在 `apps/admin-center/tests/unit/instrumentation.test.ts` 断言：服务启动时（`register()`）缺少 `UAM_SERVICE_KEY` 或 `UAM_BASE_URL` 即抛错；`next build` 在未设置运行期环境变量时不受影响 〔已被 Phase 16 取代：clients 移除〕
 - [X] T030 [P] 测试基座 `apps/admin-center/tests/support/uam-stub.ts`（msw：按 `contracts/uam/openapi.yaml` 校验请求与响应）及契约测试 `apps/admin-center/tests/contract/uam-client.contract.test.ts`
-- [X] T031 [P] 测试 `apps/admin-center/tests/unit/lib/uam/client.test.ts`：每个请求带 `Authorization: Bearer <UAM_SERVICE_KEY>`；写操作带 `X-Operator-User-Id` / `X-Operator-Account-Id` / `X-Operator-Session-Ref`；超时 1.5 秒 → `unavailable`；401 `client_unauthenticated` 与 403 `client_forbidden` → `misconfigured`（**不是** `session_invalid`）；5xx → `unavailable`；问题码到界面文案的映射表与 `contracts/web-routes.md` §5 一致
+- [X] T031 [P] 测试 `apps/admin-center/tests/unit/lib/uam/client.test.ts`：每个请求带 `Authorization: Bearer <UAM_SERVICE_KEY>`；写操作带 `X-Operator-User-Id` / `X-Operator-Account-Id` / `X-Operator-Session-Ref`；超时 1.5 秒 → `unavailable`；401 `client_unauthenticated` 与 403 `client_forbidden` → `misconfigured`（**不是** `session_invalid`）；5xx → `unavailable`；问题码到界面文案的映射表与 `contracts/web-routes.md` §5 一致 〔其中服务密钥 / `UAM_CLIENTS` 相关部分已被 Phase 16 取代〕
 - [X] T032 [P] 测试 `apps/admin-center/tests/unit/lib/session/get-session.test.ts`：无 cookie → `anonymous`；`verify` 200 → `authenticated`；401 `session_invalid` → `anonymous`；超时、5xx、`misconfigured` → `unverified`；单个请求内去重（React `cache`）
 - [X] T033 [P] 测试 `apps/admin-center/tests/unit/app/session-expire.test.ts`：`GET /session/expire` 重新 `verify` 仍无效才清除 cookie 并 303 到 `/login`；`unverified` 时**不清** cookie
 - [X] T034 [P] 测试 `apps/admin-center/tests/unit/lib/security/origin-check.test.ts` 与 `apps/admin-center/tests/unit/lib/session/client-ip.test.ts`：同源校验（`Origin` / `Sec-Fetch-Site`，失败 403；FR-033）；按 `TRUSTED_PROXY_HOPS` 从可信代理头取来源地址，不采信用户自带的多余 `X-Forwarded-For`
@@ -89,13 +90,13 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 ### Admin Center：实现
 
 - [X] T037 实现 `apps/admin-center/src/lib/config.ts`（`server-only`，zod 解析环境变量；**不在模块加载时解析**，避免 `next build` 因构建环境缺变量而失败）；另新增 `apps/admin-center/src/instrumentation.ts`：在 `register()`（仅 `NEXT_RUNTIME === 'nodejs'`）里调用配置解析，缺失即抛错使服务启动失败；使 T029 通过
-- [X] T038 实现 UAM 客户端 `apps/admin-center/src/lib/uam/client.ts` 与 `apps/admin-center/src/lib/uam/errors.ts`（`server-only`；带服务密钥与操作人请求头；超时 1.5 秒；传递 `traceparent`；错误码映射）；使 T030、T031 通过
+- [X] T038 实现 UAM 客户端 `apps/admin-center/src/lib/uam/client.ts` 与 `apps/admin-center/src/lib/uam/errors.ts`（`server-only`；带服务密钥与操作人请求头；超时 1.5 秒；传递 `traceparent`；错误码映射）；使 T030、T031 通过 〔已被 Phase 16 取代：clients 移除〕
 - [X] T039 实现会话三态 `apps/admin-center/src/lib/session/get-session.ts` 与 `apps/admin-center/src/lib/session/cookie.ts`（cookie `__Host-asid`：`HttpOnly; Secure; SameSite=Strict; Path=/`，不设 `Domain`，`Max-Age` 取 `maxAgeSeconds`）；使 T032 通过
 - [X] T040 实现 `apps/admin-center/src/app/session/expire/route.ts`；使 T033 通过
 - [X] T041 [P] 实现 `apps/admin-center/src/lib/security/origin-check.ts` 与 `apps/admin-center/src/lib/session/client-ip.ts`；使 T034 通过
 - [X] T042 实现 `apps/admin-center/src/middleware.ts`；使 T035 通过
 - [X] T043 实现外壳：`apps/admin-center/src/components/shell/{app-shell,app-header,app-sidebar,user-menu,breadcrumbs,nav-config}.tsx`，`apps/admin-center/src/app/layout.tsx`、`globals.css`、`not-found.tsx`、`error.tsx`，`apps/admin-center/src/app/(shell)/layout.tsx`（读会话三态）、`apps/admin-center/src/app/(auth)/layout.tsx`（极简外壳）；桌面 ≥ 1024 侧边栏展开、平板 768–1023 图标条、手机 < 768 抽屉；展开偏好存非敏感 UI cookie `sidebar_state`；使 T036 通过
-- [X] T044 [P] 搭建 E2E 栈：`devops/local/docker-compose.stack.yml`（PostgreSQL、Redis、UAM、Admin Center）、`devops/local/scripts/bootstrap.sh`（构建镜像并启动栈）与 `devops/local/e2e.env`（**仅限本地 E2E 的固定测试密钥**：`UAM_SERVICE_KEY=uamk_e2e_…`，以及与它的 `sha256` 对应的 `UAM_CLIENTS`；文件头注明「禁止用于任何其他环境」）、`apps/admin-center/tests/e2e/support/{stack,fixtures}.ts`（启停、造数、登录辅助）
+- [X] T044 [P] 搭建 E2E 栈：`devops/local/docker-compose.stack.yml`（PostgreSQL、Redis、UAM、Admin Center）、`devops/local/scripts/bootstrap.sh`（构建镜像并启动栈）与 `devops/local/e2e.env`（**仅限本地 E2E 的固定测试密钥**：`UAM_SERVICE_KEY=uamk_e2e_…`，以及与它的 `sha256` 对应的 `UAM_CLIENTS`；文件头注明「禁止用于任何其他环境」）、`apps/admin-center/tests/e2e/support/{stack,fixtures}.ts`（启停、造数、登录辅助） 〔已被 Phase 16 取代：clients 移除〕
 
 **Checkpoint**: 基础就绪，可以开始用户故事。
 
@@ -404,7 +405,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ---
 
-## Phase 14: User Story 12 - UAM 只接受持有服务密钥的受信任客户端（Priority: P2）
+## Phase 14: User Story 12 - UAM 只接受持有服务密钥的受信任客户端（Priority: P2）〔已移除：服务身份后续另行实现，见 Phase 16〕
 
 **Goal**: 在基础阶段的识别与 401 之上，补全权限（403）、双密钥不停机轮换、拒绝日志、密钥生成工具与 Admin Center 的配置错误处理。
 
@@ -412,22 +413,22 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ### Tests for User Story 12 ⚠️
 
-- [X] T172 [P] [US12] 单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/ClientRegistryRotationTest.java`：同一客户端至多两个有效哈希；撤销其一后旧密钥被拒、新密钥有效；三个哈希的配置被拒绝启动
-- [X] T173 [P] [US12] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/ClientAuthContractIT.java`：遍历 `contracts/uam/openapi.yaml` 的**每个**接口——不带密钥、错密钥、已撤销密钥 → 401 `client_unauthenticated` 且响应不透露哪里不对；密钥有效但没有 `assert-end-user-context` 权限的客户端调用登录、校验会话、退出、修改密码与所有写操作 → 403 `client_forbidden`，只读查询仍 200
-- [X] T174 [P] [US12] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/RejectedCallLogIT.java`：被拒绝的调用写结构化日志（来源、时间、原因类别），**永不含**密钥
-- [X] T175 [P] [US12] 单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/cli/GenerateServiceKeyCommandTest.java`：密钥为 32 字节密码学安全随机数、base64url、前缀 `uamk_`；标准输出只输出密钥一次；标准错误输出对应的 `sha256:<hex>` 与 `UAM_CLIENTS` 配置片段；不连库、不连 Redis
-- [X] T176 [P] [US12] 单元测试 `apps/admin-center/tests/unit/lib/session/misconfig.test.ts`：UAM 返回 401 `client_unauthenticated` / 403 `client_forbidden` 时按 `unverified` 处理——不登出用户、**不清 cookie**、显示「服务暂不可用」，并写运维告警日志（不含密钥）；写操作提示「操作未生效」
-- [X] T177 [P] [US12] E2E `apps/admin-center/tests/e2e/us12-rotation.spec.ts`（S19）：持续访问下完成一次密钥轮换，0 个用户被登出、0 个请求因密钥失败；把 Admin Center 的密钥故意配错，已登录用户不被登出，改回后无需重新登录
+- [X] T172 [P] [US12] 单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/ClientRegistryRotationTest.java`：同一客户端至多两个有效哈希；撤销其一后旧密钥被拒、新密钥有效；三个哈希的配置被拒绝启动 〔已被 Phase 16 取代：clients 移除〕
+- [X] T173 [P] [US12] 契约测试 `apps/uam/src/test/java/com/s2u2m/uam/contract/ClientAuthContractIT.java`：遍历 `contracts/uam/openapi.yaml` 的**每个**接口——不带密钥、错密钥、已撤销密钥 → 401 `client_unauthenticated` 且响应不透露哪里不对；密钥有效但没有 `assert-end-user-context` 权限的客户端调用登录、校验会话、退出、修改密码与所有写操作 → 403 `client_forbidden`，只读查询仍 200 〔已被 Phase 16 取代：clients 移除〕
+- [X] T174 [P] [US12] 集成测试 `apps/uam/src/test/java/com/s2u2m/uam/integration/RejectedCallLogIT.java`：被拒绝的调用写结构化日志（来源、时间、原因类别），**永不含**密钥 〔已被 Phase 16 取代：clients 移除〕
+- [X] T175 [P] [US12] 单元测试 `apps/uam/src/test/java/com/s2u2m/uam/unit/cli/GenerateServiceKeyCommandTest.java`：密钥为 32 字节密码学安全随机数、base64url、前缀 `uamk_`；标准输出只输出密钥一次；标准错误输出对应的 `sha256:<hex>` 与 `UAM_CLIENTS` 配置片段；不连库、不连 Redis 〔已被 Phase 16 取代：clients 移除〕
+- [X] T176 [P] [US12] 单元测试 `apps/admin-center/tests/unit/lib/session/misconfig.test.ts`：UAM 返回 401 `client_unauthenticated` / 403 `client_forbidden` 时按 `unverified` 处理——不登出用户、**不清 cookie**、显示「服务暂不可用」，并写运维告警日志（不含密钥）；写操作提示「操作未生效」 〔已被 Phase 16 取代：clients 移除〕
+- [X] T177 [P] [US12] E2E `apps/admin-center/tests/e2e/us12-rotation.spec.ts`（S19）：持续访问下完成一次密钥轮换，0 个用户被登出、0 个请求因密钥失败；把 Admin Center 的密钥故意配错，已登录用户不被登出，改回后无需重新登录 〔已被 Phase 16 取代：clients 移除〕
 
 ### Implementation for User Story 12
 
-- [X] T178 [US12] 在 `ClientRegistry.java` 与 `ClientAuthFilter.java` 补全权限 `assert-end-user-context` 与 403 `client_forbidden`；使 T173（权限部分）通过
-- [X] T179 [US12] 在 `ClientRegistry.java` 支持至多两个同时有效的密钥哈希并校验数量；使 T172 通过
-- [X] T180 [US12] 在 `ClientAuthFilter.java` 写拒绝日志（来源、时间、原因类别，不含密钥）；使 T174 通过
-- [X] T181 [US12] 部署期命令 `apps/uam/src/main/java/com/s2u2m/uam/cli/GenerateServiceKeyCommand.java`；使 T175 通过
-- [X] T182 [US12] Admin Center：在 `apps/admin-center/src/lib/uam/errors.ts` 与 `apps/admin-center/src/lib/logging.ts` 实现 `misconfigured` → `unverified` 与告警日志；使 T176 通过
-- [X] T183 [US12] `devops/local/scripts/rotate-key.sh`：新增第二个哈希 → 滚动发布 UAM → Admin Center 换新密钥 → 删旧哈希；`devops/local/scripts/bootstrap.sh` 改用 `generate-service-key`
-- [X] T184 [US12] 验证：T172 ~ T177 通过（含 `devops/local/scripts/rotate-key.sh` 的轮换演练）；跑 quickstart S16、S19 （结果：UAM verify 364 单元 + 280 集成；E2E 轮换演练在单实例栈上 0 登出、0 密钥告警，UAM 重建的几秒内有 16/72 次「服务暂不可用」（单实例重建所致，非密钥失败）；在 3+3 多实例栈上持续访问下滚动轮换：341 次页面请求全部正常、0 登出、0 密钥告警，删旧哈希后旧密钥在三个 UAM 上均为 401；演练中发现并修复 rotate-key.sh 在多实例栈上硬编码服务名 uam 的缺陷）
+- [X] T178 [US12] 在 `ClientRegistry.java` 与 `ClientAuthFilter.java` 补全权限 `assert-end-user-context` 与 403 `client_forbidden`；使 T173（权限部分）通过 〔已被 Phase 16 取代：clients 移除〕
+- [X] T179 [US12] 在 `ClientRegistry.java` 支持至多两个同时有效的密钥哈希并校验数量；使 T172 通过 〔已被 Phase 16 取代：clients 移除〕
+- [X] T180 [US12] 在 `ClientAuthFilter.java` 写拒绝日志（来源、时间、原因类别，不含密钥）；使 T174 通过 〔已被 Phase 16 取代：clients 移除〕
+- [X] T181 [US12] 部署期命令 `apps/uam/src/main/java/com/s2u2m/uam/cli/GenerateServiceKeyCommand.java`；使 T175 通过 〔已被 Phase 16 取代：clients 移除〕
+- [X] T182 [US12] Admin Center：在 `apps/admin-center/src/lib/uam/errors.ts` 与 `apps/admin-center/src/lib/logging.ts` 实现 `misconfigured` → `unverified` 与告警日志；使 T176 通过 〔已被 Phase 16 取代：clients 移除〕
+- [X] T183 [US12] `devops/local/scripts/rotate-key.sh`：新增第二个哈希 → 滚动发布 UAM → Admin Center 换新密钥 → 删旧哈希；`devops/local/scripts/bootstrap.sh` 改用 `generate-service-key` 〔已被 Phase 16 取代：clients 移除〕
+- [X] T184 [US12] 验证：T172 ~ T177 通过（含 `devops/local/scripts/rotate-key.sh` 的轮换演练）；跑 quickstart S16、S19 （结果：UAM verify 364 单元 + 280 集成；E2E 轮换演练在单实例栈上 0 登出、0 密钥告警，UAM 重建的几秒内有 16/72 次「服务暂不可用」（单实例重建所致，非密钥失败）；在 3+3 多实例栈上持续访问下滚动轮换：341 次页面请求全部正常、0 登出、0 密钥告警，删旧哈希后旧密钥在三个 UAM 上均为 401；演练中发现并修复 rotate-key.sh 在多实例栈上硬编码服务名 uam 的缺陷） 〔已被 Phase 16 取代：clients 移除〕
 
 **Checkpoint**: 全部 12 个用户故事完成。
 
@@ -437,9 +438,9 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 **Purpose**: 跨故事的收尾、门禁与归档
 
-- [X] T185 [P] 安全检查脚本 `devops/local/scripts/security-check.sh`：没有被跟踪的 `.env`；`apps/admin-center/package.json` 不含数据库驱动或 ORM 依赖（FR-013：Admin Center 不持久化数据）；仓库与历史里没有 `uamk_` 密钥或私钥特征（`devops/local/e2e.env` 里标注为仅测试用的固定密钥除外）；`apps/admin-center/src/lib` 的服务端模块都有 `import "server-only"`；浏览器包（`.next/static`）里没有服务密钥；运行期响应与 UAM、Admin Center 日志里没有密码、密码哈希、会话标识、服务密钥（SC-014）；跨站伪造的写请求 100% 被拒 （说明：`git log --all` 里有三个来自旧演示项目的 PEM 私钥头标记 占位（`jwt-rsa-key.pem`，正文只有 24 个字符、不是有效密钥，不在 main 与本特性分支），脚本对这两个路径在历史扫描里做了允许；清除需要改写历史，未做）
+- [X] T185 [P] 安全检查脚本 `devops/local/scripts/security-check.sh`：没有被跟踪的 `.env`；`apps/admin-center/package.json` 不含数据库驱动或 ORM 依赖（FR-013：Admin Center 不持久化数据）；仓库与历史里没有 `uamk_` 密钥或私钥特征（`devops/local/e2e.env` 里标注为仅测试用的固定密钥除外）；`apps/admin-center/src/lib` 的服务端模块都有 `import "server-only"`；浏览器包（`.next/static`）里没有服务密钥；运行期响应与 UAM、Admin Center 日志里没有密码、密码哈希、会话标识、服务密钥（SC-014）；跨站伪造的写请求 100% 被拒 （说明：`git log --all` 里有三个来自旧演示项目的 PEM 私钥头标记 占位（`jwt-rsa-key.pem`，正文只有 24 个字符、不是有效密钥，不在 main 与本特性分支），脚本对这两个路径在历史扫描里做了允许；清除需要改写历史，未做） 〔已被 Phase 16 取代：clients 移除〕
 - [X] T186 [P] 覆盖率门禁核对：`mvn -f apps/uam/pom.xml verify` 行覆盖率 ≥ 90%；`npm --prefix apps/admin-center run test:cov` ≥ 90%；排除路径只含不含业务逻辑的代码，并写进两个 `AGENTS.md`
-- [X] T187 [P] 补充 `apps/uam/AGENTS.md` 与 `apps/admin-center/AGENTS.md` 的最终命令、环境变量与排障说明（含 `UAM_CLIENTS` 示例、`generate-service-key`、`init-admin`、`add-account`、轮换步骤）
+- [X] T187 [P] 补充 `apps/uam/AGENTS.md` 与 `apps/admin-center/AGENTS.md` 的最终命令、环境变量与排障说明（含 `UAM_CLIENTS` 示例、`generate-service-key`、`init-admin`、`add-account`、轮换步骤） 〔已被 Phase 16 取代：clients 移除〕
 - [X] T188 对触及的两个应用（`apps/uam/pom.xml`、`apps/admin-center/package.json`）执行质量门禁：UAM 的 `spotless:check`、`compile`、`verify`；Admin Center 的 `lint`、`typecheck`、`test:cov`、`build`；全部通过
 - [X] T189 按 `specs/002-admin-center-uam/quickstart.md` 完整跑一遍 S1 ~ S19，把结果与未达标项写入归档文档的「验证记录」
 - [X] T190 [P] 归档需求与领域现状到 `docs/achieve-specs/admin-center-uam.md`（统一语言、领域模型、核心流程、需求对照表、验证记录、已知限制）
@@ -455,6 +456,47 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 
 ---
 
+## Phase 16: 移除 clients（服务密钥）（用户决定，2026-10-27）
+
+**Goal**: 删除 UAM 的 clients 功能与 Admin Center 的服务密钥，UAM 不再认证调用方，只靠网络边界保护；**保留** `X-Operator-*` 操作人头及其 400 `operator_required`。服务身份（mTLS、平台身份、OAuth2 客户端凭据等）后续作为新特性另行实现。
+
+**范围决定**（①~④ 均已由用户确认，2026-10-27）：① UAM 完全不认证调用方；② 保留 `X-Operator-*`；③ 改密越权的 403 `client_forbidden` 改名 `operator_forbidden`；④ 写日志 `uam.admin.write` 去掉 `clientId`，幂等键改为 `uam:idem:{sha256(键)}`。
+
+**Independent Test**: 不带任何 `Authorization` 调 UAM 全部接口，读写都被正常处理（写接口缺操作人头仍 → 400）；Admin Center 不配置任何服务密钥即可启动并完成 quickstart S1 ~ S17；仓库里不再出现 `UAM_CLIENTS`、`UAM_SERVICE_KEY`、`generate-service-key`、`client_unauthenticated`、`uam.client.rejected`、`assert-end-user-context`。
+
+**顺序（测试先行：red → green → refactor）**：先改契约与规格文档并经用户确认（本批文档即 T201 前置），再按 T201 → T218 执行；每个应用内「先改测试使其失败，再改实现」。
+
+### Tests first（red）
+
+- [X] T201 [P] UAM 契约与集成测试改写：新增 / 改写遍历 `contracts/uam/openapi.yaml` 每个接口的契约测试（取代 `ClientAuthContractIT`）——**不带 `Authorization`** 时读写都正常处理，写接口缺 / 非法 `X-Operator-*`（`/v1/auth/**` 除外）→ 400 `operator_required`，改他人账号密码 → 403 `operator_forbidden`；`/actuator/prometheus` 免校验；`ErrorStatusContractIT`、`UsersWriteContractIT`、`UserStatusContractIT`、`SessionTerminateContractIT`、`AccountPasswordContractIT`、`AuthContractIT`、`AuthLogoutContractIT`、`UsersReadContractIT`、`SessionsReadContractIT` 与全部 `*IT`（`integration/`、`concurrency/`）里带服务密钥的请求与断言一并去掉；测试辅助 `support/ApiClient.java`、`support/IntegrationTestBase.java`、`support/UamInstance.java` 不再配置 `UAM_CLIENTS` / 发送 `Authorization`；此时全部失败或编译不过
+- [X] T202 [P] UAM 单元测试改写：`ProblemAdviceTest`（错误码列表去掉 `client_unauthenticated`、`client_forbidden`，加 `operator_forbidden`）、`WriteOperationLoggerTest`（无 `clientId`）、`LogRedactionTest`（按键名脱敏仍含 `authorization`、`token`、`secret`，去掉 `serviceKey` / `uamk_` 专项用例，如决定保留通用 `Bearer` 脱敏则保留）、`CreateUserUseCaseTest` 或幂等相关测试（键 `uam:idem:{sha256(键)}`）、`ChangePasswordUseCaseTest`（越权抛 `operator_forbidden`）、`ArchitectureTest`（无 `Client*` 类）；**删除**测试 `ClientRegistryTest`、`ClientRegistryRotationTest`、`ClientAuthFilterTest`、`ClientPermissionsTest`、`ClientRejectionLoggerTest`、`RejectedCallLogIT`、`unit/cli/GenerateServiceKeyCommandTest`、`unit/cli/StandaloneCommandsTest`（若 `StandaloneCommands` 一并删除）
+- [X] T203 [P] Admin Center 测试改写：`tests/unit/lib/config.test.ts`、`tests/unit/instrumentation.test.ts`（不再要求 `UAM_SERVICE_KEY`，只要求 `UAM_BASE_URL`）、`tests/unit/lib/uam/client.test.ts`、`tests/contract/uam-client.contract.test.ts`、`tests/support/uam-stub.ts`（桩不再校验 `Authorization`）、`tests/unit/lib/session/{get-session,misconfig,cookie}.test.ts`、`tests/unit/lib/logging.test.ts`、`tests/unit/app/{login,logout,password,user-status,new-user,terminate,session-expire}*` 等所有出现服务密钥的用例同步；**删除** `tests/e2e/us12-rotation.spec.ts`，`tests/e2e/support/stack.ts` 去掉密钥 / 轮换辅助；`misconfig.test.ts` 若只测「服务密钥错误 → `unverified`」则整体删除，保留「UAM 不可达 / 超时 / 5xx → `unverified`」的用例（移入 `get-session.test.ts`）
+
+### Implementation（green）
+
+- [X] T204 契约 `contracts/uam/openapi.yaml`：删 `securitySchemes` 与全局 / 各接口的 `security`、所有 401 `client_unauthenticated` 与相关 403 `client_forbidden` 响应、`Authorization` 说明；`ErrorCode` 枚举去掉 `client_unauthenticated`、`client_forbidden`，加 `operator_forbidden`（改密越权）；写日志与幂等相关描述去掉「按客户端」；保留 `X-Operator-*` 参数与 400 `operator_required`；`/actuator/prometheus` 去掉鉴权说明；重新生成 `apps/admin-center/src/lib/uam/types.generated.ts`
+- [X] T205 UAM 删除 clients 实现：`api/ClientAuthFilter.java`、`api/ClientPermissions.java`、`infrastructure/security/ClientRegistry.java`、`infrastructure/config/ClientRegistryConfig.java`、`domain/model/ClientIdentity.java`、`domain/port/ClientAuthenticator.java`、`domain/port/ClientRejectionLog.java`（及 `ClientRejectionLogger` 实现）、`cli/GenerateServiceKeyCommand.java`；`cli/StandaloneCommands.java` 与 `UamApplication.java` 里对 `generate-service-key` 的分支（若 `StandaloneCommands` 再无其他命令则整类删除）；`ProblemCatalog`、`ErrorCode`、`ProblemAdvice` 去掉 `CLIENT_UNAUTHENTICATED` / `CLIENT_FORBIDDEN`，加 `OPERATOR_FORBIDDEN`（403）；`UsersController`、`SessionsController`、`AccountsController`、`OperatorContextResolver` 不再读取 `ClientAuthFilter.CLIENT_ID_ATTRIBUTE`；`WriteOperationLogger` 去掉 `clientId`；`IdempotencyStore` / `RedisGuards` 幂等键改 `uam:idem:{sha256(键)}`；`LogRedaction` 去掉 `serviceKey`、`uamk_` 专项规则（保留 `authorization` 等通用规则）；`application.yml`、`logback-spring.xml` 去掉 `UAM_CLIENTS` 与 `uam.client.rejected` 相关配置；`pom.xml` 的 JaCoCo 排除路径去掉 `ClientRegistryConfig`（`**/config/*Config.class` 通配保留）；使 T201、T202 通过
+- [X] T206 Admin Center：`src/lib/config.ts` 去掉 `UAM_SERVICE_KEY`；`src/instrumentation.ts` 只检查 `UAM_BASE_URL`；`src/lib/uam/client.ts` 去掉 `Authorization` 头；`src/lib/uam/errors.ts` 删 `misconfigured` 分类与 401 `client_unauthenticated` / 403 `client_forbidden` → `unverified` 分支（改密越权 `operator_forbidden` 仍按业务错误显示）；`src/lib/logging.ts` 删 `admin-center.uam.misconfigured` 告警；`.env.example` 删 `UAM_SERVICE_KEY`；使 T203 通过
+- [X] T207 [P] devops / k8s：`devops/k8s/base/uam.yaml`、`base/admin-center.yaml` 去掉 `UAM_CLIENTS` / `UAM_SERVICE_KEY` 的 Secret 引用（`admin-center-runtime` 暂无必填键则删除该 Secret 引用与契约说明）；`devops/k8s/overlays/cloud/kustomization.yaml` 与 `overlays/kind` 同步；`devops/k8s/scripts/deploy.sh` 不再生成服务密钥与 `UAM_CLIENTS`（保留数据库密码与首个用户密码的生成，重复 `up` 仍不换密钥）；**确认 NetworkPolicy 仍只放行 Admin Center → UAM**（它现在是唯一保护），并在 `deploy.sh status` 或 `security-check.sh` 里增加「UAM 只对 Admin Center 可达」的检查
+- [X] T208 [P] devops / 本地栈：`devops/local/docker-compose.stack.yml`、`docker-compose.scale.yml`、`e2e.env`（删固定测试密钥与 `UAM_CLIENTS`，文件头保留「仅限本地 E2E」说明）；`devops/local/scripts/bootstrap.sh`（删 `--generated-key` 与 `generate-service-key` 调用）、`service-key-lib.sh`（**删除**）、`rotate-key.sh`（**删除**）、`scale-lib.sh`、`scale-checks.sh`、`rolling-restart.sh` 里的密钥引用；`devops/local/nginx/{nginx.conf,proxy-params.conf}` 若透传或设置 `Authorization` 则去掉；`devops/local/scripts/security-check.sh`：删「完整长度 `uamk_` 密钥」「`.next/static` 无服务密钥」「日志无服务密钥」等检查，保留私钥特征、`.env`、`server-only`、同源校验与密码 / 哈希 / 会话标识检查，并新增「UAM 不映射宿主机端口」的静态检查
+- [X] T209 [P] devops / 压测：`devops/load/k6/lib/common.js`、`seed-sessions.js`、`seed-data.sh`、`list-and-detail.js`、`validate-throughput.js` 去掉 `Authorization` 与密钥环境变量；`devops/load/SC-011.md`、`RESULTS.md` 的复现命令同步（历史测量数据不改，只加一句注明「测量时带服务密钥，开销可忽略」）
+- [X] T210 [P] CI：`.github/workflows/uam-ci.yml`、`admin-center-ci.yml`（及可复用工作流）里的 `UAM_CLIENTS` / `UAM_SERVICE_KEY` 测试密钥与 `generate-service-key` 步骤删除（若有）
+
+### Refactor / 文档与验证
+
+- [X] T211 重构：全局检索 `Client`（类名）、`clientId`、`service.?key`、`uamk_`、`UAM_CLIENTS`、`UAM_SERVICE_KEY`、`assert-end-user`、`client_unauthenticated`、`client_forbidden`、`uam.client.rejected`、`misconfigured`，除本文档与归档说明里的历史记述外应为 0 处；清理因删除而不再使用的依赖、常量与测试辅助；保持全绿
+- [X] T212 [P] `apps/uam/AGENTS.md`：删「服务密钥与客户端清单」整节（含权限表、`uam.client.rejected`、轮换步骤）、命令里的 `UAM_CLIENTS`、`generate-service-key`、环境变量表中的 `UAM_CLIENTS`、`rotate-key.sh`、排障里的客户端拒绝日志与 `ClientRegistryConfig` / `StandaloneCommands` 覆盖率说明；保留「操作人头（400 `operator_required`）」「`operator_forbidden`」与错误状态码说明；在「本地栈 / k8s」处写明**网络边界是唯一保护**
+- [X] T213 [P] `apps/admin-center/AGENTS.md` 与 `.env.example`：删 `UAM_SERVICE_KEY`、轮换 E2E、`misconfigured` 排障；`security-check.sh` 用法说明同步
+- [X] T214 [P] 其余设计文档（由各 app 的文档编辑者处理）：`docs/system-design/uam/{README,domain-and-api,data-model,plan,research}.md` 与 `diagrams/{c4-l3-uam-component,domain-class}.puml`、`docs/system-design/admin-center/{README,plan,web-routes,session-states}.md` 与 `diagrams/c4-l3-admin-center-component.puml`、`prototype/README.md`；本目录（`system/`）的文档已在本次变更中更新
+- [X] T215 重新渲染 PlantUML：`java -jar plantuml.jar -tsvg -charset UTF-8 docs/system-design/*/diagrams/*.puml`，提交更新后的 `.svg`（`system/diagrams/{c4-l1-context,c4-l2-container,seq-login,seq-verify-and-call,seq-terminate-session}.svg`、`uam/diagrams/*.svg`、`admin-center/diagrams/*.svg`）；`.puml` 与 `.svg` 同一次提交
+- [X] T216 质量门禁：UAM 的 `spotless:check`、`compile`、`verify`（单元 + `*IT` + 行覆盖率 ≥ 90%，需要 Docker）；Admin Center 的 `lint`、`typecheck`、`test:cov`、`build`；`kubectl kustomize devops/k8s/overlays/{kind,cloud}` 渲染通过；全部通过
+- [ ] T217 验证：本地 E2E 栈 `bootstrap.sh up` 后跑 quickstart S1 ~ S17（S16 已改为「UAM 直连：操作人与网络边界」，S19 已移除）；`security-check.sh all` 通过；kind 上 `deploy.sh up` 后登录与用户 / 会话管理可用，且从非 Admin Center 的 Pod 无法连到 UAM
+- [ ] T218 归档收尾：`docs/system-design/system/traceability.md` 把「已移除」行的实现位置与验证改为最终状态（删除任务完成后不再保留实现与测试引用，只留「已移除」与原因）；根 `README` 或 `docs/system-design/README.md` 里若有服务密钥描述同步；`docs/achieve-specs/admin-center/spec.md` 不涉及（仅有 FR-042 ~ FR-044 / SC-016 / US12 编号占位）
+
+**Checkpoint**: UAM 与 Admin Center 不再有服务密钥；`X-Operator-*` 保持；网络边界检查就位；服务身份作为后续特性另行立项。
+
+---
+
 ## Requirement Traceability（需求 → 任务）
 
 | 需求 | 主要任务 |
@@ -463,8 +505,8 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 | FR-004（账号与会话一对一） | T048、T049、T062 |
 | FR-005、FR-006（统一失败提示、失败限制） | T045、T046、T050、T051、T053、T063 |
 | FR-007（`verify` 返回会话数据） | T047、T050、T064 |
-| FR-008（UAM 不基于用户会话、操作人以请求头传入） | T018、T019、T025、T026、T173 |
-| FR-009（会话无效 / UAM 不可用的处理） | T032、T033、T039、T040、T176 |
+| FR-008（UAM 不基于用户会话、操作人以请求头传入） | T019、T026（原 T018、T025、T173 已被 Phase 16 取代，由 T201 的契约测试接替） |
+| FR-009（会话无效 / UAM 不可用的处理） | T032、T033、T039、T040（原 T176 已移除） |
 | FR-010、FR-011（退出、到期、结束后任一实例视为未登录） | T144 ~ T150、T158、T162 |
 | FR-012（登录后回到原页，站内路径） | T053、T067、T070 |
 | FR-013（UAM 是权威，Admin Center 不持久化） | T015、T185 |
@@ -480,7 +522,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 | FR-035、FR-036（自适应、触控与键盘） | T036、T043、T153 ~ T157 |
 | FR-037 ~ FR-040（横向扩展、一致、不登出） | T158 ~ T167 |
 | FR-041（原型） | T168 ~ T171 |
-| FR-042 ~ FR-044（服务密钥、权限、轮换） | T017、T018、T025、T172 ~ T184 |
+| ~~FR-042 ~ FR-044（服务密钥、权限、轮换）~~ | 已移除（原 T017、T018、T025、T172 ~ T184；删除任务见 T201 ~ T218） |
 | SC-001 ~ SC-007 | T055、T077、T089、T101、T115、T128、T138 |
 | SC-008（六个视口） | T153 |
 | SC-009、SC-011（规模与吞吐） | T165、T166 |
@@ -488,7 +530,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 | SC-013（会话结束后视为未登录） | T147、T158 |
 | SC-014（不泄露、防伪造） | T185 |
 | SC-015（原型一致） | T169、T170 |
-| SC-016（服务密钥） | T173、T177 |
+| ~~SC-016（服务密钥）~~ | 已移除（原 T173、T177） |
 
 ---
 
@@ -516,7 +558,7 @@ description: "Task list for 002-admin-center-uam：Admin Center 用户管理与�
 | US9 自适应 | P2 | US1 ~ US8 的页面 | 验证与修复 |
 | US10 横向扩展 | P2 | US1 ~ US8 | 用真实流程验证一致性与吞吐 |
 | US11 原型 | P2 | US2 ~ US8 的界面 | 一致性验证与范围外入口检查 |
-| US12 服务密钥 | P2 | Foundational、US1 | 识别与 401 在基础阶段；权限、轮换、工具在本阶段 |
+| ~~US12 服务密钥~~ | P2 | Foundational、US1 | **已移除**（Phase 16 删除其全部产出） |
 
 ### Within Each User Story
 
@@ -567,7 +609,7 @@ Task: "登录表单校验与 next 白名单 apps/admin-center/src/lib/..."      
 2. US1 → 独立验证 → 演示
 3. US2、US3 → 独立验证 → 演示（MVP）
 4. US4 ~ US8（写操作与会话生命周期）→ 逐个独立验证
-5. US12（服务密钥）建议**在首次上线之前**完成
+5. ~~US12（服务密钥）建议在首次上线之前完成~~：已移除，**上线前须确认 UAM 只对 Admin Center 可达**（网络边界是唯一保护）
 6. US9、US10、US11 → 自适应、扩展与原型一致性验证
 7. Polish → 归档
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- 结构化 JSON 日志（logstash 格式）：MDC 的 traceId 与写操作日志的键值对都作为顶层字段。
-     cli profile（部署期命令）写标准错误，标准输出留给命令的结果（例如 generate-service-key 的密钥）。 -->
+     cli profile（部署期命令）写标准错误，标准输出留给命令的结果。 -->
 <configuration>
 
   <springProfile name="!cli">

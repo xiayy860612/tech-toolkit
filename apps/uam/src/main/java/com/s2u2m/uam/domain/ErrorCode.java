@@ -6,9 +6,9 @@ import java.util.Arrays;
 public enum ErrorCode {
   INVALID_CREDENTIALS("invalid_credentials"),
   SESSION_INVALID("session_invalid"),
-  CLIENT_UNAUTHENTICATED("client_unauthenticated"),
-  CLIENT_FORBIDDEN("client_forbidden"),
   OPERATOR_REQUIRED("operator_required"),
+  /** 改密时路径账号不是操作人自己的账号。 */
+  OPERATOR_FORBIDDEN("operator_forbidden"),
   /** 请求本身无法解析或类型不符（坏 JSON、路径 / 查询参数类型不符）；与 422 {@code validation_failed} 区分。 */
   BAD_REQUEST("bad_request"),
   THROTTLED("throttled"),

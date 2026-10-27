@@ -39,13 +39,13 @@
 - **新建用户**：单个 PostgreSQL 事务写 `app_user` + `account` + `credential`；账号名规范化列上的唯一索引保证全局唯一（含已停用用户的账号），冲突返回 409 `account_name_taken`。接受 `Idempotency-Key`：Redis 保存「键 → 响应」10 分钟，同键重放返回原 201，保证双击与网络重试不产生两个用户（FR-022）；并发抢同一账号名只有一个成功。
 - **停用 / 启用**：在事务内取 `pg_advisory_xact_lock` 串行化「用户状态变更」，校验「不能停用自己」「不能停用最后一个正常用户」（并发下也不会出现零个正常用户，FR-025）；**提交后**再终止该用户全部账号的会话。登录流程在写入会话之后**再读一次用户状态**，若已停用则立即终止刚建的会话并拒绝，这样「停用与登录并发」两种交错顺序都不会留下已停用用户的有效会话。重复操作幂等。启用不恢复会话。
 - **强制下线**：按会话引用终止（`uam:sref:{ref}` → 哈希 → Lua 一次清理四处索引）；目标等于请求头 `X-Operator-Session-Ref` 时返回 409 `cannot_terminate_own_session`；目标不存在返回 404 `session_not_found`，界面显示「该会话已结束」。只终止会话，不改变账号与用户状态。
-- **改密**：校验当前密码（失败计数键 `SHA-256(accountId | clientIp)`，口径同登录）、新密码强度且不同于当前、写 `credential`；**只改路径里的 `accountId` 对应的账号**（Admin Center 传入操作人自己的账号；UAM 以「当前密码正确」保护它，不依赖用户凭据）；当前会话保持有效。**不轮换会话标识**：因账号与会话一一对应，被改密的账号不存在需要另行处理的其他会话，且会话标识由服务端在登录时生成，没有固定化风险；若日后改为多会话，须重新评估。
+- **改密**：校验当前密码（失败计数键 `SHA-256(accountId | clientIp)`，口径同登录）、新密码强度且不同于当前、写 `credential`；**只改路径里的 `accountId` 对应的账号**，且路径账号须等于操作人账号，否则 403 `operator_forbidden`（Admin Center 传入操作人自己的账号；UAM 以「当前密码正确」保护它，不依赖用户凭据）；当前会话保持有效。**不轮换会话标识**：因账号与会话一一对应，被改密的账号不存在需要另行处理的其他会话，且会话标识由服务端在登录时生成，没有固定化风险；若日后改为多会话，须重新评估。
 - **Rationale**: 把规则集中在 UAM，Admin Center 不依赖也不重复实现（FR-015）；锁与交错顺序的设计使并发场景可测试。
 - **Alternatives**: 乐观锁重试（最后一个正常用户的并发保护需要全局视角，咨询锁更直接）；改密后轮换标识（对一对一会话无额外收益，增加 cookie 更新与失败回滚复杂度）。
 
 ### R16 写操作应用日志（FR-034）
 
-- **Decision**: 每次写操作由 UAM 写一条结构化 JSON 日志，事件名 `uam.admin.write`，字段：`ts`、`operatorUserId`、`operatorAccountId`、`clientId`、`action`（`user.create` / `user.disable` / `user.enable` / `session.terminate` / `account.password.change`）、`targetType`、`targetId`、`outcome`（`success` / `rejected` / `failed`）、`reason`（原因类别，如 `cannot_disable_self`）、`traceId`。被拒绝的操作（未登录、规则不允许、校验失败）也记录。统一的脱敏层保证密码、哈希、会话标识、会话数据永不进入日志；用日志捕获测试断言。不提供界面，不要求不可篡改存储。
+- **Decision**: 每次写操作由 UAM 写一条结构化 JSON 日志，事件名 `uam.admin.write`，字段：`ts`、`operatorUserId`、`operatorAccountId`、`action`（`user.create` / `user.disable` / `user.enable` / `session.terminate` / `account.password.change`）、`targetType`、`targetId`、`outcome`（`success` / `rejected` / `failed`）、`reason`（原因类别，如 `cannot_disable_self`）、`traceId`。被拒绝的操作（未登录、规则不允许、校验失败）也记录。统一的脱敏层保证密码、哈希、会话标识、会话数据永不进入日志；用日志捕获测试断言。不提供界面，不要求不可篡改存储。
 - **Rationale**: 用户选择 B；一条结构化日志即可在不新增存储与页面的前提下提供追溯。
 - **Alternatives**: 数据库审计表 + 查看页（用户选择 C 之外的方案，范围大）；完全不记（用户已否决）。
 
@@ -61,6 +61,5 @@
 
 - **Decision**: UAM 的同一镜像 / jar 提供两个一次性子命令（不是运维入口，各自幂等、`cli` profile、不连 Redis、先跑 Flyway、日志写标准错误）：
   - `init-admin`：在没有任何用户时创建首个用户与账号（密码只经标准输入，按强度策略校验）。
-  - `generate-service-key`：生成服务密钥与其哈希（见 R4）；不连库、不连 Redis。
   - `add-account`：给**已有用户**增加第二个及以后的「账号名 / 密码」账号（`--user-id` 或 `--account-name-of`，密码只经标准输入）。界面上新建的用户恰有一个账号（spec Assumptions），多账号用户只能由它产生。
 - **Rationale**: spec 要求「首批数据由部署期预置」且「多账号只能经部署期预置」；用命令行工具避免把密码写进脚本或迁移文件。

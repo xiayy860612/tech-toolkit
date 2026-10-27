@@ -41,8 +41,7 @@ public final class UamInstance implements AutoCloseable {
             "--spring.datasource.password="
                 + first.getRequiredProperty("spring.datasource.password"),
             "--spring.data.redis.host=" + first.getRequiredProperty("spring.data.redis.host"),
-            "--spring.data.redis.port=" + first.getRequiredProperty("spring.data.redis.port"),
-            "--uam.clients=" + first.getRequiredProperty("uam.clients"));
+            "--spring.data.redis.port=" + first.getRequiredProperty("spring.data.redis.port"));
     return new UamInstance(context);
   }
 
@@ -54,8 +53,8 @@ public final class UamInstance implements AutoCloseable {
     return context;
   }
 
-  public ApiClient api(String serviceKey) {
-    return new ApiClient(port, serviceKey);
+  public ApiClient api() {
+    return new ApiClient(port);
   }
 
   @Override

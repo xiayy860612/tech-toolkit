@@ -8,7 +8,6 @@ import {
   FIXTURE_IDS,
   problemBody,
   UAM_STUB_BASE_URL,
-  UAM_STUB_SERVICE_KEY,
   verifyResponseBody,
 } from "../../../support/uam-stub";
 
@@ -66,7 +65,6 @@ beforeEach(() => {
   jest.mocked(headers).mockRejectedValue(new Error("no scope"));
   jest.mocked(redirect).mockClear();
   process.env.UAM_BASE_URL = UAM_STUB_BASE_URL;
-  process.env.UAM_SERVICE_KEY = UAM_STUB_SERVICE_KEY;
   process.env.UAM_TIMEOUT_MS = "100";
   process.env.SESSION_COOKIE_NAME = "asid";
 });
@@ -138,15 +136,6 @@ describe("getSession 三态", () => {
     expect(await getSession()).toEqual({ status: "unverified" });
   });
 
-  it.each([
-    ["401 client_unauthenticated", 401, "client_unauthenticated"],
-    ["403 client_forbidden", 403, "client_forbidden"],
-  ])("%s（misconfigured）→ unverified，不当作 session_invalid", async (_n, status, code) => {
-    setCookie("sid");
-    stub.respond("verifySession", { status, body: problemBody(status, code) });
-    expect(await getSession()).toEqual({ status: "unverified" });
-  });
-
   it("单个请求内去重：多次调用只 verify 一次", async () => {
     setCookie("sid");
     stub.respond("verifySession", { status: 200, body: verifyResponseBody() });
@@ -158,8 +147,8 @@ describe("getSession 三态", () => {
 
   it("遇到非预期异常（bug）时不吞掉", async () => {
     setCookie("sid");
-    delete process.env.UAM_SERVICE_KEY; // 配置错误是程序问题，应抛出而不是静默成 unverified
-    await expect(getSession()).rejects.toThrow("UAM_SERVICE_KEY");
+    delete process.env.UAM_BASE_URL; // 配置错误是程序问题，应抛出而不是静默成 unverified
+    await expect(getSession()).rejects.toThrow("UAM_BASE_URL");
   });
 });
 

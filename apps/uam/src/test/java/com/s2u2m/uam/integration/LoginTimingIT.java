@@ -45,7 +45,7 @@ class LoginTimingIT extends IntegrationTestBase {
     provisioning.createUserWithAccount("爱丽丝", "alice", PASSWORD);
     Provisioned bob = provisioning.createUserWithAccount("鲍勃", "bob", PASSWORD);
     jdbc.update("UPDATE app_user SET status = 'DISABLED' WHERE id = ?", bob.userId());
-    ApiClient api = new ApiClient(port, TEST_SERVICE_KEY);
+    ApiClient api = new ApiClient(port);
     // 每次用不同来源地址，避免被限流改变路径；先预热 JIT 与连接
     for (int i = 0; i < 6; i++) {
       api.login("nobody", PASSWORD, "192.0.2." + i);

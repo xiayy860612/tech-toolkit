@@ -11,14 +11,14 @@
 建立两个可独立横向扩展的服务，并在 Admin Center 里实现 User Manager 与 Session Manager：
 
 - **Admin Center**（`apps/admin-center`）：接入层中的 **Web Server**（Next.js SSR）。登录成功后，浏览器对它的访问**基于会话**（cookie 里的 session id）。它**不存密码、不连数据库**，每个请求向 UAM 校验会话标识、拿到**会话数据**（用户、账号、会话引用），再把**操作人**作为请求头传给 UAM。
-- **UAM**（`apps/uam`）：**RESTful 领域服务**（Spring Boot），用户、账号、会话的唯一权威。**对它的访问不基于用户会话**，不使用任何用户凭据（没有 JWT、cookie、会话标识）；**它只识别调用它的服务**：每个接口都先过**静态服务密钥**校验（每个客户端独立、可不停机轮换、带权限），网络边界只对客户端开放。接口路径按资源命名（`/v1/users`、`/v1/sessions`、`/v1/accounts/{id}/password` 等，不带客户端名）。
+- **UAM**（`apps/uam`）：**RESTful 领域服务**（Spring Boot），用户、账号、会话的唯一权威。**对它的访问不基于用户会话**，不使用任何用户凭据（没有 JWT、cookie、会话标识）；**它目前也不识别调用它的服务**（服务密钥与 clients 功能已移除，服务身份后续另行实现），只靠**网络边界**（只对 Admin Center 实例开放）保护。接口路径按资源命名（`/v1/users`、`/v1/sessions`、`/v1/accounts/{id}/password` 等，不带客户端名）。
 
 技术路线（详见 [research.md](./research.md)）：
 
 - **无实例本地状态**：用户、账号、凭据在 PostgreSQL，会话在 Redis；任一实例处理任一请求，无需会话粘滞。
 - **会话**：256 位随机标识（Redis 只存哈希）+ 非机密的会话引用；账号与会话一对一由 **Lua 脚本原子保证**；空闲 30 分钟 / 绝对 12 小时。
 - **无 JWT**：UAM 不用用户凭据鉴权；`login` / `verify` 返回普通会话数据，Admin Center 把操作人（用户、账号、会话引用）作为 `X-Operator-*` 请求头传入，UAM 信任它并只用于自我保护规则与写操作日志；撤销只有浏览器路径一层，每请求 `verify`，会话结束后窗口为 0（R5、R6）。
-- **服务密钥**（FR-042 ~ FR-044）：每个对 UAM 的调用都带静态服务密钥（`Authorization: Bearer`）；客户端清单放配置（名称、至多两个 SHA-256 哈希、权限），支持不停机轮换，由 `generate-service-key` 工具生成；只有带 `assert-end-user-context` 权限的客户端能代用户断言操作人（R4）。
+- ~~服务密钥（FR-042 ~ FR-044）~~：**已移除，服务身份后续另行实现**（R4）。UAM 不认证调用方，写操作仍由 Admin Center 传 `X-Operator-*`，UAM 信任网络边界内的调用方。
 - **写操作规则全部在 UAM**：新建（事务 + 唯一索引 + 幂等键）、停用 / 启用（咨询锁串行化 + 登录后复查状态）、强制下线（按会话引用）、改密；每次写操作写一条结构化应用日志（R15、R16）。
 - **契约先行**：UAM 用 OpenAPI 3.1（[contracts/uam/openapi.yaml](../../../contracts/uam/openapi.yaml)），Admin Center 的路由、cookie 与错误文案见 [contracts/web-routes.md](../admin-center/web-routes.md)。
 - **界面设计原型**（spec FR-041）已随本计划交付：[prototype/](../admin-center/prototype/README.md)，**须经你确认后才开始界面实现**。
@@ -41,9 +41,9 @@
 
 **Performance Goals**: 列表与详情页 95% ≤ 2 秒（10 万用户、1 万有效会话，SC-009）；1→4 实例吞吐 ≥ 3.2 倍（SC-011）；登录到看到用户列表 95% ≤ 30 秒含输入（SC-001）
 
-**Constraints**: UAM 只对 Admin Center 实例开放，且每个接口都要过静态服务密钥校验（已确认，research R4、R23）；不使用任何用户凭据；会话结束后任一实例的下一次浏览器请求必判未登录（SC-013）；滚动重启 0 次意外登出（SC-012）；密码、哈希、会话标识不出现在页面、响应与日志（SC-014）；UAM 不可用时读提示「服务暂不可用」且不清 cookie、写提示「操作未生效」
+**Constraints**: UAM 只对 Admin Center 实例开放，且这是目前唯一的保护（服务密钥已移除，已确认，research R4、R23）；不使用任何用户凭据；会话结束后任一实例的下一次浏览器请求必判未登录（SC-013）；滚动重启 0 次意外登出（SC-012）；密码、哈希、会话标识不出现在页面、响应与日志（SC-014）；UAM 不可用时读提示「服务暂不可用」且不清 cookie、写提示「操作未生效」
 
-**Scale/Scope**: 10 万用户、1 万同时有效会话；本期 8 个页面（登录、用户列表、新建用户、用户详情、在线用户、用户会话、修改密码，外加 `/` 重定向）；1 种账号（账号名 / 密码）；1 个客户端（`admin-center`，使用静态服务密钥）
+**Scale/Scope**: 10 万用户、1 万同时有效会话；本期 8 个页面（登录、用户列表、新建用户、用户详情、在线用户、用户会话、修改密码，外加 `/` 重定向）；1 种账号（账号名 / 密码）；1 个调用方（`admin-center`，无服务密钥，靠网络边界）
 
 ## Constitution Check
 
@@ -54,10 +54,10 @@
 | 门禁（来源：根 AGENTS.md） | 结论 | 说明 |
 |---|---|---|
 | 范围与最小改动 | PASS | 只新增 `apps/*`、`contracts/`、`devops/`、`.github/workflows/`；不改既有文件 |
-| 规格先于实现变更 | PASS | 本计划的两条 plan 级留白（撤销时效、客户端身份）在 research R4 / R6 解答，**不改变 spec 已确认的行为**，无需回写 spec |
+| 规格先于实现变更 | PASS | 本计划的两条 plan 级留白（撤销时效、客户端身份）在 research R4 / R6 解答（R4 后已移除），**不改变 spec 已确认的行为**，无需回写 spec |
 | SOLID / YAGNI / KISS | PASS | 分层 `api → application → domain ← infrastructure`；明确不做 JWT / JWKS、mTLS 与 OAuth2 客户端凭据（后期按需）、Redis Cluster、会话标识轮换、react-hook-form、审计界面（YAGNI） |
 | 契约优先 | PASS | OpenAPI 与 Web 路由契约先于实现；变更须先改契约与失败用例 |
-| 安全与秘密 | PASS | 密钥不入仓（`.env.example` 仅占位）；日志统一脱敏；密码 Argon2id；会话标识与服务密钥只存哈希、不入日志；会话数据与操作人上下文不进 cookie / 浏览器 / 日志 |
+| 安全与秘密 | PASS | 密钥不入仓（`.env.example` 仅占位）；日志统一脱敏；密码 Argon2id；会话标识只存哈希、不入日志；会话数据与操作人上下文不进 cookie / 浏览器 / 日志 |
 | 测试先行（red → green → refactor） | PASS | research R20 定义各层测试，含并发测试；每个任务先提交失败用例 |
 | 单元测试覆盖率 ≥ 90%（行覆盖率） | PASS（排除路径已列，终审在 PR 评审） | UAM：JaCoCo；Admin Center：Jest；口径与排除路径写入各自 `AGENTS.md` |
 | 子项目须有 `AGENTS.md` 与 `CLAUDE.md` | PASS（任务中落实） | `apps/uam`、`apps/admin-center` 各建一对，含技术栈、命令、覆盖率与环境变量 |
@@ -86,8 +86,8 @@ java -jar plantuml.jar -tsvg -charset UTF-8 docs/system-design/*/diagrams/*.puml
 |---|---|---|
 | 运维人员 | 人 | 通过浏览器登录、管理用户与会话；本期全部视为受信任的运维人员，不分角色（spec Assumptions） |
 | 用户与会话管理系统 | 本系统 | Admin Center + UAM；用户、账号、会话的唯一权威在 UAM；Admin Center 是 UAM 的客户端 |
-| 业务服务（将来） | 外部系统 | 将来作为 UAM 的客户端按需调用，凭服务密钥识别；本期没有 |
-| 密钥管理 | 外部系统 | 保存 `UAM_SERVICE_KEY` 与 `UAM_CLIENTS`（只含哈希），部署时注入 |
+| 业务服务（将来） | 外部系统 | 将来作为 UAM 的客户端按需调用，服务身份待实现；本期没有 |
+| 密钥管理 | 外部系统 | 保存数据库密码等运行时机密，部署时注入（服务密钥已移除） |
 | 日志与监控平台 | 外部系统 | 收集结构化日志（含写操作日志）、指标与告警 |
 
 ### L2 容器
@@ -100,15 +100,15 @@ java -jar plantuml.jar -tsvg -charset UTF-8 docs/system-design/*/diagrams/*.puml
 |---|---|---|---|
 | 入口层 | nginx / 负载均衡 | TLS 终止；无粘滞轮询；设置可信代理头，供 Admin Center 取终端来源地址 | 无状态 |
 | Admin Center | Next.js 15 · SSR | 登录页、User Manager、Session Manager；浏览器访问基于会话（cookie）；不存密码、不连数据库 | 无状态，多实例 |
-| UAM | Spring Boot 4 · Java 21 | RESTful 领域服务：认证、会话、用户与账号；每个接口先校验服务密钥；不使用任何用户凭据 | 无状态，多实例；状态在下面两个存储里 |
+| UAM | Spring Boot 4 · Java 21 | RESTful 领域服务：认证、会话、用户与账号；不认证调用方（只靠网络边界）；不使用任何用户凭据 | 无状态，多实例；状态在下面两个存储里 |
 | PostgreSQL 16 | 关系数据库 | 用户、账号、凭据（强一致） | 单主，按需主从 |
 | Redis 7 | 内存数据库 | 会话、在线索引、登录与改密限流计数、幂等键 | 单主 + 高可用，不用 Cluster |
 
 关键约定：
 
 - 浏览器 → Admin Center：HTTPS，cookie 里只有机密的会话标识（`HttpOnly; Secure; SameSite=Strict`）。
-- Admin Center → UAM：REST/JSON over TLS；每个请求带 `Authorization: Bearer <服务密钥>`；写操作与会话页另带 `X-Operator-*`（操作人）。UAM 不使用 cookie、会话标识或任何用户凭据来识别客户端。
-- **网络边界**：UAM 只对 Admin Center 实例开放，PostgreSQL 与 Redis 只对 UAM 开放；与服务密钥一起是两层保护。
+- Admin Center → UAM：REST/JSON over TLS；写操作与会话页带 `X-Operator-*`（操作人）；没有 `Authorization`。UAM 不使用 cookie、会话标识或任何用户凭据来识别客户端。
+- **网络边界**：UAM 只对 Admin Center 实例开放，PostgreSQL 与 Redis 只对 UAM 开放；**这是目前唯一的保护**（服务密钥已移除）。
 - 所有实例都无本地状态，任一实例可处理任一请求，负载均衡不需要会话粘滞。
 
 ### L3 组件
@@ -136,7 +136,7 @@ java -jar plantuml.jar -tsvg -charset UTF-8 docs/system-design/*/diagrams/*.puml
 | Admin Center 基于会话、UAM 不基于会话；会话标识只作为 `verify` / `logout` 的输入 | FR-008、FR-013 |
 | UAM 不使用任何用户凭据（无 JWT）；操作人由客户端以请求头传入；会话数据不进 cookie / 浏览器 / 日志 | FR-007、FR-008、SC-014 |
 | 撤销只有浏览器路径一层：每请求 `verify`，会话结束后窗口为 0 | FR-011、SC-013（research R6） |
-| 每个接口先过静态服务密钥校验（客户端独立、可轮换、带断言权限），网络边界只对客户端开放 | FR-008、FR-042 ~ FR-044（research R4） |
+| UAM 不认证调用方，只靠网络边界（只对 Admin Center 开放）；服务密钥已移除，服务身份后续另行实现 | FR-008、FR-042 ~ FR-044（占位，research R4） |
 | 账号与会话一对一由 Lua 原子保证；在线用户靠 `uam:online` 索引 | FR-004、FR-028 ~ FR-032（research R7、R9） |
 | 仅管理员强制下线留下 10 分钟墓碑（只存会话标识哈希）；`verify` 的 401 `session_invalid` 据此带可选 `reason: terminated`，Admin Center 的 `/session/expire` 把它转成登录页的 `reason=session_terminated` 提示；其余结束方式保持通用提示 | FR-030、US6 |
 | 停用：咨询锁 + 提交后终止会话 + 登录后复查状态 | FR-024、FR-025、SC-005 |

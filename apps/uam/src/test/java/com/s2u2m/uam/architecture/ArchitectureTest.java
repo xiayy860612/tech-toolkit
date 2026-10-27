@@ -67,6 +67,14 @@ class ArchitectureTest {
           .allowEmptyShould(true);
 
   @ArchTest
+  static final ArchRule noCallerAuthenticationClasses =
+      noClasses()
+          .should()
+          .haveSimpleNameStartingWith("Client")
+          .allowEmptyShould(true)
+          .because("UAM 不认证调用方（clients 功能已移除），服务身份后续另行实现");
+
+  @ArchTest
   static final ArchRule apiDoesNotTouchInfrastructure =
       noClasses()
           .that()

@@ -2,7 +2,6 @@
 // 只在 docker-compose.scale.yml 的 k6 服务里运行（与入口 nginx 和 uam-lb 同网）：
 //   BASE_URL  Admin Center 入口（默认 http://nginx:80）
 //   UAM_URL   UAM 地址（经 uam-lb，默认 http://uam-lb:8080；UAM 不对宿主机开放）
-//   UAM_SERVICE_KEY  e2e.env 里的本地测试服务密钥（由 compose 注入，不入脚本）
 // 测试账号 / 密码是 devops/local/scripts/bootstrap.sh 的本地假值，与 e2e.env 同属测试数据。
 import http from "k6/http";
 import { fail } from "k6";
@@ -20,7 +19,7 @@ export function pad(n, width = 6) {
 
 export function uamHeaders(extra = {}) {
   return Object.assign(
-    { Authorization: `Bearer ${__ENV.UAM_SERVICE_KEY}`, "Content-Type": "application/json", Accept: "application/json" },
+    { "Content-Type": "application/json", Accept: "application/json" },
     extra,
   );
 }

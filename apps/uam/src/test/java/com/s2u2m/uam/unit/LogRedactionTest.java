@@ -94,7 +94,7 @@ class LogRedactionTest {
         }) {
       assertThat(LogRedaction.isSensitiveKey(key)).as(key).isTrue();
     }
-    for (String key : new String[] {"sessionRef", "userId", "action", "reason", "clientId"}) {
+    for (String key : new String[] {"sessionRef", "userId", "action", "reason"}) {
       assertThat(LogRedaction.isSensitiveKey(key)).as(key).isFalse();
     }
   }

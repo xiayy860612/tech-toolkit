@@ -17,7 +17,6 @@ const store = { get: jest.fn(), set: jest.fn() };
 
 beforeEach(() => {
   process.env.UAM_BASE_URL = "http://uam.test";
-  process.env.UAM_SERVICE_KEY = "test-service-key-not-a-secret";
   delete process.env.SESSION_COOKIE_NAME;
   jest.mocked(cookies).mockResolvedValue(store as never);
 });

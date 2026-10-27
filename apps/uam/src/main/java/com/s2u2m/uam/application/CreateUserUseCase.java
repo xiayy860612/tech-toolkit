@@ -173,13 +173,12 @@ public class CreateUserUseCase {
 
   private GetUserUseCase.Result execute(CreateUserCommand command) {
     String key = validKey(command.idempotencyKey());
-    String scope = command.clientId();
     String fingerprint = fingerprint(command.userName(), command.accountName());
     long deadline = System.nanoTime() + maxWait.toNanos();
     while (true) {
-      switch (idempotency.claim(scope, key, fingerprint)) {
+      switch (idempotency.claim(key, fingerprint)) {
         case Claim.Acquired acquired -> {
-          return createAndRemember(command, scope, key, fingerprint);
+          return createAndRemember(command, key, fingerprint);
         }
         case Claim.Completed completed -> {
           requireSameRequest(completed.fingerprint(), fingerprint);
@@ -197,7 +196,7 @@ public class CreateUserUseCase {
   }
 
   private GetUserUseCase.Result createAndRemember(
-      CreateUserCommand command, String scope, String key, String fingerprint) {
+      CreateUserCommand command, String key, String fingerprint) {
     Provisioned created;
     try {
       created =
@@ -205,12 +204,12 @@ public class CreateUserUseCase {
               command.userName(), command.accountName(), command.password());
     } catch (RuntimeException e) {
       // 只有提交之前的失败才释放占位，同键的修正重试可以重新执行
-      idempotency.release(scope, key);
+      idempotency.release(key);
       throw e;
     }
     // 已提交：之后的任何问题都不能释放占位，也不能让请求失败（否则同键重试会再建一个用户）
     GetUserUseCase.Result result = resultAfterCommit(created);
-    remember(scope, key, fingerprint, result);
+    remember(key, fingerprint, result);
     record(command, Outcome.SUCCESS, created.userId().toString(), null);
     return result;
   }
@@ -226,10 +225,9 @@ public class CreateUserUseCase {
   }
 
   /** 尽力保存响应快照；失败时保留「进行中」标记让它自然过期（30 秒），不释放。 */
-  private void remember(
-      String scope, String key, String fingerprint, GetUserUseCase.Result result) {
+  private void remember(String key, String fingerprint, GetUserUseCase.Result result) {
     try {
-      idempotency.complete(scope, key, fingerprint, json.writeValueAsString(Snapshot.of(result)));
+      idempotency.complete(key, fingerprint, json.writeValueAsString(Snapshot.of(result)));
     } catch (RuntimeException e) {
       warn(COMPLETE_FAILED, e);
     }
@@ -275,12 +273,6 @@ public class CreateUserUseCase {
   private void record(CreateUserCommand command, Outcome outcome, String targetId, String reason) {
     writeLog.record(
         new WriteOperationEvent(
-            command.operator(),
-            command.clientId(),
-            Action.USER_CREATE,
-            "user",
-            targetId,
-            outcome,
-            reason));
+            command.operator(), Action.USER_CREATE, "user", targetId, outcome, reason));
   }
 }

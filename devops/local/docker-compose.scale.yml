@@ -1,6 +1,6 @@
 # 多实例栈（US10，FR-037 ~ FR-040）：3 个 Admin Center + 3 个 UAM + PostgreSQL + Redis + nginx 入口。
 # 用法：devops/local/scripts/scale-checks.sh up|down（或直接 docker compose -f 本文件 --env-file devops/local/e2e.env ...）。
-# 配置来自 devops/local/e2e.env（仅限本地的固定测试密钥）；项目名独立（uam-scale），可与 E2E 栈（uam-e2e，端口 3000）同时存在。
+# 配置来自 devops/local/e2e.env（仅限本地的固定测试配置）；项目名独立（uam-scale），可与 E2E 栈（uam-e2e，端口 3000）同时存在。
 #
 # 网络边界（与 docker-compose.stack.yml 同一原则：UAM 只对 Admin Center 实例可达）：
 #   edge     nginx（入口）与 Admin Center 实例；唯一向宿主机发布端口的网络，且只绑定回环地址。
@@ -19,7 +19,6 @@ x-uam: &uam
     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
     SPRING_DATA_REDIS_HOST: redis
     SPRING_DATA_REDIS_PORT: "6379"
-    UAM_CLIENTS: ${UAM_CLIENTS}
     # 三个 JVM 共用笔记本的内存：限制堆占比（容器内存 7.6 GiB 时约 0.9 GiB / 个）
     JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=12"
   networks: [data, uam-net]
@@ -47,7 +46,6 @@ x-admin-center: &admin-center
   pull_policy: never
   environment: &ac-env
     UAM_BASE_URL: http://uam-lb:8080
-    UAM_SERVICE_KEY: ${UAM_SERVICE_KEY}
     SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME}
     # 前面恰好一层可信反向代理（edge 的 nginx）
     TRUSTED_PROXY_HOPS: "1"
@@ -166,7 +164,6 @@ services:
     environment:
       BASE_URL: http://nginx:80
       UAM_URL: http://uam-lb:8080
-      UAM_SERVICE_KEY: ${UAM_SERVICE_KEY}
     networks: [edge, uam-net]
 
 networks:

@@ -3,7 +3,7 @@ package com.s2u2m.uam.domain.port;
 import java.time.Duration;
 
 /**
- * 幂等存储（FR-022）：按「范围（调用方客户端）+ 幂等键」抢占一个位置，完成后保存响应快照，窗口内同键重放返回原响应。
+ * 幂等存储（FR-022）：按幂等键抢占一个位置，完成后保存响应快照，窗口内同键重放返回原响应。
  *
  * <p>快照是不透明字符串（调用方序列化，且不得含密码或哈希）；{@code fingerprint} 是请求的指纹，用来识别「同键不同请求」。
  */
@@ -29,11 +29,11 @@ public interface IdempotencyStore {
   }
 
   /** 原子抢占（{@code SET NX}）；已被占用时返回当前状态。 */
-  Claim claim(String scope, String key, String fingerprint);
+  Claim claim(String key, String fingerprint);
 
   /** 保存响应快照，窗口为 {@link #REPLAY_WINDOW}。 */
-  void complete(String scope, String key, String fingerprint, String response);
+  void complete(String key, String fingerprint, String response);
 
   /** 放弃占位（操作失败时），让同键的修正重试可以重新执行。 */
-  void release(String scope, String key);
+  void release(String key);
 }

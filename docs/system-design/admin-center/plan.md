@@ -23,7 +23,7 @@ PlantUML 源文件与 SVG 在 [`diagrams/`](./diagrams/)；改图后重新渲染
 | 页面（RSC） | 用户、会话、改密、登录页面；经 `UamClient` 取数据 |
 | Server Actions · 路由处理器 | 全部写入口（登录、新建、停用、启用、强制下线、改密、退出、`/session/expire`）；先过同源校验与表单校验 |
 | `getSession` | 读 cookie → `verify`；三态 `authenticated` / `anonymous` / `unverified` |
-| `UamClient` | **唯一**调用 UAM 的出口：带服务密钥与操作人请求头，超时 1.5 秒，错误码映射到界面文案；`server-only` |
+| `UamClient` | **唯一**调用 UAM 的出口：带操作人请求头，超时 1.5 秒，错误码映射到界面文案；`server-only` |
 | `OriginCheck` · 表单校验（zod）· `ClientIp` · UI 组件 | 同源校验（CSRF）、字段级校验、按可信代理跳数取来源地址、shadcn/ui 组件 |
 ## Project Structure
 
@@ -36,7 +36,7 @@ PlantUML 源文件与 SVG 在 [`diagrams/`](./diagrams/)；改图后重新渲染
     ├── jest.config.ts  jest.setup.ts  playwright.config.ts  eslint.config.mjs
     ├── src/
     │   ├── middleware.ts                 # 仅设置 CSP nonce 与安全响应头，不发网络请求
-    │   ├── instrumentation.ts            # 服务启动时校验环境变量（缺 UAM_SERVICE_KEY 即启动失败）
+    │   ├── instrumentation.ts            # 服务启动时校验环境变量（缺 UAM_BASE_URL 即启动失败）
     │   ├── app/
     │   │   ├── layout.tsx  globals.css  not-found.tsx  error.tsx
     │   │   ├── (shell)/                  # 带外壳的路由组：layout 读会话三态

@@ -59,7 +59,7 @@ class SessionTerminatedNoticeIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     UserFixtures data = new UserFixtures(jdbc);
     operatorUser = data.user("运维甲");
     operatorAccount = data.account(operatorUser, "ops");

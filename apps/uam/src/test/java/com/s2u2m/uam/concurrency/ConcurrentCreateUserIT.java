@@ -60,7 +60,7 @@ class ConcurrentCreateUserIT extends IntegrationTestBase {
 
   @Test
   void twoRequestsRacingForTheSameAccountNameYieldExactlyOneUser() throws Exception {
-    ApiClient api = new ApiClient(port, TEST_SERVICE_KEY);
+    ApiClient api = new ApiClient(port);
     List<Callable<Response>> tasks = new ArrayList<>();
     for (String name : List.of("Racer.Name", "racer.name")) {
       tasks.add(
@@ -83,7 +83,7 @@ class ConcurrentCreateUserIT extends IntegrationTestBase {
 
   @Test
   void manyRequestsForTheSameAccountNameYieldExactlyOneUser() throws Exception {
-    ApiClient api = new ApiClient(port, TEST_SERVICE_KEY);
+    ApiClient api = new ApiClient(port);
     List<Callable<Response>> tasks = new ArrayList<>();
     for (int i = 0; i < 8; i++) {
       String key = "distinct-key-000000" + i;
@@ -106,7 +106,7 @@ class ConcurrentCreateUserIT extends IntegrationTestBase {
 
   @Test
   void aDoubleSubmitWithTheSameKeyCreatesOneUserAndBothGetTheSame201() throws Exception {
-    ApiClient api = new ApiClient(port, TEST_SERVICE_KEY);
+    ApiClient api = new ApiClient(port);
     String key = "double-click-key-0123456789";
     List<Callable<Response>> tasks = new ArrayList<>();
     for (int i = 0; i < 6; i++) {

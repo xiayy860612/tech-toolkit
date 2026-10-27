@@ -43,5 +43,6 @@
 - **2026-10-23 clarify**：确认 UAM 不基于用户会话、不使用任何用户凭据（不用 JWT），将来只有服务客户端凭据；操作人由客户端作为请求数据（`X-Operator-*` 请求头）传给 UAM。spec 改了概述、交互流程、FR-007、FR-008、FR-034、Key Entities、Clarifications 与 Assumptions；计划文档与 OpenAPI 同步（去掉 JWT 与签名密钥、写路径存活检查；修改密码改为按账号寻址）；条目未增删，仍无 [NEEDS CLARIFICATION]。
 - **2026-10-23 clarify**：确认 UAM 维持领域服务（不校验用户身份），并把**静态服务密钥**纳入本期范围（取代此前「本期不做客户端凭据」）。spec 新增 User Story 12、FR-042 ~ FR-044、SC-016、关键实体「客户端」，改了概述、交互流程、FR-008、FR-034、Clarifications、Assumptions 与边界情况；计划文档同步（research R4 重写、data-model 2.4、OpenAPI 加鉴权方案、quickstart 增 S16 重写与 S19）；条目未增删，仍无 [NEEDS CLARIFICATION]。
 - **2026-10-23 analyze 修复**：收窄 FR-016 与相关场景到用户级停用（账号级停用 / 删除本期没有接口）；条目数量未变，仍无 [NEEDS CLARIFICATION]。tasks.md 同步修了 T044 的跨阶段依赖、`AccountProvisioningService`、启动时快速失败、`updated_at` 赋值。
+- **2026-10-27 移除 clients**：用户决定移除 UAM 的 clients 功能（服务密钥、客户端清单与权限、轮换、拒绝日志），取代 2026-10-23「静态服务密钥纳入本期」的结论；服务身份后续另行实现，UAM 目前只靠网络边界保护，`X-Operator-*` 保留。FR-042 ~ FR-044、US12、SC-016 与「客户端」实体保留编号并标注「已移除」；改密越权的 403 `client_forbidden` 提议改名 `operator_forbidden`（待用户确认）。`spec.md` 里只有这些编号的占位，本次未改；条目未增删，仍无 [NEEDS CLARIFICATION]。
 - **尚未产出的交付物**：界面设计原型（FR-041 / US11 / SC-015）是本特性的一项交付物，规格只定义其范围与验收，原型本身待 `/speckit-plan` 设计阶段产出，并须经用户确认后才开始界面实现。
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`

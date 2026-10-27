@@ -21,7 +21,7 @@
 
 ![L1](./diagrams/c4-l1-context.svg)
 
-运维人员经浏览器使用「用户与会话管理系统」（Admin Center + UAM）。将来的业务服务可作为 UAM 的客户端（本期没有）。服务密钥与客户端清单由密钥管理在部署时注入；日志、指标与告警由监控平台收集。源文件：[c4-l1-context.puml](./diagrams/c4-l1-context.puml)。
+运维人员经浏览器使用「用户与会话管理系统」（Admin Center + UAM）。将来的业务服务可作为 UAM 的客户端（本期没有；服务身份后续另行实现，目前 UAM 不认证调用方）。数据库密码等运行时机密由密钥管理在部署时注入；日志、指标与告警由监控平台收集。源文件：[c4-l1-context.puml](./diagrams/c4-l1-context.puml)。
 
 ### 2.2 L2 容器
 
@@ -31,11 +31,11 @@
 |---|---|
 | 入口层（nginx / 负载均衡） | TLS 终止；无粘滞轮询；追加可信代理头 `X-Forwarded-For`（供 Admin Center 取终端来源地址）。本仓库只提供本地编排用的 nginx（§4），生产入口是部署配置。 |
 | Admin Center | 登录页、User Manager、Session Manager；浏览器访问基于会话（cookie）；每个请求先向 UAM `verify`；不存密码、不连数据库。 |
-| UAM | 认证、会话、用户与账号；每个接口先校验服务密钥；不使用任何用户凭据。 |
+| UAM | 认证、会话、用户与账号；不认证调用方（只靠网络边界）；不使用任何用户凭据。 |
 | PostgreSQL | 用户、账号、凭据。 |
 | Redis | 会话、在线索引、登录与改密限流计数、幂等键。 |
 
-约定：浏览器 → Admin Center 为 HTTPS，cookie 只含机密的会话标识；Admin Center → UAM 为 REST/JSON（`Authorization: Bearer <服务密钥>`，写操作与会话页另带 `X-Operator-*`）；**网络边界**：UAM 只对 Admin Center 实例开放，PostgreSQL 与 Redis 只对 UAM 开放（部署配置，应用不实现 IP 白名单；与服务密钥是两层保护）。源文件：[c4-l2-container.puml](./diagrams/c4-l2-container.puml)。
+约定：浏览器 → Admin Center 为 HTTPS，cookie 只含机密的会话标识；Admin Center → UAM 为 REST/JSON（无 `Authorization`；写操作与会话页带 `X-Operator-*`）；**网络边界**：UAM 只对 Admin Center 实例开放，PostgreSQL 与 Redis 只对 UAM 开放（部署配置，应用不实现 IP 白名单；**这是目前唯一的保护**，服务密钥已移除、服务身份后续另行实现）。源文件：[c4-l2-container.puml](./diagrams/c4-l2-container.puml)。
 ### 2.3 L3 组件
 
 各服务内部组件见 [UAM §2.1](../uam/README.md) 与 [Admin Center §2.1](../admin-center/README.md)；领域模型见 [UAM §2.2](../uam/README.md)。
@@ -52,7 +52,7 @@
 
 ![每个请求](./diagrams/seq-verify-and-call.svg)
 
-要点：`verify` 只读 Redis（会话 HASH 内已快照用户名、账号名、种类、到期；会话不存在时再读一次墓碑 `uam:term:{sha}` 以决定 401 是否带 `reason: terminated`），**不访问 PostgreSQL**；距上次写入 > 60 秒才 `touch.lua` 续期（避免每个页面请求一次写）。随后的读调用只带服务密钥，写调用另带 `X-Operator-*`。会话数据只存在于 Admin Center 服务端的单次请求内存：不写 cookie、不进浏览器、不进日志。`unverified`（超时 / 5xx / 连接失败 / UAM 拒绝了 Admin Center）保留 cookie，提示服务暂不可用。源文件：[seq-verify-and-call.puml](./diagrams/seq-verify-and-call.puml)。
+要点：`verify` 只读 Redis（会话 HASH 内已快照用户名、账号名、种类、到期；会话不存在时再读一次墓碑 `uam:term:{sha}` 以决定 401 是否带 `reason: terminated`），**不访问 PostgreSQL**；距上次写入 > 60 秒才 `touch.lua` 续期（避免每个页面请求一次写）。随后的读调用不带任何凭据，写调用带 `X-Operator-*`。会话数据只存在于 Admin Center 服务端的单次请求内存：不写 cookie、不进浏览器、不进日志。`unverified`（超时 / 5xx / 连接失败 / UAM 拒绝了 Admin Center）保留 cookie，提示服务暂不可用。源文件：[seq-verify-and-call.puml](./diagrams/seq-verify-and-call.puml)。
 
 ### 3.3 终止会话（强制下线；停用 / 退出同理）
 
@@ -98,15 +98,14 @@ PostgreSQL、Redis、UAM、Admin Center 各一个；仅 Admin Center 向宿主�
 
 | Secret | 键 | 说明 |
 |---|---|---|
-| `uam-runtime`（`envFrom`） | `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD`、`SPRING_DATA_REDIS_HOST` / `_PORT`、`UAM_CLIENTS` | 托管 Redis 需要密码 / TLS 时，直接在同一个 Secret 里加 `SPRING_DATA_REDIS_PASSWORD`、`SPRING_DATA_REDIS_SSL_ENABLED` |
-| `admin-center-runtime`（`envFrom`） | `UAM_SERVICE_KEY` | 与 `UAM_CLIENTS` 里的哈希成对（轮换步骤见 UAM 文档） |
+| `uam-runtime`（`envFrom`） | `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD`、`SPRING_DATA_REDIS_HOST` / `_PORT` | 托管 Redis 需要密码 / TLS 时，直接在同一个 Secret 里加 `SPRING_DATA_REDIS_PASSWORD`、`SPRING_DATA_REDIS_SSL_ENABLED` |
 | `postgres-credentials` | `POSTGRES_DB` / `_USER` / `_PASSWORD` | 只有 `in-cluster-data` 用 |
 
-要点：UAM 只有 ClusterIP，NetworkPolicy 只放行 Admin Center（策略要求 CNI 支持，不支持时策略不生效但也无害）；`TRUSTED_PROXY_HOPS` 必须等于 Admin Center 前面的可信代理层数（ingress controller 直接面对 L4 负载均衡为 `1`；前面再有 L7 负载均衡 / CDN 则为 `2`，且该层必须追加 `X-Forwarded-For`）；镜像不写死标签，上线用 `kustomize edit set image` 钉到构建号或 sha；探针与停机宽限与 §4.2 一致（UAM `terminationGracePeriodSeconds` 40s + `preStop` 5s）。
+要点：UAM 只有 ClusterIP，NetworkPolicy 只放行 Admin Center（UAM 不认证调用方，这是它唯一的保护，因此要求 CNI 支持 NetworkPolicy；不支持时 UAM 对集群内所有 Pod 敞开）。Admin Center 没有必填 Secret；`TRUSTED_PROXY_HOPS` 必须等于 Admin Center 前面的可信代理层数（ingress controller 直接面对 L4 负载均衡为 `1`；前面再有 L7 负载均衡 / CDN 则为 `2`，且该层必须追加 `X-Forwarded-For`）；镜像不写死标签，上线用 `kustomize edit set image` 钉到构建号或 sha；探针与停机宽限与 §4.2 一致（UAM `terminationGracePeriodSeconds` 40s + `preStop` 5s）。
 
 ### 4.3 来源地址的信任模型（`X-Forwarded-For`）
 
-登录与改密失败限制的**来源维度必须不可伪造**。Admin Center 只采信**右数第 `TRUSTED_PROXY_HOPS` 项**（默认 1）：每个可信代理把它看到的对端地址追加在 `X-Forwarded-For` 末尾，所以该项由可信代理写入；其左侧的内容可能是用户自带的，一律不采信。项数不足、`hops` 为 0 或取到的不是合法 IP → 取不到来源地址，登录 / 改密被拒绝（不把任意字符串交给 UAM）。只有被授予断言权限的客户端才能在请求体里提交 `clientIp`，UAM 信任它。本地多实例栈上 `scale-checks.sh` 用「每次带不同的伪造最左项连续错误登录，第 6 次仍被限流」验证了这一点。**`TRUSTED_PROXY_HOPS` 必须等于 Admin Center 前面可信代理的实际跳数**（部署配置）。
+登录与改密失败限制的**来源维度必须不可伪造**。Admin Center 只采信**右数第 `TRUSTED_PROXY_HOPS` 项**（默认 1）：每个可信代理把它看到的对端地址追加在 `X-Forwarded-For` 末尾，所以该项由可信代理写入；其左侧的内容可能是用户自带的，一律不采信。项数不足、`hops` 为 0 或取到的不是合法 IP → 取不到来源地址，登录 / 改密被拒绝（不把任意字符串交给 UAM）。UAM 信任网络边界内（Admin Center）在请求体里提交的 `clientIp`。本地多实例栈上 `scale-checks.sh` 用「每次带不同的伪造最左项连续错误登录，第 6 次仍被限流」验证了这一点。**`TRUSTED_PROXY_HOPS` 必须等于 Admin Center 前面可信代理的实际跳数**（部署配置）。
 ### 4.4 容器镜像
 
 各应用的镜像见 [UAM §8](../uam/README.md) 与 [Admin Center §6](../admin-center/README.md)。
@@ -117,9 +116,9 @@ PostgreSQL、Redis、UAM、Admin Center 各一个；仅 Admin Center 向宿主�
 
 | 主题 | 设计与实现 |
 |---|---|
-| **两层保护** | 服务密钥（UAM 校验，见 UAM §4）+ 网络边界（UAM 只对 Admin Center 实例开放，PostgreSQL 与 Redis 只对 UAM 开放，见 §2.2）。 |
-| **来源地址** | 见 §4.3；Admin Center 取地址（`ClientIp`），UAM 信任被授予断言权限的客户端提交的 `clientIp`。 |
-| **安全检查脚本** | `devops/local/scripts/security-check.sh [static\|runtime\|all]`：static——无被跟踪的 `.env`（只允许 `*.example` 与 `devops/local/e2e.env`）、无数据库驱动 / ORM、工作区与历史里无完整长度 `uamk_` 密钥或私钥特征（允许名单与理由在脚本里）、`src/lib` 的 `server-only`、构建后 `.next/static` 无服务密钥、每个写入口先做同源校验；runtime（需运行中的 E2E 栈）——对 login、createUser、terminateSession、disableUser、enableUser、changePassword、`POST /logout` 各用外站 `Origin` / `Sec-Fetch-Site: cross-site` / 无来源头伪造一次，必须被拒且状态不变，最后扫描响应、两个服务的日志与浏览器脚本里没有密码、`$argon2`、会话标识、服务密钥。 |
+| **网络边界（唯一保护）** | UAM 只对 Admin Center 实例开放，PostgreSQL 与 Redis 只对 UAM 开放（见 §2.2）；服务密钥已移除，服务身份后续另行实现。 |
+| **来源地址** | 见 §4.3；Admin Center 取地址（`ClientIp`），UAM 信任 Admin Center 提交的 `clientIp`。 |
+| **安全检查脚本** | `devops/local/scripts/security-check.sh [static\|runtime\|all]`：static——无被跟踪的 `.env`（只允许 `*.example` 与 `devops/local/e2e.env`）、无数据库驱动 / ORM、工作区与历史里无私钥特征（允许名单与理由在脚本里）、`src/lib` 的 `server-only`、构建后 `.next/static` 无机密、每个写入口先做同源校验；runtime（需运行中的 E2E 栈）——对 login、createUser、terminateSession、disableUser、enableUser、changePassword、`POST /logout` 各用外站 `Origin` / `Sec-Fetch-Site: cross-site` / 无来源头伪造一次，必须被拒且状态不变，最后扫描响应、两个服务的日志与浏览器脚本里没有密码、`$argon2`、会话标识。 |
 
 ## 6. 扩展性与一致性
 
@@ -137,14 +136,14 @@ UAM：`server.shutdown=graceful`，`spring.lifecycle.timeout-per-shutdown-phase=
 | 项 | 实现 |
 |---|---|
 | trace | UAM 的 `TraceContextFilter` 接受合法 `traceparent`（否则新建）并在响应回显；Admin Center 把**请求自带**的 `traceparent` 透传给 UAM（入口 nginx 本地编排不生成 trace） |
-| 排障入口 | 页面「服务暂不可用」：先查 UAM 的 `uam.client.rejected`（`reason`），再查 Admin Center 的 `admin-center.uam.misconfigured`；两者都没有则是 UAM 不可达或超过 `UAM_TIMEOUT_MS`。详见两个应用的 `AGENTS.md` |
+| 排障入口 | 页面「服务暂不可用」：查 UAM 是否不可达或超过 `UAM_TIMEOUT_MS`（`uam.client.rejected` 与 `admin-center.uam.misconfigured` 已随 clients 移除）。详见两个应用的 `AGENTS.md` |
 
 ## 8. 本地专项脚本与 CI
 
-本地专项脚本（不在 CI 里）：`devops/local/scripts/{bootstrap,scale-checks,rolling-restart,rotate-key,security-check}.sh`、`devops/load/k6/*`。各服务的 CI 与覆盖率门禁见 [UAM §7](../uam/README.md)、[Admin Center §5](../admin-center/README.md)；命令与环境变量的权威说明在 [`apps/uam/AGENTS.md`](../../../apps/uam/AGENTS.md) 与 [`apps/admin-center/AGENTS.md`](../../../apps/admin-center/AGENTS.md)（根 `AGENTS.md` 不写命令）。
+本地专项脚本（不在 CI 里）：`devops/local/scripts/{bootstrap,scale-checks,rolling-restart,security-check}.sh`、`devops/load/k6/*`。各服务的 CI 与覆盖率门禁见 [UAM §7](../uam/README.md)、[Admin Center §5](../admin-center/README.md)；命令与环境变量的权威说明在 [`apps/uam/AGENTS.md`](../../../apps/uam/AGENTS.md) 与 [`apps/admin-center/AGENTS.md`](../../../apps/admin-center/AGENTS.md)（根 `AGENTS.md` 不写命令）。
 
 ## 9. 与过程文档的关系
 
 - 过程记录：[plan.md](./plan.md)、[research.md](./research.md)（跨服务）；[UAM](../uam/)、[Admin Center](../admin-center/) 各有自己的 `plan.md` / `research.md`；[数据模型](../uam/data-model.md)；[界面原型](../admin-center/prototype/README.md)。
-- 需求规格：[spec.md](../../achieve-specs/admin-center/spec.md)（仅用户需求描述）；技术性需求条款（服务密钥、会话标识等，FR-008、FR-013 ~ FR-015、FR-042 ~ FR-044、US12、SC-016）：[technical-requirements.md](./technical-requirements.md)；验证与任务：[quickstart.md](./quickstart.md)、[tasks.md](./tasks.md)、[检查清单](./checklists/requirements.md)；Web 路由契约：[web-routes.md](../admin-center/web-routes.md)。
+- 需求规格：[spec.md](../../achieve-specs/admin-center/spec.md)（仅用户需求描述）；技术性需求条款（会话标识等，FR-008、FR-013 ~ FR-015；FR-042 ~ FR-044、US12、SC-016 已移除，保留占位）：[technical-requirements.md](./technical-requirements.md)；验证与任务：[quickstart.md](./quickstart.md)、[tasks.md](./tasks.md)、[检查清单](./checklists/requirements.md)；Web 路由契约：[web-routes.md](../admin-center/web-routes.md)。
 - 需求对照、验证记录、已知限制：[traceability.md](./traceability.md)；UAM 领域模型、接口与流程：[domain-and-api.md](../uam/domain-and-api.md)；Admin Center 会话三态：[session-states.md](../admin-center/session-states.md)。

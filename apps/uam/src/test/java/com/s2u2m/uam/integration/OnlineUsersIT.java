@@ -41,7 +41,7 @@ class OnlineUsersIT extends IntegrationTestBase {
 
   @BeforeEach
   void setUp() {
-    api = new ApiClient(port, TEST_SERVICE_KEY);
+    api = new ApiClient(port);
     data = new UserFixtures(jdbc);
     sessions = new SessionFixtures(store);
     now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
@@ -256,13 +256,5 @@ class OnlineUsersIT extends IntegrationTestBase {
       assertThat(response.json().get("code").asString()).isEqualTo("validation_failed");
     }
     assertThat(online("size=100").status()).isEqualTo(200);
-  }
-
-  @Test
-  void aServiceKeyIsRequired() {
-    Response anonymous = new ApiClient(port, null).get("/v1/online-users");
-
-    assertThat(anonymous.status()).isEqualTo(401);
-    assertThat(anonymous.json().get("code").asString()).isEqualTo("client_unauthenticated");
   }
 }

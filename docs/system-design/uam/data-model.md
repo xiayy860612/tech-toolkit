@@ -49,18 +49,6 @@ session ──(经 account)──> app_user                    （会话通过�
 | `password_hash` | `text` | 非空；Argon2id（`DelegatingPasswordEncoder` 格式，可升级）；明文永不落库、不进日志 |
 | `updated_at` | `timestamptz` | 非空 |
 
-### 2.4 客户端与服务密钥（配置，不入库）
-
-客户端清单放 UAM 的配置（环境变量、配置文件或密钥管理注入），不建表（research R4）：
-
-| 字段 | 说明 |
-|---|---|
-| `id` | 客户端名称，如 `admin-center`；写操作日志里的 `clientId` |
-| `keyHashes` | 1–2 个 `sha256:<hex>`，对应高熵服务密钥；两个同时有效用于不停机轮换 |
-| `permissions` | 本期仅 `assert-end-user-context`：可代用户断言操作人与来源地址 |
-
-密钥本身（32 字节随机数，带 `uamk_` 前缀）只在 `generate-service-key` 输出一次，由客户端放进自己的密钥存储；UAM 只持有哈希。
-
 ## 3. Redis
 
 所有键带 `uam:` 前缀；会话类键的 TTL 取「空闲剩余」与「绝对剩余」的较小值。**会话标识明文从不入库**，只存 `SHA-256`。
@@ -74,7 +62,7 @@ session ──(经 account)──> app_user                    （会话通过�
 | `uam:term:{sha}` | STRING | 常量标记（不含任何会话数据） | **强制下线墓碑**：仅管理员强制下线（`DELETE /v1/sessions/{ref}`）与会话删除在同一 Lua 脚本里原子写入；TTL = `uam.session.terminated-notice-ttl`（默认 10 分钟）；`verify` 在会话不存在时按所呈现标识的哈希查它，命中则 401 `session_invalid` 带 `reason: terminated`；退出、停用、被取代、到期**不写** |
 | `uam:throttle:login:{sha256(规范化账号名\|来源地址)}` | STRING（计数） | 连续失败次数 | 5 次后锁该来源 15 分钟（`Retry-After` 取剩余 TTL） |
 | `uam:throttle:pwchg:{sha256(accountId\|来源地址)}` | STRING（计数） | 当前密码连续错误次数 | 口径同登录 |
-| `uam:idem:{sha256(客户端id\|键)}` | STRING | 创建用户的响应快照（`D\|指纹\|快照`），或进行中标记（`P\|指纹`） | 快照 TTL 10 分钟、进行中标记 30 秒；`SET NX` 抢占，重放返回原响应；按客户端隔离；快照与指纹都不含密码 |
+| `uam:idem:{sha256(键)}` | STRING | 创建用户的响应快照（`D\|指纹\|快照`），或进行中标记（`P\|指纹`） | 快照 TTL 10 分钟、进行中标记 30 秒；`SET NX` 抢占，重放返回原响应；快照与指纹都不含密码 |
 
 ### 3.1 会话生命周期（Lua 脚本原子完成）
 
@@ -117,10 +105,10 @@ ACTIVE ──停用──► DISABLED ──启用──► ACTIVE
 | 密码 | 默认至少 10 位且同时含字母与数字（可配置）；改密时还须不同于当前密码 | FR-022、FR-027 |
 | 登录失败 | 同一「账号 + 来源地址」连续 5 次后拒绝该来源 15 分钟，不锁账号 | FR-006 |
 | 会话 | 一账号至多一个有效会话；空闲 30 分钟、绝对 12 小时（可配置） | FR-004、FR-010 |
-| 操作人上下文 | 写操作必须带 `X-Operator-User-Id` / `-Account-Id` / `-Session-Ref`，缺失返回 400 `operator_required`；UAM 信任客户端传来的值，只用于自我保护规则与日志，不用于认证或授权 | research R5 |
-| 服务密钥 | 每个调用都带；SHA-256 哈希常量时间比较；缺失 / 无效 / 已撤销 → 401 `client_unauthenticated`，无断言权限 → 403 `client_forbidden`；至多两把同时有效 | FR-042 ~ FR-044、research R4 |
+| 操作人上下文 | 写操作必须带 `X-Operator-User-Id` / `-Account-Id` / `-Session-Ref`，缺失返回 400 `operator_required`；UAM 信任调用方传来的值，只用于自我保护规则与日志，不用于认证或授权 | research R5 |
+| 调用方认证 | **目前没有**：UAM 不识别调用方，只靠网络隔离；服务身份后续实现 | — |
 | 创建的幂等 | `Idempotency-Key` 同键 10 分钟内重放返回原结果；账号名唯一索引兜底 | FR-022 |
-| 敏感信息 | 密码、哈希、会话标识、服务密钥永不出现在页面、响应体（登录响应中的会话标识只给持有服务密钥的 Admin Center）与日志 | FR-031、SC-014 |
+| 敏感信息 | 密码、哈希、会话标识永不出现在页面、响应体（登录响应中的会话标识只给 Admin Center）与日志 | FR-031、SC-014 |
 
 ## 6. 视图（接口返回的聚合，非存储）
 

@@ -1,5 +1,5 @@
 # 本地 kind 集群（scripts/deploy.sh）：集群内数据层 + Gateway API 入口（Envoy Gateway，见 deploy.sh）+ 本地构建的镜像。
-# Secret（postgres-credentials、uam-runtime、admin-center-runtime）由 deploy.sh 生成并 apply，不在这里。
+# Secret（postgres-credentials、uam-runtime）由 deploy.sh 生成并 apply，不在这里。
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: tech-toolkit
