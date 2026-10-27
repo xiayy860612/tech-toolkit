@@ -2,9 +2,10 @@
 # 把 UAM 与 Admin Center（连同 PostgreSQL、Redis，入口由 Envoy Gateway（Gateway API）提供）部署到本地 kind 集群（overlays/kind）。兼容 macOS 自带的 bash 3.2。
 # 只服务 kind：云上直接 kubectl apply -k devops/k8s/overlays/cloud（Secret 由部署方准备，见 overlays/cloud/kustomization.yaml）。
 #
-# 用法：devops/k8s/scripts/deploy.sh [up|down|status|forward]
+# 用法：devops/k8s/scripts/deploy.sh [up|down|status|forward|test-account]
 #   up       构建镜像 → 载入 kind → 首次生成密钥 Secret → 应用清单 → 等待就绪 → 建首个用户（幂等）
-#   down     删除命名空间（连同数据卷）与本机保存的首个用户密码；不动集群本身
+#   down     删除命名空间（连同数据卷）与本机保存的首个用户 / 测试账号密码；不动集群本身
+#   test-account  建专用的本地测试账号（挂在首个用户下，随机密码写入 TEST_PASSWORD_FILE，0600；已存在则跳过）
 #   status   Pod、Service、NetworkPolicy 概览
 #   forward  把入口转发到 http://127.0.0.1:${EDGE_PORT:-8088}（前台运行，Ctrl-C 结束）
 #
@@ -28,6 +29,8 @@ envoy_gateway_url="https://github.com/envoyproxy/gateway/releases/download/$envo
 admin_account="${K8S_ADMIN_ACCOUNT:-admin}"
 admin_name="${K8S_ADMIN_NAME:-系统管理员}"
 admin_password_file="${ADMIN_PASSWORD_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/tech-toolkit/k8s-admin-password}"
+test_account_name="${K8S_TEST_ACCOUNT:-k8s-test}"
+test_password_file="${TEST_PASSWORD_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/tech-toolkit/k8s-test-account-password}"
 uam_image="tech-toolkit/uam:local"
 ac_image="tech-toolkit/admin-center:local"
 # 清单里用到的第三方镜像：先在宿主机拉好再载入 kind，节点不必自己访问公网镜像仓库
@@ -37,7 +40,7 @@ log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 k() { kubectl --context "$ctx" -n "$ns" "$@"; }
 
 usage() {
-  echo "用法：$0 [up|down|status|forward]" >&2
+  echo "用法：$0 [up|down|status|forward|test-account]" >&2
   exit 2
 }
 
@@ -163,6 +166,29 @@ init_admin() {
   log "首个用户账号：$admin_account；密码在 $admin_password_file"
 }
 
+# 专用的本地测试账号：给首个用户追加第二个账号（add-account，部署期命令），用来跑登录 / 会话 / 滚动发布的验证，
+# 这样验证不必读首个用户的密码。密码随机生成，只写进本机文件（0600），从不打印。
+# 账号挂在首个用户名下，权限与之相同；只用于本地 kind：down 会删掉密码文件，账号随数据卷一起消失。
+test_account() {
+  if [ -r "$test_password_file" ]; then
+    log "测试账号 $test_account_name 已存在；密码在 $test_password_file"
+    return
+  fi
+  local password err
+  password="$(openssl rand -base64 18 | tr -d '/+=')Aa1"
+  mkdir -p "$(dirname "$test_password_file")"
+  (umask 077 && printf '%s' "$password" >"$test_password_file")
+  err="$(mktemp)"
+  if ! printf '%s\n' "$password" | k exec -i deploy/uam -- env SPRING_PROFILES_ACTIVE=cli \
+    java -jar /app/uam.jar add-account --account-name-of "$admin_account" --account-name "$test_account_name" >/dev/null 2>"$err"; then
+    cat "$err" >&2
+    rm -f "$err" "$test_password_file"
+    exit 1
+  fi
+  rm -f "$err"
+  log "测试账号 $test_account_name 已创建（挂在 $admin_account 用户下）；密码在 $test_password_file"
+}
+
 action="${1:-up}"
 [ "$#" -le 1 ] || usage
 case "$action" in
@@ -181,7 +207,11 @@ case "$action" in
   down)
     require_cluster
     kubectl --context "$ctx" delete namespace "$ns" --ignore-not-found
-    rm -f "$admin_password_file"
+    rm -f "$admin_password_file" "$test_password_file"
+    ;;
+  test-account)
+    require_cluster
+    test_account
     ;;
   status)
     require_cluster
