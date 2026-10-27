@@ -75,6 +75,7 @@ infra/local/scripts/bootstrap.sh down    # 结束后关栈并清数据卷
 ## 多实例、压测与安全检查
 
 - 多实例栈 `infra/local/docker-compose.scale.yml`（3 个 Admin Center + 3 个 UAM + nginx 入口，无会话粘滞）：`infra/local/scripts/scale-checks.sh up|check|down`（入口 `http://127.0.0.1:8088`，钉住实例用 8091 ~ 8093）、`infra/local/scripts/rolling-restart.sh`（持续访问下依次重启全部实例，意外登出必须为 0）。
+- 本地 k8s 部署（kind 集群 `cka`）：`infra/k8s/scripts/deploy.sh up|forward|down`，细节见 [`apps/uam/AGENTS.md`](../uam/AGENTS.md) 的「本地栈」一节。入口 nginx 沿用 `infra/local/nginx/proxy-params.conf`，Admin Center 的 `TRUSTED_PROXY_HOPS=1` 对应这一层；直接 `kubectl port-forward svc/admin-center` 会因为没有 `X-Forwarded-For` 而无法登录。
 - 压测：`infra/load/k6/`（`seed-data.sh`、`list-and-detail.js`、`validate-throughput.js`，经 compose 的 `load` profile 运行，命令见 compose 文件里的注释）；结果与未测项见 `infra/load/RESULTS.md`，SC-011 的判定方法见 `infra/load/SC-011.md`（**尚未测量**）。
 - **安全检查** `infra/local/scripts/security-check.sh [static|runtime|all]`（默认 `all`；兼容 bash 3.2）：
   - `static`（不需要 Docker）：无被跟踪的 `.env`（只允许 `*.example` 与 `infra/local/e2e.env`）；`package.json` 无数据库驱动 / ORM（FR-013）；工作区与全部历史里没有完整长度的 `uamk_` 密钥或私钥特征（允许名单与理由写在脚本里）；`src/lib` 服务端模块都有 `import "server-only"`；构建浏览器包（`npm run build`，不设环境变量）后 `.next/static` 里没有服务密钥；每个写入口先做同源校验，并跑相关「跨站 / 同源」单元测试。`SECURITY_CHECK_SKIP_BUILD=1` 复用已有构建。

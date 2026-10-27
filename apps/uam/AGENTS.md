@@ -126,6 +126,7 @@ printf '%s\n' "$PASSWORD" | SPRING_PROFILES_ACTIVE=cli java -jar apps/uam/target
 
 - E2E 栈（PostgreSQL、Redis、UAM、Admin Center；UAM 不映射到宿主机）：`infra/local/scripts/bootstrap.sh up` / `down`；`up --generated-key` 改用 `generate-service-key` 现生成密钥（依赖固定密钥的 E2E 用例不要用）。Playwright 用例见 [`apps/admin-center/AGENTS.md`](../admin-center/AGENTS.md)。
 - 多实例栈（3 个 UAM + 3 个 Admin Center + nginx，`infra/local/docker-compose.scale.yml`）：`infra/local/scripts/scale-checks.sh up|check|down`（无粘滞与一致性断言）、`infra/local/scripts/rolling-restart.sh`（持续访问下滚动重启，统计意外登出与失败请求）。压测脚本与结果在 `infra/load/`（`k6/seed-data.sh` 造 10 万用户 / 1 万会话，`k6/list-and-detail.js`，`k6/validate-throughput.js`；SC-011 的判定方法见 `infra/load/SC-011.md`，**尚未测量**；已测结果见 `infra/load/RESULTS.md`）。
+- 本地 k8s（kind 集群 `cka`，清单在 `infra/k8s/`）：`infra/k8s/scripts/deploy.sh up|down|status|forward`。`up` 构建两个镜像（`tech-toolkit/uam:local`、`tech-toolkit/admin-center:local`）并载入 kind，部署 PostgreSQL / Redis（StatefulSet + PVC）、UAM ×2、Admin Center ×2 与入口 nginx（命名空间 `tech-toolkit`），再用 `init-admin` 建首个用户；`forward` 把入口转发到 `http://127.0.0.1:8088`（与多实例栈的 8088 冲突，不要同时跑；用 `EDGE_PORT` 改）。服务密钥与数据库密码由脚本首次部署时生成并只存在于 k8s Secret 里（重复 `up` 不换密钥），首个用户的密码写入 `~/.config/tech-toolkit/k8s-admin-password`（0600）。UAM 只有 ClusterIP，NetworkPolicy（Calico）只放行 Admin Center → UAM → PostgreSQL / Redis 的调用链。
 - 安全检查：`infra/local/scripts/security-check.sh [static|runtime|all]`（用法与检查项见 Admin Center 的 AGENTS.md）；其中对 UAM 日志的检查是「没有明文密码、`$argon2` 哈希前缀、会话标识、服务密钥」。
 
 ## 排障
