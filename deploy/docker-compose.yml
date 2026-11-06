@@ -1,0 +1,33 @@
+# Local dependencies for Tenant Core MVP (PostgreSQL + Redis). Not for production.
+# Usage: cp ../backend/.env.example .env  (then edit values)  &&  docker compose up -d
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${TENANT_CORE_DB_NAME:-tenant_core}
+      POSTGRES_USER: ${TENANT_CORE_DB_OWNER_USER:-tenant_core}
+      POSTGRES_PASSWORD: ${TENANT_CORE_DB_OWNER_PASSWORD:?set TENANT_CORE_DB_OWNER_PASSWORD}
+      TENANT_CORE_APP_PASSWORD: ${TENANT_CORE_DB_APP_PASSWORD:?set TENANT_CORE_DB_APP_PASSWORD}
+    ports:
+      - "${TENANT_CORE_DB_PORT:-5432}:5432"
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

@@ -2,7 +2,9 @@
 
 本目录沉淀 SaaS 微服务平台的架构设计，是各组件实现的根本依据。
 
-> **当前状态：设计基线，尚未落地。** 实现开始后，随实现演进更新，使之保持“当前真实状态”（见仓库根目录 `AGENTS.md` 对 `docs/system-design/` 的定义）。
+> **当前状态：设计基线；Tenant Core MVP 已落地（见下方 MVP 调整），其余部分尚未落地。** 随实现演进更新，使之保持“当前真实状态”（见仓库根目录 `AGENTS.md` 对 `docs/system-design/` 的定义）。
+
+> **MVP 调整（已落地，2026-11-07）**：[06](06-decisions.md) 的 D32–D35 记录了 `specs/001-tenant-core-mvp/` 对基线的调整——MVP 不部署网关（UAM 同时校验 Opaque Token 与 Internal JWT）、单 schema 按表前缀分模块、暂无档案表、CLI 直写租户注册表、User 与 Account 分离。落地现状见 [achieve-specs/tenant-core-mvp.md](../achieve-specs/tenant-core-mvp.md)。
 
 ## 如何使用
 

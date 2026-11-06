@@ -2,6 +2,11 @@
 
 状态：设计基线（尚未落地）。本文是 UAM、网关 ext_authz、BFF 及各服务验签实现的依据；决策见 [06](06-decisions.md)，待定项也在 06。
 
+> **MVP 调整（已落地，见 [06](06-decisions.md) D32、D33、D35）**：
+>
+> - 不部署网关。`tenant-core-api` 的 UAM 同时支持两种请求凭据：Opaque Token（session id，请求头 `X-Session-Id`，查表）与 Internal JWT（`Authorization: Bearer`，ES256 本地验签，`exp - iat` 默认 120 秒）；提供 `POST /v1/auth/exchange`（Opaque Token → Internal JWT）与 `/.well-known/jwks.json`。两个头并存、都缺失或放错位置一律 401；登录、退出、改密、换发只接受 Opaque Token。引入网关后由 ext_authz 调换发接口。
+> - **User 与 Account 分离**：User 是“一个人”（对外 `tenant_user_id`），Account 是登录凭据（即下文的 identity：用户名、密码等），Account 关联且仅关联一个 User，一个 User 可有多个 Account。登录输入 Tenant Slug + username + 密码；“租户未订阅 platform”只在凭证验证通过后才提示，否则统一返回登录失败。
+
 ## 1. 原则
 
 1. **终端只持有不透明令牌**，由 UAM 签发，本身不含信息，服务端查表得到身份。

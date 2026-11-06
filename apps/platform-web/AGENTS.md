@@ -1,0 +1,65 @@
+# AGENTS（apps/platform-web）
+
+Platform 的 Web 控制台（SSR）。Next.js 服务端即 BFF：浏览器只持有 HttpOnly session cookie，Opaque Token 保存在 Redis Session 中，由服务端经 `X-Session-Id` 请求头调用 `tenant-core-api`。仓库级约定见根目录 `AGENTS.md`，本文件只补充本子项目细节。契约与设计见 `specs/001-tenant-core-mvp/`（`spec.md`、`plan.md`、`contracts/tenant-core-api.yaml`）。
+
+## 技术栈
+
+Node.js 22、Next.js 15（App Router）、React 19、TypeScript 5（strict）、ioredis、Vitest + React Testing Library（jsdom）+ ioredis-mock、Playwright、ESLint + Prettier、pnpm。
+
+## 目录
+
+```
+src/
+  middleware.ts          # Edge：只检查 cookie 是否存在并重定向（不能用 Redis）
+  app/                   # 路由：login、change-password、logout、session/expired、healthz、(console)/{tenants,modules,users}
+  components/            # LoginForm、ChangePasswordForm、Sidebar、DataTable
+  lib/                   # 纯函数与 DTO 类型（types、pagination、format、safeNextPath）
+  server/                # 仅服务端：env、session（Redis）、sessionCookie、container、auth（requireSession / runWithSession）、tenantCoreClient
+tests/
+  unit/  component/      # Vitest
+  e2e/                   # Playwright（需完整后端栈，fixtures.ts 有环境说明）
+```
+
+## 命令
+
+在 `apps/platform-web` 下执行（pnpm）：
+
+| 目的                           | 命令                        |
+| ------------------------------ | --------------------------- |
+| 安装依赖                       | `pnpm install`              |
+| 开发                           | `pnpm dev`                  |
+| 构建 / 启动                    | `pnpm build` / `pnpm start` |
+| Lint（ESLint + Prettier 检查） | `pnpm lint`                 |
+| 类型检查                       | `pnpm typecheck`            |
+| 单元 / 组件测试                | `pnpm test`                 |
+| 覆盖率（含阈值校验）           | `pnpm test:coverage`        |
+| E2E（需后端栈与 CLI）          | `pnpm test:e2e`             |
+
+## 测试与覆盖率
+
+- 测试先行（red → green → refactor）；单元与组件测试不依赖后端，Redis 用 `ioredis-mock`，后端调用用 mock `fetch` 或 mock `@/server/container`。
+- **覆盖率口径：行覆盖率 ≥ 90%**（`vitest.config.ts` 的 `thresholds.lines`，provider 为 v8，统计范围 `src/**`）。`pnpm test:coverage` 低于阈值会失败，CI 以此命令为门禁。
+- **排除路径**（`vitest.config.ts`）：`src/**/*.d.ts`（类型声明）、`src/app/layout.tsx`（根布局：仅 `<html>` 外壳与全局 CSS 引入，无逻辑）。`src/lib/types.ts` 为纯类型，无可执行语句，不计入分母。
+- E2E（`tests/e2e`）不计入覆盖率。需要：Postgres、Redis、`tenant-core-api`、`platform-web` 已启动，以及已构建的 `tenant-core-cli`；通过 `tests/e2e/fixtures.ts` 调用 CLI 造数据。旅程会修改 Account 密码，请在全新库上运行或每次更换 `E2E_TENANT_SLUG`。
+
+## 安全约定
+
+- Opaque Token 只存在于服务端（Redis、`src/server`），不得传给客户端组件、不得写日志、不得出现在页面数据中。
+- `middleware.ts` 只做粗粒度拦截；真正的 Session 校验（Redis、`mustChangePassword`、后端 401）在 `src/server/auth.ts`。后端返回 401 时销毁 Session，经 `/session/expired`（清 cookie）回到 `/login?next=…`。
+- `next` 参数一律经 `safeNextPath` 过滤，防止开放重定向。
+- 退出仅接受 `POST /logout`。
+
+## 环境变量
+
+示例见 `.env.example`（不要提交真实值）。
+
+| 变量                                                                                                             | 说明                                                           | 默认                      |
+| ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------- |
+| `TENANT_CORE_API_URL`                                                                                            | `tenant-core-api` 地址（仅服务端）                             | `http://localhost:8080`   |
+| `REDIS_URL`                                                                                                      | Session 存储                                                   | `redis://localhost:6379`  |
+| `SESSION_COOKIE_SECURE`                                                                                          | cookie 的 Secure 标志；生产默认 `true`，本地 http 可设 `false` | 生产 `true`，否则 `false` |
+| `E2E_BASE_URL`、`TENANT_CORE_CLI`、`E2E_TENANT_SLUG`、`E2E_USERNAME`、`E2E_INITIAL_PASSWORD`、`E2E_NEW_PASSWORD` | 仅 E2E 使用，口令必须是一次性测试值                            | 见 `.env.example`         |
+
+## 命名规则（Ubiquitous Language）
+
+业务术语以 `specs/001-tenant-core-mvp/spec.md` 的术语表和 `plan.md` 的“命名约定”为准，组件、类型、路由、测试名使用同一英文术语，不另造同义词：Tenant（`tenantSlug`）、User（`displayName`）、Account（`username`）、Module Subscription（`moduleCode`）、Opaque Token、Internal JWT、Session。代码层面的目录不叫 Module。界面文案保持中文（导航：租户管理 / 模块管理 / 用户管理）。
