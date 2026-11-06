@@ -47,7 +47,7 @@
 
 阅读要点：
 
-- 横向四个带是服务分层，同步调用只向下（见 03）。UAM 是侧栏，不属于任何一层。
+- 横向四个带是服务分层，同步调用只向下（见 03）。UAM 是核心域层 Tenant Core 的认证模块；每个 cell 都按这四层分层。
 - 每个 cell 有自己的网关（Envoy Gateway + ext_authz）、UAM、Tenant Core 与审计，不共用网关（D28）；进入 cell 之前的入口路由在 cell 之外解决，倾向每租户一个域名，待定。
 - Web 经各自的 BFF 访问，桌面端直接进入网关；BFF 与桌面端都只持有不透明令牌，BFF 不接触内部 JWT。
 - 平台侧是一个特殊的租户，部署在独立的平台 cell：自己的 UAM、Tenant Core、库与审计。Platform BFF 经网关的内部 listener 访问（D25）。
@@ -60,11 +60,10 @@
 |---|---|---|
 | 入口层 | Platform BFF、Tenant BFF、Envoy Gateway（含 ext_authz） | 面向外部的入口，凭证校验、换发与路由 |
 | 业务服务层 | 平台级服务（Platform Service、未来的数据分析）、业务级服务（Business Services） | 两类并列，分属平台 cell 与租户 cell，互不同步调用（D27）；业务服务按租户启用 |
-| 核心域层 | Tenant Core | 用户档案、角色与 RBAC、租户配置，每个 cell 一套 |
+| 核心域层 | Tenant Core（认证模块 UAM + 租户核心模块） | UAM：登录、身份、令牌；租户核心：档案、角色与 RBAC、租户配置；每个 cell 一套 |
 | 基础服务层 | Audit、Notification | 只提供能力，不依赖任何上层服务；每个 cell 一套 Audit |
-| 侧栏 | UAM | 认证服务，不属于任何一层；平台与租户各一套部署 |
 
-UAM（侧栏）与 Tenant Core（核心域层）前期合并部署为一个服务，按模块保留边界（D29）；下文组件表仍按逻辑组件分列，边界不变。
+UAM 是 Tenant Core 的认证模块（D30），与租户核心模块前期合并部署为一个服务，按模块保留边界（D29）；下文组件表仍按逻辑组件分列，边界不变。
 
 调用规则见 [03-service-layering-and-trust.md](03-service-layering-and-trust.md)。
 
@@ -113,7 +112,7 @@ UAM（侧栏）与 Tenant Core（核心域层）前期合并部署为一个服�
 | Audit | 各 cell 自己的审计日志存储与查询；记录最初发起者与 trace id；平台 cell 与租户 cell 是同一服务的不同部署 | 跨 cell 查询：平台侧看不到租户侧审计 |
 | Notification | 通知发送（邮件、站内信等），含找回密码 | 业务决策 |
 
-### 5.5 认证侧栏
+### 5.5 UAM（Tenant Core 的认证模块）
 
 | 组件 | 负责 | 不负责 | 主要依赖 |
 |---|---|---|---|
