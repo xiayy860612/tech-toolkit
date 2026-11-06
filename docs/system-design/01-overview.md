@@ -43,25 +43,7 @@
 
 ## 3. 总览图
 
-> `assets/01-architecture-overview.drawio.svg` 仍是旧的 Keycloak 方案，待重画，在重画之前以下文字图为准。
-
-```
-            Web 浏览器            桌面端            （后期）外部服务
-               │ cookie              │ 不透明令牌          │
-               ▼                     │                     │
-      Tenant BFF / Platform BFF      │                     │
-               │ 不透明令牌           │                     │
-               ▼                     ▼                     ▼
-        ┌────────────── Envoy Gateway + ext_authz ───────────────┐   ◀── 登录 / 令牌 ──┐
-        │  校验不透明令牌 → 换内部 JWT（每个 cell 一套）          │                    │
-        └───────────────────────────┬────────────────────────────┘                    │
-                                    ▼                                                  │
-   业务服务层     平台级服务（平台 cell）  │  业务级服务（租户 cell）                    UAM
-   核心域层       Tenant Core                                                           ├ Password（第一阶段）
-   基础服务层     Audit、Notification                                                   ├ OIDC / broker（后期）
-                                                                                        └ 微信（后期）
-   事件：Outbox → Event Bus；平台 cell 向租户 cell 发布租户与授权事件
-```
+![目标架构总览](assets/01-architecture-overview.drawio.svg)
 
 阅读要点：
 

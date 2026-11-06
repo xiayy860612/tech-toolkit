@@ -2,8 +2,6 @@
 
 状态：设计基线（尚未落地）。本文按 [06-decisions.md](06-decisions.md) 的 D16 到 D26 重写，是 UAM、网关 ext_authz、BFF 及各服务验签实现的根本依据。
 
-> 本文对应的图（`assets/02`、`03`、`06`、`07`）仍是旧的 Keycloak 方案，待重画，在重画之前不要作为依据。
-
 ## 1. 原则
 
 1. **终端只持有不透明令牌**，由 UAM 签发；令牌本身不含任何信息，服务端查表得到身份。
@@ -42,6 +40,8 @@ UAM（User Account Management）是独立自研的 Auth 服务，负责“你是
 
 前期 UAM 与 Tenant Core 合并部署为一个服务（D29），上面的“不负责”指模块边界：认证模块不读写档案与 RBAC 的表，反之亦然。
 
+![UAM 认证模块划分](assets/06-auth-service-modules.drawio.svg)
+
 ### 3.2 部署
 
 同一份代码，每个 cell 一套部署（D16、D26、D28）：
@@ -62,6 +62,8 @@ silo 租户是独占的 cell，天然有独占的 UAM。租户注册表的“UAM
 | identity | 属于某个 user，一个用户可以有多条。类型（`password`、`oidc`、`wechat` 等）、提供方、主体、是否已验证。唯一键是 (租户, 类型, 提供方, 主体) |
 | credential | 密码哈希等凭证，与 `password` 类型的 identity 关联，单独存放 |
 | token | 不透明令牌的哈希、类型、所属用户与终端、`azp`、`sid`、过期时间、吊销状态 |
+
+![UAM 身份与令牌的数据模型](assets/03-uam-identity-model.drawio.svg)
 
 ### 3.4 Authenticator 接口
 
@@ -157,6 +159,8 @@ token 只证明“你是谁、从哪来、在哪个租户”。用户的角色�
 4. 用内部 JWT 替换 `Authorization`，转发给本 cell 的服务；
 5. 任何一步失败都拒绝（失败即拒绝）。
 
+![网关校验与换发](assets/02-gateway-token-exchange.drawio.svg)
+
 要点：
 
 - ext_authz 要低延迟、高可用，可水平扩展；
@@ -248,16 +252,7 @@ JwtIssuerAuthenticationManagerResolver resolver =
 
 以租户用户通过 Web 用密码登录并调用业务接口为例：
 
-```
-浏览器 ──登录页提交用户名密码──▶ Tenant BFF ──▶ 租户 UAM
-UAM：PasswordAuthenticator 验证 → 解析 user → 签发不透明令牌
-Tenant BFF：把令牌存入 Redis session，返回 session cookie
-
-浏览器 ──cookie──▶ Tenant BFF：取出令牌
-Tenant BFF ──Bearer 不透明令牌──▶ 本 cell 网关的 ext_authz
-ext_authz：校验令牌 → 换内部 JWT
-gateway ──内部 JWT──▶ 业务服务：本地验签 → 向 Tenant Core 查角色与已开通模块 → 处理
-```
+![登录与调用交互](assets/07-auth-service-interaction.drawio.svg)
 
 其他场景沿用同一套结构：
 

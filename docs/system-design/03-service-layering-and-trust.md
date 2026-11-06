@@ -15,7 +15,7 @@
 | 服务对象 | 平台 staff | 租户用户 |
 | 信任的 `iss` | 平台 UAM | 租户 UAM |
 
-> `assets/04-service-layering.drawio.svg` 仍是旧的四层图，没有区分平台级与业务级，待重画，重画前以本文为准。
+![服务分层与调用方向](assets/04-service-layering.drawio.svg)
 
 规则：
 
@@ -42,7 +42,7 @@
 | token | 谁在发起这次操作 | 本地验签内部 JWT，只接受本 cell 的 UAM 的 `iss`，检查 `aud` 和有效期，取 `sub`（即 `tenant_user_id`）、`tenant_id`、`client_type` |
 | scope 与策略 | 允许做什么 | 检查 scope；用户的角色与权限向 Tenant Core 按 `sub` 查询（可短 TTL 缓存）；数据层按 `tenant_id` 隔离（如 RLS，silo 租户独占库） |
 
-> `assets/05-service-trust.drawio.svg` 仍是旧方案，待重画。
+![服务间的三道校验与信任根](assets/05-service-trust.drawio.svg)
 
 ### 2.1 信任根
 
