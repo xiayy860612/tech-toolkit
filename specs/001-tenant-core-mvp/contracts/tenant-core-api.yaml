@@ -1,0 +1,293 @@
+openapi: 3.0.3
+info:
+  title: tenant-core-api
+  version: 0.1.0
+  description: |
+    platform-web（BFF）调用的 Tenant Core 接口（MVP）。
+    认证由请求头决定，UAM 同时接受两种请求凭据：
+    - `X-Session-Id`：Opaque Token（session id），查表校验；仅 BFF 持有，浏览器不可见。
+    - `Authorization: Bearer`：Internal JWT（ES256，由 `/v1/auth/exchange` 换发），本地验签，检查 iss、aud、exp。
+    两个头同时出现、都缺失或放错位置一律 401。登录、退出、改密、换发只接受 `X-Session-Id`；其余接口两种都接受。
+servers:
+  - url: http://localhost:8080
+paths:
+  /v1/auth/login:
+    post:
+      summary: username/password 登录
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401':
+          description: 用户名或密码错误（含不存在、锁定、停用，统一返回）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: username 与密码正确，但 Tenant 未订阅 platform，无访问权限（code=MODULE_NOT_SUBSCRIBED）。username 或密码不正确时不会返回此码
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/auth/exchange:
+    post:
+      summary: 用 Opaque Token 换发短有效期 Internal JWT（仅接受 Opaque Token；要求改密的 Session 不可换发）
+      operationId: tokenExchange
+      security:
+        - sessionId: []
+      responses:
+        '200':
+          description: Internal JWT，exp - iat = UAM_JWT_TTL_SECONDS（默认 120）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExchangeResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PasswordChangeRequired' }
+  /.well-known/jwks.json:
+    get:
+      summary: Internal JWT 验签公钥（ES256）；仅在集群内网提供
+      operationId: jwks
+      security: []
+      responses:
+        '200':
+          description: JWKS
+          content:
+            application/json:
+              schema: { type: object }
+  /v1/auth/logout:
+    post:
+      summary: 退出并吊销当前 Token（仅接受 Opaque Token）
+      operationId: logout
+      security:
+        - sessionId: []
+      responses:
+        '204': { description: 已吊销（幂等） }
+  /v1/auth/change-password:
+    post:
+      summary: 修改密码；成功后吊销旧 Token 并返回新 Token（仅接受 Opaque Token）
+      operationId: changePassword
+      security:
+        - sessionId: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '200':
+          description: 已修改
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400':
+          description: 新密码不合规（code=PASSWORD_POLICY）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Token 无效，或旧密码错误
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/auth/me:
+    get:
+      summary: 当前 User
+      operationId: me
+      responses:
+        '200':
+          description: 当前 User 信息（改密前也可访问）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401':
+          description: Token 无效或过期
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/tenants:
+    get:
+      summary: Tenant 列表（只读）
+      operationId: listTenants
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PasswordChangeRequired' }
+  /v1/module-subscriptions:
+    get:
+      summary: Module Subscription 列表（只读）
+      operationId: listModuleSubscriptions
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscriptionPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PasswordChangeRequired' }
+  /v1/users:
+    get:
+      summary: User 列表（只读，不含任何 Credential 信息）
+      operationId: listUsers
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/PasswordChangeRequired' }
+security:
+  - sessionId: []
+  - bearer: []
+components:
+  securitySchemes:
+    sessionId:
+      type: apiKey
+      in: header
+      name: X-Session-Id
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  responses:
+    Unauthorized:
+      description: Token 缺失、无效、过期或已吊销
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PasswordChangeRequired:
+      description: 需先修改初始密码（code=PASSWORD_CHANGE_REQUIRED）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    LoginRequest:
+      type: object
+      required: [tenantSlug, username, password]
+      properties:
+        tenantSlug: { type: string, description: Tenant Slug（如 acme） }
+        username: { type: string, description: username（Tenant 内唯一） }
+        password: { type: string, format: password }
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string, format: password }
+        newPassword: { type: string, format: password }
+    LoginResponse:
+      type: object
+      required: [token, expiresAt, mustChangePassword]
+      properties:
+        token: { type: string, description: Opaque Token，仅返回一次 }
+        expiresAt: { type: string, format: date-time }
+        mustChangePassword: { type: boolean }
+    ExchangeResponse:
+      type: object
+      required: [jwt, expiresAt]
+      properties:
+        jwt: { type: string, description: Internal JWT；不出集群，不给浏览器 }
+        expiresAt: { type: string, format: date-time }
+    Me:
+      type: object
+      required: [tenantUserId, displayName, accountUsername, tenantSlug, mustChangePassword]
+      properties:
+        tenantUserId: { type: string, example: tu_8f3a1c }
+        displayName: { type: string, description: UserDisplay Name }
+        accountUsername: { type: string, description: 本次登录所用 Account 的 username（Internal JWT 调用时经 sid 解析） }
+        tenantSlug: { type: string }
+        mustChangePassword: { type: boolean }
+    Tenant:
+      type: object
+      required: [slug, name, status, createdAt]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [ACTIVE, SUSPENDED] }
+        createdAt: { type: string, format: date-time }
+    ModuleSubscription:
+      type: object
+      required: [moduleCode, tenantSlug, status, subscribedAt]
+      properties:
+        moduleCode: { type: string, enum: [platform] }
+        tenantSlug: { type: string }
+        status: { type: string, enum: [SUBSCRIBED] }
+        subscribedAt: { type: string, format: date-time }
+    User:
+      type: object
+      required: [tenantUserId, displayName, accountUsernames, tenantSlug, status, createdAt]
+      properties:
+        tenantUserId: { type: string }
+        displayName: { type: string }
+        accountUsernames:
+          type: array
+          description: 关联 Account 的 username；尚无 Account 的 User 为空数组；不含任何 Credential 信息
+          items: { type: string }
+        tenantSlug: { type: string }
+        status: { type: string, enum: [ACTIVE, DISABLED] }
+        createdAt: { type: string, format: date-time }
+    PageMeta:
+      type: object
+      required: [page, size, total]
+      properties:
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer, format: int64 }
+    TenantPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Tenant' } }
+    SubscriptionPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/ModuleSubscription' } }
+    UserPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/User' } }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [INVALID_CREDENTIALS, MODULE_NOT_SUBSCRIBED, UNAUTHORIZED, PASSWORD_CHANGE_REQUIRED, PASSWORD_POLICY, VALIDATION]
+        message: { type: string }

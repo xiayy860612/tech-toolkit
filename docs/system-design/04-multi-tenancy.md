@@ -2,6 +2,8 @@
 
 状态：设计基线（尚未落地）。说明租户注册、cell 部署形态、入口路由、开通与暂停、模块授权。决策见 [06](06-decisions.md)，待定项也在 06；正文标“待定”的地方，实现时不得自行假设。
 
+> **MVP 调整（已落地，见 [06](06-decisions.md) D33–D35）**：Platform Service 尚未接入，租户注册表（`core_tenant`）与模块订阅（`core_module_subscription`）由 Bootstrap CLI 直接写入；数据库为单 schema，按表前缀 `core_` / `uam_` / `audit_` 区分模块，模块之间不建外键，以后拆服务时按前缀迁表。
+
 ## 1. 租户注册表
 
 归属：Platform Service（平台级服务，在平台 cell），是租户的唯一事实来源。

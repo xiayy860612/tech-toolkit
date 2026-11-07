@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: tenant-core-api
+  main:
+    banner-mode: "off"
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+# Database: see backend/.env.example. The owner role migrates, the app role serves requests.
+tenant-core:
+  db:
+    host: ${TENANT_CORE_DB_HOST:localhost}
+    port: ${TENANT_CORE_DB_PORT:5432}
+    name: ${TENANT_CORE_DB_NAME:tenant_core}
+    owner-user: ${TENANT_CORE_DB_OWNER_USER:tenant_core}
+    owner-password: ${TENANT_CORE_DB_OWNER_PASSWORD:}
+    app-user: ${TENANT_CORE_DB_APP_USER:tenant_core_app}
+    app-password: ${TENANT_CORE_DB_APP_PASSWORD:}
+
+# UAM: Internal JWT settings. The signing key comes from the environment/secret, never from the repo;
+# the dev profile may generate an ephemeral key.
+uam:
+  issuer: ${UAM_ISSUER:https://uam.platform.example.internal}
+  audience: ${UAM_AUDIENCE:platform-services}
+  cell-id: ${UAM_CELL_ID:platform-1}
+  jwt-ttl-seconds: ${UAM_JWT_TTL_SECONDS:120}
+  signing-key-pem: ${UAM_SIGNING_KEY_PEM:}

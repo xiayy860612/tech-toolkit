@@ -44,6 +44,15 @@
 | D23 | CLI 只做冷启动：平台租户及其模块授权、平台第一个 staff、租户 cell 的初始租户与第一个管理员；初始密码不走命令行参数，首次登录强制改密；幂等、受控环境运行、入审计；日常开通走事件，租户注册表以 Platform Service 为准 | 02、04 |
 | D24 | 外部服务 M2M 后期随 broker 接入：先在 broker 登录，UAM 验 broker 的 token 后换不透明令牌，权限范围以 UAM 登记为准；第一阶段不支持 | 02 |
 
+### MVP 调整（已落地，见 [docs/achieve-specs/tenant-core-mvp.md](../achieve-specs/tenant-core-mvp.md)）
+
+| # | 决策 | 详见 |
+|---|---|---|
+| D32 | MVP 不部署网关：UAM 同时支持两种请求凭据——Opaque Token（session id，请求头 `X-Session-Id`，查表）与 Internal JWT（`Authorization: Bearer`，本地验签），并提供 Opaque Token 换发 Internal JWT 的接口与 JWKS；BFF 目前直接用 Opaque Token。引入网关时 ext_authz 调换发接口，UAM 与下游不改。登录、退出、改密、换发只接受 Opaque Token | 02 |
+| D33 | MVP 单一 schema，只靠 Java package 与表名前缀（`core_`、`uam_`、`audit_`）分模块；package 之间不建外键、不联表，不按模块拆数据库角色（仅 `audit_event` 对应用角色撤销 UPDATE/DELETE/TRUNCATE）；以后拆服务时按前缀把表迁出 | 01、02 |
+| D34 | MVP 暂无 tenant_user 档案表，User 列表读 `uam_user`；引入 RBAC 时再建档案并经“用户已创建”事件同步 | 01、02 |
+| D35 | MVP 的 CLI 直接写租户注册表与模块订阅（Platform Service 未接入，对账方式仍待定）；用户与登录凭据分离：User 是“一个人”，Account 是登录凭据（即 identity），一个 User 可有多个 Account，Account 关联且仅关联一个 User；登录需要 Tenant Slug | 02、04 |
+
 ## 2. 前期省掉的功能与触发条件
 
 | 省掉的 | 触发条件 | 做法 |

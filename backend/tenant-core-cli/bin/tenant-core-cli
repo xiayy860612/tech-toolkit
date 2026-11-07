@@ -1,0 +1,11 @@
+#!/bin/sh
+# Bootstrap CLI launcher. Configuration comes from environment variables (see backend/.env.example).
+# Override the jar location with TENANT_CORE_CLI_JAR.
+set -eu
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+JAR="${TENANT_CORE_CLI_JAR:-$DIR/target/tenant-core-cli.jar}"
+if [ ! -f "$JAR" ]; then
+  echo "tenant-core-cli: jar not found at $JAR (run: mvn -pl tenant-core-cli -am package -DskipTests)" >&2
+  exit 1
+fi
+exec java -jar "$JAR" "$@"
