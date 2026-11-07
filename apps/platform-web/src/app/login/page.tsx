@@ -10,9 +10,11 @@ export default async function LoginPage({
   const { next } = await searchParams;
   const requested = Array.isArray(next) ? next[0] : next;
   return (
-    <main className="center">
-      <h1>登录</h1>
-      <LoginForm action={loginAction} next={safeNextPath(requested)} />
+    <main className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex w-full max-w-sm flex-col gap-4">
+        <h1 className="text-center text-2xl font-semibold">登录</h1>
+        <LoginForm action={loginAction} next={safeNextPath(requested)} />
+      </div>
     </main>
   );
 }

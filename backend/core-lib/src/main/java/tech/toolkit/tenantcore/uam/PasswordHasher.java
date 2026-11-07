@@ -24,4 +24,9 @@ public class PasswordHasher {
   public boolean dummyMatches(String password) {
     return encoder.matches(password, dummyHash);
   }
+
+  @Override
+  public String toString() {
+    return "PasswordHasher[argon2id]";
+  }
 }

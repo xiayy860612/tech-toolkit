@@ -21,11 +21,30 @@ import tech.toolkit.tenantcore.uam.AuthenticatedPrincipal;
 @RequestMapping("/v1/auth")
 public class AuthController {
 
-  public record LoginBody(String tenantSlug, String username, String password) {}
+  public record LoginBody(String tenantSlug, String username, String password) {
+    @Override
+    public String toString() {
+      return "LoginBody[tenantSlug=" + tenantSlug + ", username=" + username + "]";
+    }
+  }
 
-  public record ChangePasswordBody(String currentPassword, String newPassword) {}
+  public record ChangePasswordBody(String currentPassword, String newPassword) {
+    @Override
+    public String toString() {
+      return "ChangePasswordBody[]";
+    }
+  }
 
-  public record LoginResponse(String token, Instant expiresAt, boolean mustChangePassword) {}
+  public record LoginResponse(String token, Instant expiresAt, boolean mustChangePassword) {
+    @Override
+    public String toString() {
+      return "LoginResponse[expiresAt="
+          + expiresAt
+          + ", mustChangePassword="
+          + mustChangePassword
+          + "]";
+    }
+  }
 
   private final CoreComponents core;
 

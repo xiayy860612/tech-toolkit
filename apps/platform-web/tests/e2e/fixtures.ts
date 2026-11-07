@@ -101,11 +101,11 @@ export async function fillLogin(
 }
 
 /**
- * The form's error paragraph. `getByRole('alert')` alone is ambiguous: Next.js renders its own
- * empty route announcer with role="alert".
+ * The form's error Alert. `getByRole('alert')` alone is ambiguous: Next.js renders its own
+ * empty route announcer with role="alert" (outside `main`).
  */
 export function loginError(page: Page) {
-  return page.locator('p[role="alert"]');
+  return page.locator('main [role="alert"]');
 }
 
 export async function changePassword(page: Page, current: string, next: string) {
@@ -134,7 +134,12 @@ export async function loginToConsole(page: Page, config: E2eConfig = e2eConfig()
     await changePassword(page, config.initialPassword, config.newPassword);
     await page.waitForURL(/\/tenants/);
   }
-  await expect(page.getByRole('navigation', { name: '主导航' })).toBeVisible();
+  // Wide screens show the sidebar; phones show only the menu button (the nav lives in the Sheet).
+  await expect(
+    page
+      .getByRole('navigation', { name: '主导航' })
+      .or(page.getByRole('button', { name: '打开菜单' })),
+  ).toBeVisible();
 }
 
 /**

@@ -44,19 +44,14 @@ test('租户管理 shows the Tenant created by the CLI', async ({ page }) => {
   await page.goto('/tenants');
   // anchored: other runs and specs leave Tenants whose slug starts with the same text
   const row = page.getByRole('row', { name: new RegExp(`^${config.tenantSlug} `) });
-  await expect(row).toContainText('ACTIVE');
-  await expect(page.getByRole('columnheader')).toHaveText([
-    'Tenant Slug',
-    '名称',
-    '状态',
-    '创建时间',
-  ]);
+  await expect(row).toContainText('正常');
+  await expect(page.getByRole('columnheader')).toHaveText(['租户标识', '名称', '状态', '创建时间']);
 });
 
 test('模块管理 shows the platform Module Subscription', async ({ page }) => {
   await page.goto('/modules');
   const row = page.getByRole('row', {
-    name: new RegExp(`^platform ${config.tenantSlug} SUBSCRIBED`),
+    name: new RegExp(`^platform ${config.tenantSlug} 已订阅`),
   });
   await expect(row).toBeVisible();
 });
@@ -72,10 +67,10 @@ test('用户管理 shows Users with their usernames, including a User without an
   await expect(admin.getByRole('cell').nth(1)).toHaveText(config.username);
 
   const noAccount = page.getByRole('row', {
-    name: new RegExp(`^${USER_WITHOUT_ACCOUNT} ${config.tenantSlug}`),
+    name: new RegExp(`^${USER_WITHOUT_ACCOUNT} — ${config.tenantSlug}`),
   });
   await expect(noAccount).toBeVisible();
-  await expect(noAccount.getByRole('cell').nth(1)).toHaveText('');
+  await expect(noAccount.getByRole('cell').nth(1)).toHaveText('—');
 });
 
 test('用户管理 paginates through searchParams', async ({ page }) => {

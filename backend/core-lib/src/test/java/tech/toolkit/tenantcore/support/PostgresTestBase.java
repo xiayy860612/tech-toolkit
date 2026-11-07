@@ -27,7 +27,7 @@ public abstract class PostgresTestBase {
   public static final String APP_PASSWORD = "test-app";
 
   private static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>("postgres:16").withInitScript("db/test-roles.sql");
+      new PostgreSQLContainer<>("postgres:18").withInitScript("db/test-roles.sql");
   private static final DatabaseConfig CONFIG;
   private static final DataSource OWNER;
   private static final DataSource APP;

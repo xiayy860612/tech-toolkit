@@ -15,8 +15,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
-      // Exclusions are listed and justified in AGENTS.md.
-      exclude: ['src/**/*.d.ts', 'src/app/layout.tsx'],
+      // Exclusions are listed and justified in AGENTS.md (src/components/ui = shadcn-generated code).
+      exclude: ['src/**/*.d.ts', 'src/app/layout.tsx', 'src/components/ui/**'],
       reporter: ['text', 'lcov'],
       thresholds: { lines: 90 },
     },

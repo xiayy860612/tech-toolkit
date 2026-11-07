@@ -21,6 +21,16 @@ async function fill(newPassword: string, confirmPassword: string) {
 }
 
 describe('ChangePasswordForm', () => {
+  it('is a Card with at least 44px tall controls', () => {
+    setup();
+    const form = screen.getByRole('button', { name: '修改密码' }).closest('form');
+    expect(form?.closest('[data-slot="card"]')).not.toBeNull();
+    for (const label of ['当前密码', '新密码', '确认新密码']) {
+      expect(screen.getByLabelText(label)).toHaveClass('h-11');
+    }
+    expect(screen.getByRole('button', { name: '修改密码' })).toHaveClass('h-11');
+  });
+
   it('has labelled fields and a password policy hint', () => {
     setup();
     expect(screen.getByLabelText('当前密码')).toHaveAttribute('name', 'currentPassword');
@@ -63,18 +73,20 @@ describe('ChangePasswordForm', () => {
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   });
 
-  it('shows the backend password policy detail', async () => {
+  it('shows only the fixed Chinese rule for a password policy violation', async () => {
     setup({ error: 'PASSWORD_POLICY', detail: 'at least 12 characters' });
     await fill('short', 'short');
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('新密码不符合密码策略');
-    expect(alert).toHaveTextContent('at least 12 characters');
+    expect(alert).toHaveTextContent('新密码至少 12 位，不超过 128 位，且不得与用户名相同');
+    expect(alert).not.toHaveTextContent(/[a-z]{3}/i);
   });
 
-  it('shows the policy message without detail', async () => {
+  it('shows the same rule when the backend sends no detail', async () => {
     setup({ error: 'PASSWORD_POLICY' });
     await fill('short', 'short');
-    expect(await screen.findByRole('alert')).toHaveTextContent('新密码不符合密码策略');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '新密码至少 12 位，不超过 128 位，且不得与用户名相同',
+    );
   });
 
   it('shows a wrong-current-password message', async () => {

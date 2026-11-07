@@ -30,7 +30,12 @@ public class AuthService {
     }
   }
 
-  public record ExchangeResult(String jwt, Instant expiresAt) {}
+  public record ExchangeResult(String jwt, Instant expiresAt) {
+    @Override
+    public String toString() {
+      return "ExchangeResult[expiresAt=" + expiresAt + "]";
+    }
+  }
 
   public record Me(
       String tenantUserId,

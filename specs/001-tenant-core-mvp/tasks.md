@@ -173,6 +173,32 @@ description: "Task list for Tenant Core MVP"
 
 ---
 
+## Phase 7: 技术栈升级与界面改造（2026-11-07 用户决定：Spring Boot 4.1、PostgreSQL 18、ArchUnit、shadcn/ui、自适应与中文界面）
+
+**Purpose**: 实现 FR-024、FR-025、SC-009，并升级技术栈。后端（T072–T078）与前端（T079–T085）互相独立，可并行；每组内先写失败的测试再实现。背景与风险见 plan.md「技术栈变更」与 research R15–R18。
+
+### 后端：ArchUnit、PostgreSQL 18、Spring Boot 4
+
+- [x] T072 先写失败的架构测试（`com.tngtech.archunit:archunit-junit6` 1.5.1，test scope，版本在 `backend/pom.xml` 管理；用 `@AnalyzeClasses` 与 `@ArchTest` 声明规则）：`backend/core-lib/src/test/java/tech/toolkit/tenantcore/architecture/ArchitectureTest.java`（research R18 的规则①–⑥）、`backend/tenant-core-api/src/test/java/tech/toolkit/tenantcore/api/ApiArchitectureTest.java`、`backend/tenant-core-cli/src/test/java/tech/toolkit/tenantcore/cli/CliArchitectureTest.java`；确认规则⑥因缺少 `toString()` 而失败
+- [x] T073 让架构测试转绿：为持有秘密字段的类补 `toString()`（API 的 `LoginBody`、`ChangePasswordBody`、`LoginResponse`；core-lib 的 `IssuedToken`、`IssuedJwt`、`ExchangeResult` 等，只输出非秘密字段），并修正其余违规；不改变任何对外行为
+- [x] T074 升级 PostgreSQL 18：`deploy/docker-compose.yml`（镜像 `postgres:18`，数据卷挂载点 `/var/lib/postgresql`）、`backend/core-lib/src/test/java/tech/toolkit/tenantcore/support/PostgresTestBase.java`（镜像 `postgres:18`）；`SchemaConstraintsIT` 与全部集成测试在 18 上全绿；更新 `backend/AGENTS.md` 与 `docs/achieve-specs/tenant-core-mvp.md` 中的版本说明
+- [x] T075 升级 Spring Boot 4.1.2：`backend/pom.xml`（父工程版本，删除不再需要的版本固定，如 `testcontainers.version`）、`backend/tenant-core-api/pom.xml`（`spring-boot-starter-web` → `spring-boot-starter-webmvc`）、`backend/core-lib/pom.xml` 与 `backend/tenant-core-cli/pom.xml`（Testcontainers 2 坐标 `testcontainers-postgresql`、`testcontainers-junit-jupiter`）；`mvn -DskipTests package` 通过
+- [x] T076 适配测试基础设施并保持行为不变：`PostgresTestBase`（`org.testcontainers.postgresql.PostgreSQLContainer`）、`ApiTestBase`（`spring-boot-resttestclient`、`@AutoConfigureTestRestTemplate`、Jackson 3 的 `tools.jackson.databind`）及相关 import；在 `ListApiContractIT` 增加断言：`createdAt`、`subscribedAt`、`expiresAt` 仍是 ISO-8601 字符串；现有全部后端测试与 API 契约测试不改断言即可通过
+- [x] T077 后端整体门禁：`mvn verify` 通过（含 ArchUnit、打包 CLI 冒烟、每个子项目行覆盖率 ≥ 90%、Spotless）；CI 配置无需改动则在 PR 说明里说明
+- [x] T078 更新文档：`backend/AGENTS.md`（技术栈版本、ArchUnit 规则位置）、plan/research 的版本号核对、`docs/achieve-specs/tenant-core-mvp.md` 的技术栈与验证状态
+
+### 前端：shadcn/ui、自适应、中文界面
+
+- [x] T079 [P] 引入 Tailwind CSS 4 与 shadcn/ui：`apps/platform-web/package.json`（`tailwindcss`、`@tailwindcss/postcss`、`class-variance-authority`、`clsx`、`tailwind-merge`、`lucide-react`、`tw-animate-css`、Radix）、`postcss.config.mjs`、`components.json`、`src/app/globals.css`（Tailwind 引入与主题变量）、`src/lib/utils.ts`（`cn`）；用 shadcn CLI 生成 `src/components/ui/{button,input,label,card,table,badge,alert,sheet,separator}.tsx`；`vitest.config.ts` 把 `src/components/ui/**` 列入覆盖率排除并在 `apps/platform-web/AGENTS.md` 说明；`tests/setup` 补 `matchMedia`、`ResizeObserver` polyfill
+- [x] T080 [P] 先写失败的单元测试 `apps/platform-web/tests/unit/format.test.ts`：状态文案（`ACTIVE`→正常、`SUSPENDED`→已暂停、`DISABLED`→已停用、`SUBSCRIBED`→已订阅）、时间按给定时区格式化、空用户名显示“—”、`PASSWORD_POLICY` 只映射为中文规则提示；再实现 `src/lib/format.ts`
+- [x] T081 [P] 先写失败的组件测试：`tests/component/AppShell.test.tsx`（桌面侧边栏三项且当前项 `aria-current`；窄屏顶部栏有菜单按钮，点开 Sheet 后出现三个导航项和“退出登录”）、`tests/component/ResponsiveList.test.tsx`（同时渲染 Table 与卡片两种结构并带断点类名；中文列头；状态 Badge；空状态）、`LoginForm.test.tsx` 与 `ChangePasswordForm.test.tsx`（居中 Card、错误只显示中文、输入框与按钮不小于 44px 的类名）；断言基于 DOM 与类名，不依赖 CSS 计算
+- [x] T082 实现界面：`src/components/AppShell.tsx`（替换 `Sidebar` 的布局，宽屏侧边栏、窄屏顶部栏 + `Sheet` 菜单，`(console)/layout.tsx` 使用它）、`src/components/ResponsiveList.tsx`（取代 `DataTable`，`sm` 以上 Table、以下卡片）、`src/components/LocalTime.tsx`（客户端按本地时区渲染，服务端输出 `<time dateTime>`，避免 hydration 不一致）、三个列表页与登录、改密页改用 shadcn 组件与中文文案；使 T080、T081 转绿，`pnpm test:coverage` 行覆盖率 ≥ 90%
+- [x] T083 Playwright 自适应 E2E `apps/platform-web/tests/e2e/responsive.spec.ts`：在 360×740、768×1024、1280×800 三种视口下，登录、改密和三个列表页都无横向滚动（`document.documentElement.scrollWidth <= innerWidth`）；窄屏菜单可展开并导航、可退出；< 640px 列表为卡片、≥ 768px 为表格；同步修改 `console.spec.ts` 中依赖英文列头的断言
+- [x] T084 在 Chrome 中按 quickstart 场景 E 手工走查 360px、768px、1280px，保存截图作为验证依据，并核对 SC-009
+- [x] T085 更新文档：`apps/platform-web/AGENTS.md`（目录、命令、shadcn 约定、覆盖率排除）、`docs/achieve-specs/tenant-core-mvp.md`（界面与验证状态）
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -183,6 +209,7 @@ description: "Task list for Tenant Core MVP"
 - **US2（Phase 4）**：后端依赖 Phase 2 与 US1 的服务任务 **T026–T030**（集成测试用它们造数据）；T036、T039、T046、T048 等只依赖 Phase 2，可提前；前端任务（T043–T045、T053–T054）可与 US1 并行；T055 依赖 T035（打包 CLI）
 - **US3（Phase 5）**：依赖 US2 的认证（T052、T054）；T056、T061 只依赖 Phase 2 与 US1 服务，可提前
 - **Polish（Phase 6）**：依赖需要交付的故事全部完成
+- **Phase 7**：依赖 Phase 6；后端组（T072–T078）与前端组（T079–T085）可并行；T072 先于 T073，T075 先于 T076，T079 先于 T082
 
 ### Within Each User Story
 

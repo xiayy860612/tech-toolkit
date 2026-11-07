@@ -18,6 +18,7 @@
 - Q: 创建 User 时，User 本身是否需要独立于 username 的 Display Name？ → A: 需要，Display Name 必填；User 页显示 Display Name 与关联 Account 的 username。
 - Q: MVP 不部署网关时，UAM 如何识别请求的调用者？ → A: UAM 同时支持两种请求凭据：Opaque Token（登录后签发的 session id，经请求头携带，查表校验），以及由其换发的短有效期 Internal JWT（经标准认证头携带，本地验签）；并提供换发能力；请求头的具体名称见契约。platform web 目前直接使用 Opaque Token，后期引入网关时无需改动 UAM。
 - Q: 访问未订阅 platform 的 Tenant 登录时如何避免被探测？ → A: 仅在 username 与密码验证通过后才提示“无访问权限”，username 或密码不正确时一律是统一的登录失败提示。
+- Q: 界面如何做到友好并自适应？ → A: 宽屏（≥768px）左侧导航 + 表格；窄屏（<768px）顶部栏 + 折叠菜单，列表在 <640px 以卡片展示；界面文案全部中文（列头、状态、时间按浏览器本地时区、无账户显示“—”）。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -130,6 +131,8 @@ Tenant User（CLI 创建的首个 User）打开 platform web，输入 Tenant Slu
 - **FR-019**: “用户管理”页 MUST 列出所有已创建的 User（含尚无 Account 的 User），展示 Display Name、关联 Account 的 username、所属 Tenant、状态、创建时间，MUST NOT 展示任何 Credential 信息。
 - **FR-020**: 三个列表页 MUST 支持空状态展示，并在数据量较大时分页。
 - **FR-021**: MVP 阶段三个页面 MUST 为只读；页面上不提供新增、编辑、删除操作。
+- **FR-024**: 界面 MUST 自适应屏幕宽度：宽度 ≥ 768px 时左侧导航加表格；< 768px 时导航收起为顶部栏，点击菜单按钮展开三个导航项和“退出登录”；< 640px 时三个列表以卡片展示（每条记录一张卡片，字段名与值成对显示）。任一宽度下页面都不出现横向滚动。
+- **FR-025**: 界面文案 MUST 统一为中文：列头为“显示名、用户名、租户、状态、创建时间”等；状态显示为“正常 / 已暂停 / 已停用 / 已订阅”；时间按浏览器本地时区显示；没有 Account 的 User 其用户名显示“—”；表单错误只显示中文提示（不拼接后端英文原文）；登录页与改密页居中显示，输入框和按钮的点击区域不小于 44px。
 
 ### Key Entities
 
@@ -180,6 +183,7 @@ Tenant User（CLI 创建的首个 User）打开 platform web，输入 Tenant Slu
 - **SC-006**: 错误密码与不存在 Account 两种登录失败的提示文案、响应表现不可区分。
 - **SC-007**: 未登录状态下访问全部三个受保护页面，100% 被引导至登录页。
 - **SC-008**: 三个列表页在 500 条数据下，User 在 2 秒内看到首屏内容。
+- **SC-009**: 在 360px、768px、1280px 三种宽度下，登录、改密和三个列表页都可正常使用且页面无横向滚动；窄屏可用菜单到达三个导航项和退出登录。
 
 ## Assumptions
 

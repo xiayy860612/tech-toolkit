@@ -17,7 +17,12 @@ import tech.toolkit.tenantcore.common.IdGenerator;
 public class OpaqueTokenService {
 
   /** The plain token value (shown once) with its stored record. */
-  public record IssuedToken(String value, OpaqueToken token) {}
+  public record IssuedToken(String value, OpaqueToken token) {
+    @Override
+    public String toString() {
+      return "IssuedToken[token=" + token + "]";
+    }
+  }
 
   private final OpaqueTokenRepository repository;
   private final IdGenerator ids;

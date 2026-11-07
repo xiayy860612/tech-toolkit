@@ -58,8 +58,8 @@ describe('TenantsPage', () => {
     await renderPage(TenantsPage);
 
     expect(screen.getByRole('heading', { name: '租户管理' })).toBeInTheDocument();
-    expect(headers()).toEqual(['Tenant Slug', '名称', '状态', '创建时间']);
-    expect(cellsOfRow(0)).toEqual(['acme', 'Acme Corp', 'ACTIVE', '2030-01-02 03:04 UTC']);
+    expect(headers()).toEqual(['租户标识', '名称', '状态', '创建时间']);
+    expect(cellsOfRow(0)).toEqual(['acme', 'Acme Corp', '正常', '2030-01-02 03:04']);
   });
 
   it('requests the page and size from searchParams using the Opaque Token', async () => {
@@ -82,7 +82,7 @@ describe('TenantsPage', () => {
 });
 
 describe('ModulesPage', () => {
-  it('lists Module, Tenant Slug, status and subscribed time', async () => {
+  it('lists moduleCode, Tenant Slug, status and subscribed time', async () => {
     mocks.client.listModuleSubscriptions.mockResolvedValue({
       items: [
         {
@@ -100,8 +100,8 @@ describe('ModulesPage', () => {
     await renderPage(ModulesPage);
 
     expect(screen.getByRole('heading', { name: '模块管理' })).toBeInTheDocument();
-    expect(headers()).toEqual(['Module', 'Tenant Slug', '订阅状态', '订阅时间']);
-    expect(cellsOfRow(0)).toEqual(['platform', 'acme', 'SUBSCRIBED', '2030-02-03 04:05 UTC']);
+    expect(headers()).toEqual(['模块', '租户', '订阅状态', '订阅时间']);
+    expect(cellsOfRow(0)).toEqual(['platform', 'acme', '已订阅', '2030-02-03 04:05']);
   });
 
   it('shows the empty state', async () => {
@@ -132,17 +132,11 @@ describe('UsersPage', () => {
     await renderPage(UsersPage);
 
     expect(screen.getByRole('heading', { name: '用户管理' })).toBeInTheDocument();
-    expect(headers()).toEqual(['Display Name', 'Username', 'Tenant Slug', '状态', '创建时间']);
-    expect(cellsOfRow(0)).toEqual([
-      '张三',
-      'admin, zhangsan',
-      'acme',
-      'ACTIVE',
-      '2030-03-04 05:06 UTC',
-    ]);
+    expect(headers()).toEqual(['显示名', '用户名', '租户', '状态', '创建时间']);
+    expect(cellsOfRow(0)).toEqual(['张三', 'admin, zhangsan', 'acme', '正常', '2030-03-04 05:06']);
   });
 
-  it('shows an empty username cell for a User without an Account', async () => {
+  it('shows a dash in the username cell for a User without an Account', async () => {
     mocks.client.listUsers.mockResolvedValue({
       items: [
         {
@@ -161,7 +155,7 @@ describe('UsersPage', () => {
 
     await renderPage(UsersPage);
 
-    expect(cellsOfRow(0)).toEqual(['李四', '', 'acme', 'ACTIVE', '2030-03-04 05:06 UTC']);
+    expect(cellsOfRow(0)).toEqual(['李四', '—', 'acme', '正常', '2030-03-04 05:06']);
   });
 
   it('shows the empty state and nothing credential-like', async () => {

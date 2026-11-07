@@ -22,7 +22,12 @@ import tech.toolkit.tenantcore.common.ErrorCode;
 public class InternalJwtService {
 
   /** A freshly issued Internal JWT and when it expires. */
-  public record IssuedJwt(String jwt, Instant expiresAt) {}
+  public record IssuedJwt(String jwt, Instant expiresAt) {
+    @Override
+    public String toString() {
+      return "IssuedJwt[expiresAt=" + expiresAt + "]";
+    }
+  }
 
   /** The identity carried by a verified Internal JWT. */
   public record JwtPrincipal(String tenantUserId, UUID tenantId, String sid, Instant expiresAt) {}

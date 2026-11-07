@@ -4,7 +4,7 @@ Platform 的 Web 控制台（SSR）。Next.js 服务端即 BFF：浏览器只持
 
 ## 技术栈
 
-Node.js 22、Next.js 15（App Router）、React 19、TypeScript 5（strict）、ioredis、Vitest + React Testing Library（jsdom）+ ioredis-mock、Playwright、ESLint + Prettier、pnpm。
+Node.js 22、Next.js 15（App Router）、React 19、TypeScript 5（strict）、Tailwind CSS 4（`@tailwindcss/postcss`）+ shadcn/ui（Radix、`lucide-react`、`class-variance-authority`、`tw-animate-css`）、ioredis、Vitest + React Testing Library（jsdom）+ ioredis-mock、Playwright、ESLint + Prettier、pnpm。
 
 ## 目录
 
@@ -12,8 +12,9 @@ Node.js 22、Next.js 15（App Router）、React 19、TypeScript 5（strict）、
 src/
   middleware.ts          # Edge：只检查 cookie 是否存在并重定向（不能用 Redis）
   app/                   # 路由：login、change-password、logout、session/expired、healthz、(console)/{tenants,modules,users}
-  components/            # LoginForm、ChangePasswordForm、Sidebar、DataTable
-  lib/                   # 纯函数与 DTO 类型（types、pagination、format、safeNextPath）
+  components/            # 业务组件：AppShell（侧边栏 / 顶部栏 + Sheet）、ResponsiveList（Table / 卡片）、StatusBadge、LocalTime、LoginForm、ChangePasswordForm
+    ui/                  # shadcn/ui 生成代码（button、input、label、card、table、badge、alert、sheet、separator）
+  lib/                   # 纯函数与 DTO 类型（types、pagination、format、safeNextPath、utils 的 cn）
   server/                # 仅服务端：env、session（Redis）、sessionCookie、container、auth（requireSession / runWithSession）、tenantCoreClient
 tests/
   unit/  component/      # Vitest
@@ -24,22 +25,32 @@ tests/
 
 在 `apps/platform-web` 下执行（pnpm）：
 
-| 目的                           | 命令                        |
-| ------------------------------ | --------------------------- |
-| 安装依赖                       | `pnpm install`              |
-| 开发                           | `pnpm dev`                  |
-| 构建 / 启动                    | `pnpm build` / `pnpm start` |
-| Lint（ESLint + Prettier 检查） | `pnpm lint`                 |
-| 类型检查                       | `pnpm typecheck`            |
-| 单元 / 组件测试                | `pnpm test`                 |
-| 覆盖率（含阈值校验）           | `pnpm test:coverage`        |
-| E2E（需后端栈与 CLI）          | `pnpm test:e2e`             |
+| 目的                           | 命令                                |
+| ------------------------------ | ----------------------------------- |
+| 安装依赖                       | `pnpm install`                      |
+| 开发                           | `pnpm dev`                          |
+| 构建 / 启动                    | `pnpm build` / `pnpm start`         |
+| Lint（ESLint + Prettier 检查） | `pnpm lint`                         |
+| 类型检查                       | `pnpm typecheck`                    |
+| 单元 / 组件测试                | `pnpm test`                         |
+| 覆盖率（含阈值校验）           | `pnpm test:coverage`                |
+| E2E（需后端栈与 CLI）          | `pnpm test:e2e`                     |
+| 新增 shadcn 组件               | `pnpm dlx shadcn@latest add <name>` |
+
+## 界面约定（Tailwind + shadcn/ui）
+
+- 样式只用 Tailwind 工具类与 `src/app/globals.css` 中的主题变量（`components.json` 配置 shadcn；`postcss.config.mjs` 接入 Tailwind 4）。
+- `src/components/ui/**` 由 shadcn CLI 生成，**不要手工编辑**；需要定制时在业务组件里用 `className` / `cn()` 覆盖，或重新用 CLI 生成。CLI 若把 `cn` 导入写成 `from "cn"`，须改回 `@/lib/utils`。
+- 响应式断点：`md`（768px）以上为左侧栏 + Table，以下为顶部栏 + Sheet 菜单；`sm`（640px）以下列表为卡片。隐藏的变体用 `hidden` / `md:hidden` 等 display:none 类，保证同一时刻只暴露一个 `主导航`。任何宽度不得出现横向滚动。
+- 登录、改密页：居中 Card；输入框与按钮高度 `h-11`（≥ 44px）。
+- 文案一律中文；状态、时间、用户名占位、密码策略提示的映射集中在 `src/lib/format.ts`。时间由 `LocalTime` 在浏览器本地时区显示（服务端输出稳定的 UTC 文本，挂载后替换）。表单错误不拼接后端英文原文。
 
 ## 测试与覆盖率
 
 - 测试先行（red → green → refactor）；单元与组件测试不依赖后端，Redis 用 `ioredis-mock`，后端调用用 mock `fetch` 或 mock `@/server/container`。
 - **覆盖率口径：行覆盖率 ≥ 90%**（`vitest.config.ts` 的 `thresholds.lines`，provider 为 v8，统计范围 `src/**`）。`pnpm test:coverage` 低于阈值会失败，CI 以此命令为门禁。
-- **排除路径**（`vitest.config.ts`）：`src/**/*.d.ts`（类型声明）、`src/app/layout.tsx`（根布局：仅 `<html>` 外壳与全局 CSS 引入，无逻辑）。`src/lib/types.ts` 为纯类型，无可执行语句，不计入分母。
+- **排除路径**（`vitest.config.ts`）：`src/**/*.d.ts`（类型声明）、`src/app/layout.tsx`（根布局：仅 `<html>` 外壳与全局 CSS 引入，无逻辑）、`src/components/ui/**`（shadcn 生成代码，第三方来源、不手工编辑，行为由业务组件的测试间接覆盖）。
+- jsdom 不计算 CSS：组件测试断言 DOM 结构与断点类名（如 `hidden sm:block`、`h-11`）；`tests/setup.ts` 提供 `matchMedia`、`ResizeObserver` polyfill（Radix Sheet 需要）并固定 `TZ=UTC`。真实的断点与横向滚动由 `tests/e2e/responsive.spec.ts` 验证。`src/lib/types.ts` 为纯类型，无可执行语句，不计入分母。
 - E2E（`tests/e2e`）不计入覆盖率。需要：Postgres、Redis、`tenant-core-api`、`platform-web` 已启动，以及已构建的 `tenant-core-cli`；通过 `tests/e2e/fixtures.ts` 调用 CLI 造数据。旅程会修改 Account 密码，请在全新库上运行或每次更换 `E2E_TENANT_SLUG`。
 
 ## 安全约定

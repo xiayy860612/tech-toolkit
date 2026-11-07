@@ -4,7 +4,7 @@
 
 ## 技术栈与目录
 
-Java 21、Spring Boot 3.5、Maven 多模块、PostgreSQL 16（Flyway）、Testcontainers、picocli。
+Java 21、Spring Boot 4.1（Spring Framework 7、Jackson 3）、Maven 多模块、PostgreSQL 18（Flyway）、Testcontainers 2、picocli、ArchUnit（`archunit-junit6`）。
 
 ```text
 backend/
@@ -41,6 +41,7 @@ CLI 调用方式：`tenant-core-cli/bin/tenant-core-cli <命令>`（读取环境
 - 先写失败的测试，再实现（red → green → refactor）。单元测试用 `*Test`，Testcontainers 集成/契约测试用 `*IT`，二者都在 `mvn test` 中运行。
 - 覆盖率口径：**行覆盖率**，JaCoCo，每个子项目 BUNDLE ≥ 90%（`mvn verify` 校验；CI 同）。
 - 经认可的排除路径：`**/*Application.class`、`**/TenantCoreCliMain.class`（仅进程入口，行为都在被测类里）。其余排除须在 PR 说明理由。
+- 架构测试（ArchUnit）：`core-lib` 的 `architecture/ArchitectureTest`（package 无环、`tenant` 不依赖 `uam`、Repository 仅包内访问、禁用标准流 / 字段注入、Module 命名、含密钥字段的类必须自带非 final `toString()`），`tenant-core-api` 的 `ApiArchitectureTest` 与 `tenant-core-cli` 的 `CliArchitectureTest`（不碰 Repository、互不依赖）；`mvn test` 即运行。
 - 集成测试基类 `PostgresTestBase`（在 `core-lib` 的 test-jar 中）启动 PostgreSQL 容器、执行迁移并在每个测试前清库。
 
 ## 环境变量

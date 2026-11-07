@@ -82,3 +82,38 @@
 
 - **Decision**: `deploy/docker-compose.yml` 提供 Postgres 与 Redis；后端集成测试用 Testcontainers，前端 E2E 用 Compose 起依赖。
 - **Rationale**: 与 Kubernetes 目标一致且无需手工安装。
+
+## R15 升级到 Spring Boot 4.1（用户决定）
+
+- **Decision**: 父工程用 `spring-boot-starter-parent` 4.1.2（Maven Central 上的最新稳定版；4.2.0 仍是预览版）。核心依赖由 Boot 管理：Flyway 12.4、Testcontainers 2.0.5、JUnit 6.0.3、Spring Security 7.1.2、Jackson 3.1。Nimbus JOSE JWT、picocli、BouncyCastle 仍由我们自己固定版本。
+- **Rationale**: 保持在受支持的主线上；Java 21 满足基线（17+）。
+- **风险与对策**: 起步依赖与测试库坐标、包名变化，`TestRestTemplate` 与 Jackson 3 的包名变化。现有 108+25+24 个后端测试和 API 契约测试就是回归网；升级后必须先全绿再继续，并新增断言确认 `Instant` 仍序列化为 ISO-8601 字符串。
+- **Alternatives**: 留在 3.5.x（用户已明确要求 4）。
+
+## R16 shadcn/ui + Tailwind CSS 4 与自适应界面（用户决定）
+
+- **Decision**: 用 shadcn/ui（CLI 4.x）生成 Button、Input、Label、Card、Table、Badge、Alert、Sheet、Separator 到 `src/components/ui`，样式用 Tailwind CSS 4。布局：`md`（768px）以上左侧导航，以下顶部栏 + Sheet 折叠菜单；列表 `sm`（640px）以上 Table，以下卡片；登录/改密页居中 Card。状态用 Badge（正常/已暂停/已停用/已订阅）；时间用客户端组件按本地时区渲染，服务端输出 `<time dateTime>` 的 UTC 文本。
+- **Rationale**: 组件源码在仓库内、可按术语表命名与测试；Radix 提供可访问性；用 Tailwind 断点即可，不再手写媒体查询。
+- **测试**: jsdom 不计算 CSS 媒体查询，组件测试验证 DOM 结构与断点类名；真实的“无横向滚动、菜单可用”由 Playwright 在 360/768/1280 三种视口验证。
+- **Alternatives**: 手写 CSS（用户要求组件库）；其他组件库（用户指定 shadcn/ui）。
+
+## R17 PostgreSQL 18（用户决定）
+
+- **Decision**: 本地 Compose 与 Testcontainers 都用官方镜像 `postgres:18`（当前 18.1）。
+- **关键变化**: 18 的镜像把数据放在 `/var/lib/postgresql/18/docker`，因此 Compose 数据卷挂载点改为 `/var/lib/postgresql`；`deploy/initdb/01-roles.sh` 与迁移 SQL 不受影响（只用标准 SQL 和 `gen_random_uuid()`）。
+- **验证**: 现有 `SchemaConstraintsIT`（约束、外键边界、审计只追加权限）在 18 上全绿即为通过；不使用 18 的新特性。
+
+## R18 ArchUnit 架构规则（用户决定）
+
+用 ArchUnit 的 `archunit-junit6` 1.5.1（test scope）声明规则（`@AnalyzeClasses`、`@ArchTest`，测试类以 `*Test` 结尾，随 `mvn test` 运行），把已定的设计变成可执行规则：
+
+| 位置 | 规则 |
+|---|---|
+| core-lib `ArchitectureTest` | ① `tenant`、`uam`、`audit`、`common` 之间无环；`tenant` 不得依赖 `uam`（D33）；`audit`、`common` 不依赖业务 package ② `*Repository` 只被所在 package 与 `CoreComponents` 访问 ③ core-lib 不依赖 `org.springframework.web`、`jakarta.servlet`、`picocli` 与 API、CLI 的 package ④ 不访问 `System.out/err`、`java.util.logging`，不用字段注入 ⑤ 术语：类名含 `Module` 的只能是 `ModuleSubscription*`；类名不得出现同义词（Customer、Organization、Member、Profile） ⑥ 持有 password、token、jwt、hash、pem、secret 字段的类必须自己声明 `toString()`（防止 record 默认的 `toString` 把秘密打进日志） |
+| API `ApiArchitectureTest` | Controller 与过滤器只依赖 `CoreComponents` 与自身 DTO，不访问任何 `*Repository`；Controller 只在 `..api..`；API 不访问标准输出 |
+| CLI `CliArchitectureTest` | `..cli.commands..` 不访问 `*Repository`，不依赖 `org.springframework.web`；只有 `TenantCoreCliMain` 与 `PasswordReader` 可访问 `System.in/out/err/console` |
+
+- **预期的整改**: 规则⑥会要求给 API 的 `LoginBody`、`ChangePasswordBody`、`LoginResponse`、`ExchangeResult` 等 DTO，以及 core-lib 的 `IssuedToken`、`IssuedJwt` 补 `toString()`，这是有意的加固。
+- **依据**: ArchUnit 1.5.0 的官方 Release Notes 写明 “`archunit-junit6` supports ArchUnit with JUnit 6”（issue #1556），Maven Central 上有 `archunit-junit6` 1.5.1。升级后以测试实际运行为准。
+- **Alternatives**: `archunit-junit5`（针对 JUnit 5，与 Spring Boot 4 的 JUnit 6 不配套）。
+

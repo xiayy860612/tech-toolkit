@@ -21,6 +21,16 @@ async function fillAndSubmit() {
 }
 
 describe('LoginForm', () => {
+  it('is a centered Card with at least 44px tall controls', () => {
+    setup();
+    const form = screen.getByRole('button', { name: '登录' }).closest('form');
+    expect(form?.closest('[data-slot="card"]')).not.toBeNull();
+    for (const label of ['租户标识', '用户名', '密码']) {
+      expect(screen.getByLabelText(label)).toHaveClass('h-11');
+    }
+    expect(screen.getByRole('button', { name: '登录' })).toHaveClass('h-11');
+  });
+
   it('has labelled tenantSlug, username and password fields', () => {
     setup();
     expect(screen.getByLabelText('租户标识')).toHaveAttribute('name', 'tenantSlug');

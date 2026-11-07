@@ -46,15 +46,25 @@
 | Bootstrap | `tenant-core-cli`（Bootstrap CLI） |
 | Platform / UAM | `platform-web`、`platform`；`uam` package、`uam_` 表前缀 |
 
+### 技术栈变更（2026-11-07，用户决定；实现前需确认）
+
+| 范围 | 变更 | 影响 |
+|---|---|---|
+| 后端 | Spring Boot 3.5.7 → **4.1.2**（Spring Framework 7、Spring Security 7.1、Jackson 3、Flyway 12、JUnit 6、Testcontainers 2.0.5）。Java 21 不变 | 起步依赖改名（`spring-boot-starter-web` → `spring-boot-starter-webmvc`）；Testcontainers 2 的坐标与包名变化（`testcontainers-postgresql`、`testcontainers-junit-jupiter`、`org.testcontainers.postgresql.PostgreSQLContainer`）；`TestRestTemplate` 移到 `spring-boot-resttestclient`；测试里的 `ObjectMapper` 改用 Jackson 3（`tools.jackson.*`）。**行为必须保持不变**：现有测试与 API 契约是回归依据 |
+| 前端 | 引入 **shadcn/ui**（组件源码复制进仓库，基于 Radix UI）+ **Tailwind CSS 4** + `lucide-react`、`class-variance-authority`、`clsx`、`tailwind-merge`。Next.js 保持 15.5，不升 16 | 取代手写的 `globals.css`；生成的 `src/components/ui/**` 作为第三方生成代码排除出覆盖率统计（在 AGENTS.md 说明）；jsdom 测试需补 `matchMedia`、`ResizeObserver` 的 polyfill；shadcn CLI 需联网拉取组件 |
+| 界面 | FR-024、FR-025：自适应与全中文文案 | 窄屏顶部栏 + Sheet 折叠菜单；列表 `md` 以上用 Table，以下用卡片；时间在客户端按本地时区渲染（避免 hydration 不一致） |
+| 数据库 | PostgreSQL 16 → **18**（官方镜像 `postgres:18`，当前 18.1） | 18 的镜像数据目录改为 `/var/lib/postgresql/18/docker`，Compose 的数据卷必须挂 `/var/lib/postgresql`（不是 `/var/lib/postgresql/data`）；Testcontainers 镜像改为 `postgres:18`；Flyway 12 与 pgjdbc 42.7 均支持 |
+| 测试 | 增加 **ArchUnit** 1.5.1，使用官方的 JUnit 6 模块 `archunit-junit6`（1.5.0 起提供，见 ArchUnit Release Notes），用 `@AnalyzeClasses` 与 `@ArchTest` 声明规则 | 把 package 边界、命名约定（Ubiquitous Language）、不泄漏秘密写成可执行的架构规则，见 research R18 |
+
 ## Technical Context
 
 **Language/Version**: Java 21（后端、CLI）；TypeScript 5 / Node.js 22 LTS（前端）
 
-**Primary Dependencies**: Spring Boot 3.x（Web、Validation、JDBC、Actuator）、Flyway、Spring Security Crypto（Argon2id）、Spring Security OAuth2 JOSE / Nimbus（Internal JWT 签发与验签）、picocli（CLI）；Next.js 15 + React 19、ioredis；Testcontainers
+**Primary Dependencies**: Spring Boot 4.1（Web MVC、JDBC、Actuator；Spring Framework 7、Jackson 3）、Flyway、Spring Security Crypto（Argon2id）、Spring Security OAuth2 JOSE / Nimbus（Internal JWT 签发与验签）、picocli（CLI）；Next.js 15 + React 19 + Tailwind CSS 4 + shadcn/ui（Radix UI、lucide-react）、ioredis；Testcontainers
 
-**Storage**: PostgreSQL 16（业务与 Audit 数据）；Redis 7（BFF session）
+**Storage**: PostgreSQL 18（业务与 Audit 数据）；Redis 7（BFF session）
 
-**Testing**: JUnit 5 + AssertJ + Testcontainers（后端单元/集成/契约）；Vitest + React Testing Library（前端单元/组件）；Playwright（E2E，仅关键旅程）；覆盖率 JaCoCo / Vitest coverage，行覆盖率 ≥ 90%
+**Testing**: ArchUnit（架构规则）；JUnit 5 + AssertJ + Testcontainers（后端单元/集成/契约）；Vitest + React Testing Library（前端单元/组件）；Playwright（E2E，仅关键旅程）；覆盖率 JaCoCo / Vitest coverage，行覆盖率 ≥ 90%
 
 **Target Platform**: Linux 容器（Kubernetes 为目标；MVP 本地用 Docker Compose）；现代桌面浏览器
 
