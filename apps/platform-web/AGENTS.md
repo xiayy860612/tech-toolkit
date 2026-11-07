@@ -18,27 +18,29 @@ src/
   server/                # 仅服务端：env、session（Redis）、sessionCookie、container、auth（requireSession / runWithSession）、tenantCoreClient
 tests/
   unit/  component/      # Vitest
+  perf/                  # Playwright：交互耗时与布局偏移（由 pnpm perf 调用，配置 playwright.perf.config.ts）
   e2e/                   # Playwright（需完整后端栈，fixtures.ts 有环境说明）
-scripts/                 # e2e.mjs（pnpm e2e 入口）、e2e-args.mjs（参数转换，有单元测试）
+scripts/                 # e2e.mjs（pnpm e2e 入口）、e2e-args.mjs、perf*.mjs（性能预算、判定、报告、造数、体积、入口；纯函数有单元测试）
 ```
 
 ## 命令
 
 在 `apps/platform-web` 下执行（pnpm）：
 
-| 目的                           | 命令                                    |
-| ------------------------------ | --------------------------------------- |
-| 安装依赖                       | `pnpm install`                          |
-| 开发                           | `pnpm dev`                              |
-| 构建 / 启动                    | `pnpm build` / `pnpm start`             |
-| Lint（ESLint + Prettier 检查） | `pnpm lint`                             |
-| 类型检查                       | `pnpm typecheck`                        |
-| 单元 / 组件测试                | `pnpm test`                             |
-| 覆盖率（含阈值校验）           | `pnpm test:coverage`                    |
-| E2E（需后端栈与 CLI）          | `pnpm test:e2e`                         |
-| E2E 按标签跑（可多个，取交集） | `pnpm e2e --tag 1.0.0 --tag happy-path` |
-| E2E 用 Chrome 有头模式         | `pnpm e2e --chrome --headed`            |
-| 新增 shadcn 组件               | `pnpm dlx shadcn@latest add <name>`     |
+| 目的                           | 命令                                                        |
+| ------------------------------ | ----------------------------------------------------------- |
+| 安装依赖                       | `pnpm install`                                              |
+| 开发                           | `pnpm dev`                                                  |
+| 构建 / 启动                    | `pnpm build` / `pnpm start`                                 |
+| Lint（ESLint + Prettier 检查） | `pnpm lint`                                                 |
+| 类型检查                       | `pnpm typecheck`                                            |
+| 单元 / 组件测试                | `pnpm test`                                                 |
+| 覆盖率（含阈值校验）           | `pnpm test:coverage`                                        |
+| E2E（需后端栈与 CLI）          | `pnpm test:e2e`                                             |
+| E2E 按标签跑（可多个，取交集） | `pnpm e2e --tag 1.0.0 --tag happy-path`                     |
+| E2E 用 Chrome 有头模式         | `pnpm e2e --chrome --headed`                                |
+| 性能测试（见下）               | `pnpm perf [--runs 5] [--page /tenants] [--profile mobile]` |
+| 新增 shadcn 组件               | `pnpm dlx shadcn@latest add <name>`                         |
 
 ## 界面约定（Tailwind + shadcn/ui）
 
@@ -56,6 +58,13 @@ scripts/                 # e2e.mjs（pnpm e2e 入口）、e2e-args.mjs（参数�
 - jsdom 不计算 CSS：组件测试断言 DOM 结构与断点类名（如 `hidden sm:block`、`h-11`）；`tests/setup.ts` 提供 `matchMedia`、`ResizeObserver` polyfill（Radix Sheet 需要）并固定 `TZ=UTC`。真实的断点与横向滚动由 `tests/e2e/responsive.spec.ts` 验证。`src/lib/types.ts` 为纯类型，无可执行语句，不计入分母。
 - E2E 版本标签：每个 spec 的用例包在 `test.describe('<版本>', { tag: VERSION_x_y_z }, …)` 里（常量见 `fixtures.ts`，现为 `@1.0.0`）；不带 `--tag` 运行全部（`pnpm e2e` 由 `scripts/e2e.mjs` 把 `--tag` 转成 Playwright `--grep`，其余参数原样传给 Playwright；`pnpm test:e2e` 仍可直接用），新版本新增用例时定义新标签常量。主要用户旅程（登录、首次改密、三个列表、响应式导航、退出）另有 `@happy-path` 标签（`HAPPY_PATH`，加在单个用例上）；`--chrome`（即环境变量 `E2E_BROWSER_CHANNEL=chrome`）改用本机 Google Chrome。
 - E2E（`tests/e2e`）不计入覆盖率。需要：Postgres、Redis、`tenant-core-api`、`platform-web` 已启动，以及已构建的 `tenant-core-cli`；通过 `tests/e2e/fixtures.ts` 调用 CLI 造数据。旅程会修改 Account 密码，请在全新库上运行或每次更换 `E2E_TENANT_SLUG`。
+
+## 性能测试与预算（spec FR-029、SC-011）
+
+- **预算**（唯一来源 `scripts/perf-budget.mjs`，与 spec 的表一致）：LCP ≤ 2.5 s、INP ≤ 200 ms、CLS ≤ 0.1、FCP ≤ 1.8 s、TTFB ≤ 0.8 s、TBT ≤ 200 ms、Speed Index ≤ 3.4 s、Lighthouse 评分 ≥ 90（仅移动端）、每路由首次加载 JS ≤ 170 KB（gzip）、列表页首屏 ≤ 2 s。改预算必须先改 spec。
+- **怎么测**：`pnpm perf` 先用 Playwright 测交互（用户菜单、导航点击、Sheet 开关，5 次取中位数）和列表页布局偏移，再灌入 500 条合成 User，然后用 Lighthouse（本机 Chrome，移动端与桌面各 5 次，每次清 HTTP 缓存，保留登录 cookie）测五个页面，按中位数判定。产物 `perf-reports/report.md` 与 `report.json`（已 `.gitignore`），有未达标项时退出码为 1。
+- **运行条件**：完整栈（Postgres、Redis、`tenant-core-api`、`platform-web` 的**生产构建**，且当前目录有最新 `.next`）；环境变量 `E2E_BASE_URL`、`TENANT_CORE_CLI`（及其数据库变量）、`PERF_PSQL`（以 owner 角色读 stdin 的 psql 命令，**只能指向一次性测试库**，如 `docker exec -i <postgres 容器> psql -U <owner> -d <db>`）。密码每次随机生成，不入库、不输出。测量期间不要同时跑其他重负载，否则结果失真。
+- **注意**：Event Timing 只上报 ≥ 16 ms 的事件，报告里的 16 ms 表示“低于下限”；`next.config.ts` 的 `optimizePackageImports`（`radix-ui`、`lucide-react`）是控制首次加载 JS 的关键配置，勿删。性能测试不进 CI 阻塞门禁。
 
 ## 安全约定
 

@@ -62,6 +62,13 @@ tenant-core-cli tenant show          --tenant <slug>          # 只读核对
 - 自适应：≥ 768px 侧边栏 + 表格；< 768px 顶栏最左出现菜单按钮，点开 Sheet 显示三个导航项；< 640px 列表为卡片；任一宽度无横向滚动；登录与改密页居中，控件高度 ≥ 44px。
 - 规格：FR-024 至 FR-028、SC-009、SC-010；E2E 标签 `@1.0.0`（主旅程另带 `@happy-path`），`pnpm e2e --tag 1.0.0`。
 
+## 前端性能（FR-029、SC-011）
+
+- **预算**：LCP ≤ 2.5 s、INP ≤ 200 ms、CLS ≤ 0.1、FCP ≤ 1.8 s、TTFB ≤ 0.8 s、TBT ≤ 200 ms、Speed Index ≤ 3.4 s、Lighthouse 评分 ≥ 90（移动端）、每路由首次加载 JS ≤ 170 KB（gzip）、列表页（500 条）首屏 ≤ 2 s。唯一来源 `apps/platform-web/scripts/perf-budget.mjs`。
+- **实测（2026-11-07，本机 Chrome、生产构建、500 条 User、每项 5 次取中位数）**：全部达标。移动端（模拟 Slow 4G + 4× CPU 降速）LCP 0.60–0.77 s、TBT ≤ 4 ms、CLS ≤ 0.001、评分 100；桌面 LCP 0.17–0.21 s、CLS ≤ 0.017；首次加载 JS：登录与改密页约 116 KB，三个列表页约 152 KB。交互（用户菜单、导航点击、Sheet 开关）均低于 Event Timing 的 16 ms 下限，远低于 200 ms。
+- **优化记录**：控制台页首次加载 JS 起初约 192 KB（超 170 KB 预算），`next.config.ts` 加 `optimizePackageImports`（`radix-ui`、`lucide-react`）后降到约 150 KB；该配置是守住预算的关键，勿删。
+- **局限**：实验室数据，后端与浏览器同机（TTFB 因此偏小），Core Web Vitals 的正式口径是真实用户数据，上线后应补真实用户监测复核。运行方式见 `apps/platform-web/AGENTS.md`（`pnpm perf`），不进 CI 阻塞门禁。
+
 ## 验证状态
 
 | 项 | 结果 |

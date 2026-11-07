@@ -212,6 +212,19 @@ description: "Task list for Tenant Core MVP"
 
 ---
 
+## Phase 9: 前端性能测试与性能要求（2026-11-07 用户提出；FR-029、SC-011；**实现前须用户确认本方案**）
+
+**Purpose**: 把性能预算写成可重复执行的测试，并出报告。只改 `apps/platform-web`（新增脚本与 devDependencies）。
+
+- [x] T092 核对指标口径：对照 web.dev（Core Web Vitals、TTFB）与当前 Lighthouse 文档确认 FR-029 的数值与说明，必要时修正 spec 与 research R20，并记录核对日期与来源
+- [x] T093 [P] 先写失败的单元测试 `tests/unit/perfBudget.test.ts`：预算常量（`scripts/perf-budget.mjs`，与 FR-029 表一一对应）、`median`、按预算判定（达标/超标/缺失指标）、报告渲染（含 5 次明细与中位数，不出现 cookie 值）；`tests/unit/perfSeed` 覆盖造数 SQL 的生成（500 条，只含合成数据）
+- [x] T094 实现 `scripts/perf-budget.mjs`（预算与判定）、`scripts/perf-report.mjs`（JSON + Markdown 报告）、`scripts/perf.mjs`（入口 `pnpm perf`：Playwright 登录取 cookie → Lighthouse 以 `extraHeaders` 带入，移动端与桌面各 5 次，五个页面；退出码反映是否全部达标）；新增 devDependencies `lighthouse`、`chrome-launcher`；`.gitignore` 加 `perf-reports/`
+- [x] T095 [P] 交互性能：`tests/perf/interaction.spec.ts`（Playwright，不带 `@1.0.0`，由 `pnpm perf` 调用）：用 event timing 测打开用户菜单、打开与关闭 Sheet 菜单、点击导航项的耗时，各 5 次取中位数 ≤ 200 ms；同时断言 `LocalTime` 挂载前后无布局偏移
+- [x] T096 造数与体积：`scripts/perf-seed.mjs`（经 `psql`/docker exec 以 owner 角色向一次性测试库批量插入 500 条 User，合成数据）；体积检查读取 `.next` 构建产物或 `next build` 输出，每路由首次加载 JS ≤ 170 KB
+- [x] T097 在 Chrome 中实测并出报告：启动完整栈（生产构建），`pnpm perf`；对未达标项先分析原因并修复（如拆分/懒加载、字体与图片、减少客户端 JS），再复测；最终报告摘要写入 `docs/achieve-specs/tenant-core-mvp.md`；更新 `apps/platform-web/AGENTS.md`（命令、预算位置、运行条件）
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -222,6 +235,7 @@ description: "Task list for Tenant Core MVP"
 - **US2（Phase 4）**：后端依赖 Phase 2 与 US1 的服务任务 **T026–T030**（集成测试用它们造数据）；T036、T039、T046、T048 等只依赖 Phase 2，可提前；前端任务（T043–T045、T053–T054）可与 US1 并行；T055 依赖 T035（打包 CLI）
 - **US3（Phase 5）**：依赖 US2 的认证（T052、T054）；T056、T061 只依赖 Phase 2 与 US1 服务，可提前
 - **Polish（Phase 6）**：依赖需要交付的故事全部完成
+- **Phase 9**：依赖 Phase 8；T092 先行，T093、T095 可并行，T094 依赖 T093，T096 与 T094 并行，T097 最后
 - **Phase 8**：依赖 Phase 7；T086、T087 可并行，T088 依赖两者，T089 依赖 T088，T090、T091 最后
 - **Phase 7**：依赖 Phase 6；后端组（T072–T078）与前端组（T079–T085）可并行；T072 先于 T073，T075 先于 T076，T079 先于 T082
 

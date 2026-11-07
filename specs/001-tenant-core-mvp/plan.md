@@ -71,7 +71,7 @@
 
 **Project Type**: web-service（后端 + CLI）+ web-application（SSR 前端）
 
-**Performance Goals**: 三个列表页在 500 条数据下首屏 ≤ 2 s（SC-008）；登录往返 ≤ 1 s（本地、单实例）
+**Performance Goals**: 三个列表页在 500 条数据下首屏 ≤ 2 s（SC-008）；登录往返 ≤ 1 s（本地、单实例）；前端性能预算见 spec FR-029（Core Web Vitals + Lighthouse + 每路由 JS ≤ 170 KB）
 
 **Constraints**: 密码 Argon2id 且永不明文落盘/落日志；CLI 密码不走命令行参数；BFF 与 `tenant-core-api` 均无状态、可水平扩展；Token 库内只存哈希；所有 CLI 操作幂等
 

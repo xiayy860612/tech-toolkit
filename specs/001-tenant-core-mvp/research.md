@@ -124,3 +124,13 @@
 - 取舍：不做面包屑、全局搜索、通知、侧边栏折叠、租户切换器（MVP 只读且只有三页，YAGNI）；页头只预留 `actions` 插槽，等有写操作（创建 Tenant、订阅 Module）时使用。
 - 用户菜单数据：后端 `GET /v1/auth/me` 已返回 `displayName`、`accountUsername`、`tenantSlug`，**无需改后端与契约**；前端只需在 `(console)/layout.tsx` 服务端取得并传给用户菜单（`tenantCoreClient.me()` 已存在，见 T086）。
 - “退出登录”只保留一处（用户菜单），因此 FR-024 中“折叠菜单含退出登录”改为只含三个导航项；相关 E2E（`responsive.spec.ts`）与组件测试随之调整。
+
+## R20 前端性能要求与测试方案（用户提出，待确认）
+
+- **指标来源（2026-11-07 已对照官方文档核对，T092）**：LCP ≤ 2.5 s、INP ≤ 200 ms、CLS ≤ 0.1 是 web.dev「Web Vitals」的“良好”阈值，按真实用户的第 75 百分位判定（https://web.dev/articles/vitals）；FCP ≤ 1.8 s 见 web.dev「FCP」；TTFB ≤ 0.8 s（> 1.8 s 为差）见 web.dev「TTFB」；TBT ≤ 200 ms、Speed Index ≤ 3.4 s 是 Lighthouse 指标页（移动端）的绿色（快）区间。Lighthouse 10 的权重：TBT 30%、LCP 25%、CLS 25%、FCP 10%、Speed Index 10%。Lighthouse 性能评分 ≥ 90 是其“良好”分段。每路由 JS ≤ 170 KB 是业界常用的团队预算，**不是标准**。
+- **实验室与真实用户的差别**：Core Web Vitals 的判定口径是真实用户数据；本项目没有真实流量，只能用实验室测量近似（Lighthouse 的 LCP/CLS/TBT，Playwright 实测 INP），因此用“5 次取中位数”降低波动，并保留“上线后用真实用户监测复核”的后续项。
+- **工具选择**：Lighthouse（Node API，使用本机 Google Chrome）测加载类指标与评分；Playwright（已有）测交互耗时（`PerformanceObserver` 的 event timing 取 INP）；体积用 `next build` 输出与 Lighthouse 资源汇总。新增依赖仅 `lighthouse` 与 `chrome-launcher`（devDependencies）。
+- **登录态**：列表页和改密页需要登录。做法：Playwright 登录后取出 session cookie，作为 Lighthouse 的 `extraHeaders: { Cookie }` 传入；报告与日志不得输出 cookie 值。
+- **测试数据**：500 条 User 用只读测试库的批量 SQL 脚本灌入（以 owner 角色，一次性测试库，不经 CLI，避免 500 次 JVM 启动）；Tenant、订阅用 CLI 建。
+- **运行位置**：需要完整栈（Postgres、Redis、API、web 生产构建），与 E2E 同属本地/手工门禁，**不进 CI 的阻塞门禁**（共享 CI 机器上网络与 CPU 波动大，会造成误报）；入口 `pnpm perf`，产出 JSON + Markdown 报告到 `apps/platform-web/perf-reports/`（加入 `.gitignore`，不提交）。
+- **不做**：压测并发（那是后端与容量问题）、真实用户监测（RUM）、CDN 与缓存策略优化（MVP 无 CDN）。
