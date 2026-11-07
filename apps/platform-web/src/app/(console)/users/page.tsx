@@ -1,4 +1,5 @@
 import { LocalTime } from '@/components/LocalTime';
+import { PageHeader } from '@/components/PageHeader';
 import { ResponsiveList, type Column } from '@/components/ResponsiveList';
 import { StatusBadge } from '@/components/StatusBadge';
 import { formatUsernames } from '@/lib/format';
@@ -24,7 +25,7 @@ export default async function UsersPage({
   const result = await runWithSession((client, session) => client.listUsers(session.token, query));
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">用户管理</h1>
+      <PageHeader title="用户管理" />
       <ResponsiveList
         caption="用户列表"
         columns={columns}

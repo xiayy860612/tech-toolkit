@@ -3,11 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
+  me: vi.fn(),
   redirect: vi.fn(),
   pathname: '/tenants',
 }));
 
-vi.mock('@/server/auth', () => ({ requireSession: mocks.requireSession }));
+vi.mock('@/server/auth', () => ({
+  requireSession: mocks.requireSession,
+  runWithSession: async (call: (client: unknown, session: { token: string }) => Promise<unknown>) =>
+    call({ me: mocks.me }, { token: 'tk_secret' }),
+}));
 vi.mock('next/navigation', () => ({
   redirect: mocks.redirect,
   usePathname: () => mocks.pathname,
@@ -22,6 +27,7 @@ import RootPage from '@/app/page';
 
 beforeEach(() => {
   mocks.requireSession.mockReset();
+  mocks.me.mockReset();
   mocks.redirect.mockReset();
 });
 
@@ -33,16 +39,20 @@ describe('RootPage', () => {
 });
 
 describe('ConsoleLayout', () => {
-  it('requires a Session and renders the sidebar, logout form and content', async () => {
-    mocks.requireSession.mockResolvedValue({});
+  it('loads the caller with the Session token and renders sidebar, user menu and content', async () => {
+    mocks.me.mockResolvedValue({
+      tenantUserId: 'tu_1',
+      displayName: '张三',
+      accountUsername: 'zhangsan',
+      tenantSlug: 'demo',
+      mustChangePassword: false,
+    });
     render(await ConsoleLayout({ children: <p>content</p> }));
 
-    expect(mocks.requireSession).toHaveBeenCalledOnce();
+    expect(mocks.me).toHaveBeenCalledWith('tk_secret');
     expect(screen.getByRole('navigation', { name: '主导航' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /张三/ })).toBeInTheDocument();
     expect(screen.getByText('content')).toBeInTheDocument();
-    const logout = screen.getByRole('button', { name: '退出登录' });
-    expect(logout.closest('form')).toHaveAttribute('action', '/logout');
-    expect(logout.closest('form')).toHaveAttribute('method', 'post');
   });
 });
 

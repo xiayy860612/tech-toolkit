@@ -7,10 +7,12 @@ vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname }));
 
 import { AppShell } from '@/components/AppShell';
 
+const user = { displayName: '张三', accountUsername: 'zhangsan', tenantSlug: 'demo' };
+
 function renderAt(pathname: string) {
   nav.pathname = pathname;
   return render(
-    <AppShell>
+    <AppShell user={user}>
       <p>content</p>
     </AppShell>,
   );
@@ -35,7 +37,7 @@ describe('AppShell desktop sidebar', () => {
   it('is only displayed from the md breakpoint up', () => {
     renderAt('/tenants');
     const aside = sidebar().closest('aside');
-    expect(aside).toHaveClass('hidden', 'md:flex');
+    expect(aside).toHaveClass('hidden', 'md:block');
   });
 
   it.each([
@@ -62,11 +64,16 @@ describe('AppShell desktop sidebar', () => {
     ).toBe(false);
   });
 
-  it('has a POST logout form in the sidebar', () => {
+  it('has no logout control in the sidebar', () => {
     renderAt('/tenants');
-    const logout = within(sidebar().closest('aside')!).getByRole('button', { name: '退出登录' });
-    expect(logout.closest('form')).toHaveAttribute('action', '/logout');
-    expect(logout.closest('form')).toHaveAttribute('method', 'post');
+    expect(
+      within(sidebar().closest('aside')!).queryByRole('button', { name: '退出登录' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('limits the content width inside main', () => {
+    renderAt('/tenants');
+    expect(screen.getByRole('main').firstElementChild).toHaveClass('max-w-6xl');
   });
 
   it('renders the page content in main', () => {
@@ -76,14 +83,22 @@ describe('AppShell desktop sidebar', () => {
 });
 
 describe('AppShell narrow top bar', () => {
-  it('has a menu button in a header that is hidden from md up', () => {
+  it('has a menu button inside the top bar that is hidden from md up', () => {
     renderAt('/tenants');
     const button = screen.getByRole('button', { name: '打开菜单' });
-    expect(button.closest('header')).toHaveClass('md:hidden');
+    expect(button.closest('header')).toBe(screen.getByRole('banner'));
+    expect(button.parentElement).toHaveClass('md:hidden');
     expect(button).toHaveClass('size-11');
   });
 
-  it('opens a Sheet with three navigation items and the logout form', async () => {
+  it('keeps the top bar with the user menu at every width', () => {
+    renderAt('/tenants');
+    const banner = screen.getByRole('banner');
+    expect(banner).not.toHaveClass('md:hidden');
+    expect(within(banner).getByRole('button', { name: /张三/ })).toBeInTheDocument();
+  });
+
+  it('opens a Sheet with the three navigation items and no logout', async () => {
     renderAt('/modules');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: '打开菜单' }));
@@ -96,9 +111,7 @@ describe('AppShell narrow top bar', () => {
       'aria-current',
       'page',
     );
-    const logout = within(dialog).getByRole('button', { name: '退出登录' });
-    expect(logout.closest('form')).toHaveAttribute('action', '/logout');
-    expect(logout.closest('form')).toHaveAttribute('method', 'post');
+    expect(within(dialog).queryByRole('button', { name: '退出登录' })).not.toBeInTheDocument();
   });
 
   it('closes the Sheet when an item is chosen', async () => {

@@ -12,30 +12,33 @@ Node.js 22、Next.js 15（App Router）、React 19、TypeScript 5（strict）、
 src/
   middleware.ts          # Edge：只检查 cookie 是否存在并重定向（不能用 Redis）
   app/                   # 路由：login、change-password、logout、session/expired、healthz、(console)/{tenants,modules,users}
-  components/            # 业务组件：AppShell（侧边栏 / 顶部栏 + Sheet）、ResponsiveList（Table / 卡片）、StatusBadge、LocalTime、LoginForm、ChangePasswordForm
-    ui/                  # shadcn/ui 生成代码（button、input、label、card、table、badge、alert、sheet、separator）
+  components/            # 业务组件：AppShell（顶栏 + 侧边栏 / Sheet + 限宽内容区）、TopBar、UserMenu（退出登录唯一入口）、PageHeader（标题 + 操作位）、ResponsiveList（Table / 卡片）、StatusBadge、LocalTime、LoginForm、ChangePasswordForm
+    ui/                  # shadcn/ui 生成代码（button、input、label、card、table、badge、alert、sheet、separator、dropdown-menu）
   lib/                   # 纯函数与 DTO 类型（types、pagination、format、safeNextPath、utils 的 cn）
   server/                # 仅服务端：env、session（Redis）、sessionCookie、container、auth（requireSession / runWithSession）、tenantCoreClient
 tests/
   unit/  component/      # Vitest
   e2e/                   # Playwright（需完整后端栈，fixtures.ts 有环境说明）
+scripts/                 # e2e.mjs（pnpm e2e 入口）、e2e-args.mjs（参数转换，有单元测试）
 ```
 
 ## 命令
 
 在 `apps/platform-web` 下执行（pnpm）：
 
-| 目的                           | 命令                                |
-| ------------------------------ | ----------------------------------- |
-| 安装依赖                       | `pnpm install`                      |
-| 开发                           | `pnpm dev`                          |
-| 构建 / 启动                    | `pnpm build` / `pnpm start`         |
-| Lint（ESLint + Prettier 检查） | `pnpm lint`                         |
-| 类型检查                       | `pnpm typecheck`                    |
-| 单元 / 组件测试                | `pnpm test`                         |
-| 覆盖率（含阈值校验）           | `pnpm test:coverage`                |
-| E2E（需后端栈与 CLI）          | `pnpm test:e2e`                     |
-| 新增 shadcn 组件               | `pnpm dlx shadcn@latest add <name>` |
+| 目的                           | 命令                                    |
+| ------------------------------ | --------------------------------------- |
+| 安装依赖                       | `pnpm install`                          |
+| 开发                           | `pnpm dev`                              |
+| 构建 / 启动                    | `pnpm build` / `pnpm start`             |
+| Lint（ESLint + Prettier 检查） | `pnpm lint`                             |
+| 类型检查                       | `pnpm typecheck`                        |
+| 单元 / 组件测试                | `pnpm test`                             |
+| 覆盖率（含阈值校验）           | `pnpm test:coverage`                    |
+| E2E（需后端栈与 CLI）          | `pnpm test:e2e`                         |
+| E2E 按标签跑（可多个，取交集） | `pnpm e2e --tag 1.0.0 --tag happy-path` |
+| E2E 用 Chrome 有头模式         | `pnpm e2e --chrome --headed`            |
+| 新增 shadcn 组件               | `pnpm dlx shadcn@latest add <name>`     |
 
 ## 界面约定（Tailwind + shadcn/ui）
 
@@ -51,6 +54,7 @@ tests/
 - **覆盖率口径：行覆盖率 ≥ 90%**（`vitest.config.ts` 的 `thresholds.lines`，provider 为 v8，统计范围 `src/**`）。`pnpm test:coverage` 低于阈值会失败，CI 以此命令为门禁。
 - **排除路径**（`vitest.config.ts`）：`src/**/*.d.ts`（类型声明）、`src/app/layout.tsx`（根布局：仅 `<html>` 外壳与全局 CSS 引入，无逻辑）、`src/components/ui/**`（shadcn 生成代码，第三方来源、不手工编辑，行为由业务组件的测试间接覆盖）。
 - jsdom 不计算 CSS：组件测试断言 DOM 结构与断点类名（如 `hidden sm:block`、`h-11`）；`tests/setup.ts` 提供 `matchMedia`、`ResizeObserver` polyfill（Radix Sheet 需要）并固定 `TZ=UTC`。真实的断点与横向滚动由 `tests/e2e/responsive.spec.ts` 验证。`src/lib/types.ts` 为纯类型，无可执行语句，不计入分母。
+- E2E 版本标签：每个 spec 的用例包在 `test.describe('<版本>', { tag: VERSION_x_y_z }, …)` 里（常量见 `fixtures.ts`，现为 `@1.0.0`）；不带 `--tag` 运行全部（`pnpm e2e` 由 `scripts/e2e.mjs` 把 `--tag` 转成 Playwright `--grep`，其余参数原样传给 Playwright；`pnpm test:e2e` 仍可直接用），新版本新增用例时定义新标签常量。主要用户旅程（登录、首次改密、三个列表、响应式导航、退出）另有 `@happy-path` 标签（`HAPPY_PATH`，加在单个用例上）；`--chrome`（即环境变量 `E2E_BROWSER_CHANNEL=chrome`）改用本机 Google Chrome。
 - E2E（`tests/e2e`）不计入覆盖率。需要：Postgres、Redis、`tenant-core-api`、`platform-web` 已启动，以及已构建的 `tenant-core-cli`；通过 `tests/e2e/fixtures.ts` 调用 CLI 造数据。旅程会修改 Account 密码，请在全新库上运行或每次更换 `E2E_TENANT_SLUG`。
 
 ## 安全约定

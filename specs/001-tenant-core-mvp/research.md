@@ -117,3 +117,10 @@
 - **依据**: ArchUnit 1.5.0 的官方 Release Notes 写明 “`archunit-junit6` supports ArchUnit with JUnit 6”（issue #1556），Maven Central 上有 `archunit-junit6` 1.5.1。升级后以测试实际运行为准。
 - **Alternatives**: `archunit-junit5`（针对 JUnit 5，与 Spring Boot 4 的 JUnit 6 不配套）。
 
+
+## R19 界面骨架：顶栏、用户菜单与统一页头（用户决定做，待确认）
+
+- 参考 Stripe / Vercel / Linear / Atlassian / Polaris / Ant Design Pro 的共性：顶栏放全局能力（产品名、用户菜单），侧边栏只放一级导航，页头统一为“标题 + 右侧主操作”，内容区限宽。
+- 取舍：不做面包屑、全局搜索、通知、侧边栏折叠、租户切换器（MVP 只读且只有三页，YAGNI）；页头只预留 `actions` 插槽，等有写操作（创建 Tenant、订阅 Module）时使用。
+- 用户菜单数据：后端 `GET /v1/auth/me` 已返回 `displayName`、`accountUsername`、`tenantSlug`，**无需改后端与契约**；前端只需在 `(console)/layout.tsx` 服务端取得并传给用户菜单（`tenantCoreClient.me()` 已存在，见 T086）。
+- “退出登录”只保留一处（用户菜单），因此 FR-024 中“折叠菜单含退出登录”改为只含三个导航项；相关 E2E（`responsive.spec.ts`）与组件测试随之调整。

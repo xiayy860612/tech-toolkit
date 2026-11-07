@@ -199,6 +199,19 @@ description: "Task list for Tenant Core MVP"
 
 ---
 
+## Phase 8: 界面骨架对齐主流管理后台（2026-11-07 用户决定做；FR-026、FR-027、FR-028、SC-010；**实现前须用户确认本方案**）
+
+**Purpose**: 增加顶栏与用户菜单，统一页头。只改 `apps/platform-web`，后端与契约不变。每步先写失败的测试再实现。
+
+- [x] T086 [P] 先写失败的测试：`tenantCoreClient.me()` 已存在，只需确认返回 `displayName`、`accountUsername`、`tenantSlug`（核对 `src/lib/types.ts` 的 `Me`）；`tests/component/UserMenu.test.tsx`（触发按钮显示 Display Name；展开后显示 Display Name、username、Tenant Slug 与“退出登录”；“退出登录”是 `POST /logout` 的表单；触发区域 `h-11`/`min-h-11`）
+- [x] T087 [P] 先写失败的组件测试：`tests/component/TopBar.test.tsx`（产品名“Platform”；窄屏菜单按钮在最左；右侧是用户菜单）、`tests/component/PageHeader.test.tsx`（标题；`actions` 插槽为空时不渲染容器）、更新 `tests/component/AppShell.test.tsx`（侧边栏只有三项且无“退出登录”；折叠菜单只有三项；内容区有最大宽度类）
+- [x] T088 实现：`src/components/ui/dropdown-menu.tsx`（`pnpm dlx shadcn@latest add dropdown-menu`，不手工编辑）、`src/components/UserMenu.tsx`、`src/components/TopBar.tsx`、`src/components/PageHeader.tsx`；改 `AppShell.tsx`（顶栏 + 侧边栏 + 限宽内容区；去掉侧边栏与 Sheet 里的退出登录）、`(console)/layout.tsx`（服务端取 me 并传 props，Opaque Token 不进客户端）、三个列表页改用 `PageHeader`
+- [x] T089 更新 E2E：`tests/e2e/responsive.spec.ts`（折叠菜单只含三项；三种视口下顶栏可见、用户菜单可达且可退出）、`console.spec.ts`/`login.spec.ts`（退出登录改走用户菜单；`fixtures.ts` 增加 `logoutViaUserMenu(page)`）；新增 `tests/e2e/shell.spec.ts`（顶栏、用户菜单、退出登录唯一入口、页头；当前版本标签仍为 `@1.0.0`，主旅程另带 `@happy-path`）；`pnpm e2e --tag 1.0.0` 与 `pnpm e2e` 均须通过
+- [x] T090 门禁：`pnpm lint`、`pnpm typecheck`、`pnpm test:coverage`（行覆盖率 ≥ 90%）、`pnpm build` 通过；用 `pnpm e2e --chrome` 全量通过
+- [x] T091 在 Chrome 中按 quickstart 场景 F 走查 360px、768px、1280px 并截图，核对 SC-010；更新 `apps/platform-web/AGENTS.md`（目录、组件）与 `docs/achieve-specs/tenant-core-mvp.md`（界面骨架）
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -209,6 +222,7 @@ description: "Task list for Tenant Core MVP"
 - **US2（Phase 4）**：后端依赖 Phase 2 与 US1 的服务任务 **T026–T030**（集成测试用它们造数据）；T036、T039、T046、T048 等只依赖 Phase 2，可提前；前端任务（T043–T045、T053–T054）可与 US1 并行；T055 依赖 T035（打包 CLI）
 - **US3（Phase 5）**：依赖 US2 的认证（T052、T054）；T056、T061 只依赖 Phase 2 与 US1 服务，可提前
 - **Polish（Phase 6）**：依赖需要交付的故事全部完成
+- **Phase 8**：依赖 Phase 7；T086、T087 可并行，T088 依赖两者，T089 依赖 T088，T090、T091 最后
 - **Phase 7**：依赖 Phase 6；后端组（T072–T078）与前端组（T079–T085）可并行；T072 先于 T073，T075 先于 T076，T079 先于 T082
 
 ### Within Each User Story

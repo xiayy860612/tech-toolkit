@@ -165,3 +165,24 @@ export async function revokeOpaqueTokenBehindTheBff(page: Page) {
     redis.disconnect();
   }
 }
+
+/** Release tag of this E2E set. Run one set with `pnpm e2e --tag 1.0.0`; no tag runs everything. */
+export const VERSION_1_0_0 = '@1.0.0';
+
+/** Opens the top-bar user menu (the trigger shows the User's Display Name, "Admin User" in bootstrapTenant). */
+export async function openUserMenu(page: Page) {
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: /Admin User/ })
+    .click();
+  await expect(page.getByRole('menu')).toBeVisible();
+}
+
+/** 退出登录 now lives only in the user menu. */
+export async function logoutViaUserMenu(page: Page) {
+  await openUserMenu(page);
+  await page.getByRole('menuitem', { name: '退出登录' }).click();
+}
+
+/** Marks the main user journeys (login, first password change, lists, responsive nav, logout). Run with `--grep @happy-path`. */
+export const HAPPY_PATH = '@happy-path';

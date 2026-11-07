@@ -1,4 +1,5 @@
 import { LocalTime } from '@/components/LocalTime';
+import { PageHeader } from '@/components/PageHeader';
 import { ResponsiveList, type Column } from '@/components/ResponsiveList';
 import { StatusBadge } from '@/components/StatusBadge';
 import { parsePageQuery } from '@/lib/pagination';
@@ -23,7 +24,7 @@ export default async function ModulesPage({
   );
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">模块管理</h1>
+      <PageHeader title="模块管理" />
       <ResponsiveList
         caption="模块订阅列表"
         columns={columns}

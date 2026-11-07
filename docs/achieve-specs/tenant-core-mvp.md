@@ -54,6 +54,14 @@ tenant-core-cli tenant show          --tenant <slug>          # 只读核对
 
 全局 `--output json`；所有写命令幂等并写审计（actor `cli:<os-user>@<host>`）。退出码：0 成功（含幂等）、1 校验错误、2 前置条件缺失、3 冲突。密码只能经隐藏提示或 `--password-stdin` 输入，没有 `--password`，且不会回显未知参数。
 
+## 平台控制台界面
+
+- 技术：Tailwind CSS 4 + shadcn/ui；界面文案全中文，状态显示为“正常 / 已暂停 / 已停用 / 已订阅”，时间按浏览器本地时区，没有 Account 的 User 用户名显示“—”。
+- 骨架：全局顶栏（左“Platform”，右用户菜单）+ 左侧栏（仅租户管理 / 模块管理 / 用户管理）+ 限宽内容区；各列表页有统一页头（标题 + 操作位，当前只读故操作位为空）。
+- 用户菜单：按钮显示 Display Name，展开后显示 Display Name、username、Tenant Slug 与“退出登录”（POST /logout）；这是退出登录的唯一入口。
+- 自适应：≥ 768px 侧边栏 + 表格；< 768px 顶栏最左出现菜单按钮，点开 Sheet 显示三个导航项；< 640px 列表为卡片；任一宽度无横向滚动；登录与改密页居中，控件高度 ≥ 44px。
+- 规格：FR-024 至 FR-028、SC-009、SC-010；E2E 标签 `@1.0.0`（主旅程另带 `@happy-path`），`pnpm e2e --tag 1.0.0`。
+
 ## 验证状态
 
 | 项 | 结果 |

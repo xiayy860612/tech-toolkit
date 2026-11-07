@@ -9,6 +9,8 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:3000',
+    // E2E_BROWSER_CHANNEL=chrome runs the installed Google Chrome instead of bundled Chromium.
+    channel: process.env.E2E_BROWSER_CHANNEL || undefined,
     trace: 'retain-on-failure',
   },
 });
