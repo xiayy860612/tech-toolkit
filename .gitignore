@@ -17,9 +17,18 @@ htmlcov/
 **/.turbo/
 **/.pnpm-store/
 
+# Java / Maven
+**/target/
+*.class
+*.jar
+
 # Env
 .env
 .env*.local
+deploy/.env
+
+# Secrets (signing keys etc.)
+*.pem
 
 # Playwright MCP (Cursor / IDE plugin artifacts)
 .playwright-mcp/

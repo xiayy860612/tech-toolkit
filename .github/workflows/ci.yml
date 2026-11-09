@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: backend (Java 21, Maven)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # Testcontainers needs Docker, which ubuntu-latest provides.
+      # verify = tests + packaged CLI smoke test + line coverage >= 90% + spotless:check
+      - run: mvn -B verify
+
+  frontend:
+    name: frontend (Next.js, pnpm)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/platform-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/platform-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # test:coverage fails when line coverage drops below 90%
+      - run: pnpm test:coverage
+      - run: pnpm build
