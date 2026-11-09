@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.testcontainers.containers.PostgreSQLContainer;
 import tech.toolkit.tenantcore.CoreComponents;
+import tech.toolkit.tenantcore.common.Clocks;
 import tech.toolkit.tenantcore.common.DatabaseConfig;
 import tech.toolkit.tenantcore.tenant.Tenant;
 import tech.toolkit.tenantcore.uam.Account;
@@ -67,7 +68,7 @@ public abstract class PostgresTestBase {
   public record Bootstrapped(Tenant tenant, User user, Account account) {}
 
   protected static CoreComponents core() {
-    return core(Clock.systemUTC());
+    return core(Clocks.systemUtc());
   }
 
   protected static CoreComponents core(Clock clock) {

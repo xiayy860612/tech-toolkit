@@ -1,13 +1,13 @@
 package tech.toolkit.tenantcore.api;
 
 import com.zaxxer.hikari.HikariDataSource;
-import java.time.Clock;
 import javax.sql.DataSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import tech.toolkit.tenantcore.CoreComponents;
+import tech.toolkit.tenantcore.common.Clocks;
 import tech.toolkit.tenantcore.common.DatabaseConfig;
 import tech.toolkit.tenantcore.uam.UamSettings;
 
@@ -58,6 +58,6 @@ class ApiConfig {
 
   @Bean
   CoreComponents coreComponents(DataSource dataSource, UamSettings settings) {
-    return new CoreComponents(dataSource, Clock.systemUTC(), settings);
+    return new CoreComponents(dataSource, Clocks.systemUtc(), settings);
   }
 }

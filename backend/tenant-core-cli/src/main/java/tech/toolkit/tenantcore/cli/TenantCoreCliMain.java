@@ -1,9 +1,9 @@
 package tech.toolkit.tenantcore.cli;
 
 import java.net.InetAddress;
-import java.time.Clock;
 import java.util.function.Supplier;
 import tech.toolkit.tenantcore.CoreComponents;
+import tech.toolkit.tenantcore.common.Clocks;
 import tech.toolkit.tenantcore.common.DatabaseConfig;
 
 /**
@@ -18,7 +18,7 @@ public final class TenantCoreCliMain {
         () -> {
           DatabaseConfig config = DatabaseConfig.fromEnv();
           config.migrate();
-          return new CoreComponents(config.appDataSource(), Clock.systemUTC());
+          return new CoreComponents(config.appDataSource(), Clocks.systemUtc());
         };
     int exit =
         TenantCoreCli.commandLine(

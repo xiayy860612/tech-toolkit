@@ -85,11 +85,17 @@ class InternalJwtServiceTest {
 
   @Test
   void rejectsATamperedSignatureOrPayload() {
+    // Many tokens: the old tamper (last base64url char -> 'A'/'B') only changed padding bits and
+    // slipped through for about a quarter of all signatures.
+    for (int i = 0; i < 200; i += 1) {
+      String signed = jwt.issue("tu_a", tenantId, "s_a" + i).jwt();
+      String[] pieces = signed.split("\\.");
+      String tampered = pieces[0] + "." + pieces[1] + "." + flip(pieces[2]);
+      assertUnauthorized(() -> jwt.verify(tampered));
+    }
+
     String token = jwt.issue("tu_a", tenantId, "s_a").jwt();
     String[] parts = token.split("\\.");
-    String badSignature = parts[0] + "." + parts[1] + "." + flip(parts[2]);
-    assertUnauthorized(() -> jwt.verify(badSignature));
-
     String forgedPayload =
         Base64.getUrlEncoder()
             .withoutPadding()
@@ -100,9 +106,14 @@ class InternalJwtServiceTest {
     assertUnauthorized(() -> jwt.verify(parts[0] + "." + forgedPayload + "." + parts[2]));
   }
 
+  /**
+   * Changes the first base64url character: all six of its bits are significant, so the decoded
+   * signature always differs. (The last character of a 64-byte signature carries 2 padding bits, so
+   * changing only those can leave the decoded bytes untouched.)
+   */
   private static String flip(String signature) {
-    char last = signature.charAt(signature.length() - 1);
-    return signature.substring(0, signature.length() - 1) + (last == 'A' ? 'B' : 'A');
+    char first = signature.charAt(0);
+    return (first == 'A' ? 'B' : 'A') + signature.substring(1);
   }
 
   @Test
