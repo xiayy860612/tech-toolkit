@@ -38,6 +38,20 @@ const MESSAGES: Record<string, string> = {
 
 export const GENERIC_ERROR = "操作失败，请稍后重试";
 
+/** 把服务端逐字段错误（如 `account.username`）收成 { username: message }，按最后一段字段名匹配表单字段。 */
+export function fieldErrorMap(error: ApiError): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const { field, message } of error.fieldErrors) {
+    map[field.split(".").pop() ?? field] ??= message;
+  }
+  return map;
+}
+
+/** 任意异常 → 用户可读文案。 */
+export function messageOf(error: unknown): string {
+  return errorMessage(error instanceof ApiError ? error.code : undefined);
+}
+
 /** 按错误码映射用户可读文案。 */
 export function errorMessage(code: string | undefined): string {
   return (code && MESSAGES[code]) || GENERIC_ERROR;
