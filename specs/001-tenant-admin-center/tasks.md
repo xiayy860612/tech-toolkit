@@ -80,18 +80,18 @@ description: "Task list for Tenant Admin Center"
 
 ### 前端：BFF 基础设施（先写测试）
 
-- [ ] T038 [P] 创建 `FT/unit/session-cookie.test.ts`（先失败）：登录成功后设置 Cookie：`HttpOnly; Secure; SameSite=Lax; Path=/`，值为后端返回的不透明令牌，`Max-Age` 取自后端 `expiresAt`；响应体不含令牌；清除 Cookie（`Max-Age=0`）；可从请求读取令牌
-- [ ] T039 创建 `F/server/session/cookie.ts`（使 T038 通过）
-- [ ] T040 [P] 创建 `FT/unit/internal-jwt.test.ts`（先失败）：`typ=user` 令牌含 `sub`、`tenant_id`（数字）、`account_id`、`sid`、`cip`、`iss=admin-center-bff`、`aud=tenant-core-api`、`jti`、`iat`、`exp`（有效期 60 秒）；`typ=service` 令牌含 `tenant_id`（取自 `DEFAULT_TENANT_ID`）与通用声明，不含用户声明；EdDSA 签名可由公钥验证；每次签发 `jti` 不同
-- [ ] T041 创建 `F/server/backend/jwt.ts`（`jose`，私钥来自环境变量指定的文件）（使 T040 通过）
-- [ ] T042 [P] 创建 `FT/unit/rate-limit.test.ts`（`ioredis-mock`，先失败）：按客户端 IP 的固定窗口计数，超限返回需等待秒数，窗口过后恢复；不同路由组计数互相独立；`client-ip` 仅在可信代理配置下采用 `X-Forwarded-For`，否则取连接地址
-- [ ] T043 创建 `F/server/rate-limit.ts`（Redis `INCR` + `EXPIRE`）与 `F/server/client-ip.ts`（使 T042 通过）
-- [ ] T044 [P] 创建 `FT/unit/backend-client.test.ts`（先失败）：服务端后端客户端按需签发 `typ=user`/`typ=service` JWT 并带 `Authorization: Bearer`；设置超时；后端 problem+json 原样透传；绝不转发浏览器的 `Cookie` 与 `Authorization` 头；不把 JWT 写入日志
-- [ ] T045 创建 `F/server/backend/client.ts`（使 T044 通过）
-- [ ] T046 [P] 创建 `FT/unit/session-resolver.test.ts`（先失败）：以 `typ=service` JWT 调后端 `POST /auth/sessions/resolve`；成功结果按令牌哈希做内存缓存，TTL 为 `SESSION_RESOLVE_CACHE_TTL_SECONDS`（默认 5 秒，0 关闭缓存）；后端 401 → 视为无会话并清除缓存；日志中绝不出现令牌
-- [ ] T047 创建 `F/server/session/resolver.ts`（依赖 T041、T045；使 T046 通过）
-- [ ] T048 [P] 创建 `FT/unit/proxy-route.test.ts`（先失败）：无会话 Cookie → 401 problem+json；有 Cookie → 经会话解析器取得会话身份（`sid`、用户、租户），以此签发 JWT 转发后端并回传状态与响应体；非 GET/HEAD 请求的 `Origin` 与自身来源不一致或 `Sec-Fetch-Site` 非 `same-origin` → 403；resolve 或后端返回 401 → 清除会话 Cookie；浏览器自带的 `X-Tenant-*`、`tenantId`、`Authorization` 不进入 JWT 与转发请求；改密、会话管理等均为纯代理，BFF 不持有会话状态
-- [ ] T049 创建 `F/app/api/v1/[...path]/route.ts`（通用代理，使 T048 通过）
+- [X] T038 [P] 创建 `FT/unit/session-cookie.test.ts`（先失败）：登录成功后设置 Cookie：`HttpOnly; Secure; SameSite=Lax; Path=/`，值为后端返回的不透明令牌，`Max-Age` 取自后端 `expiresAt`；响应体不含令牌；清除 Cookie（`Max-Age=0`）；可从请求读取令牌
+- [X] T039 创建 `F/server/session/cookie.ts`（使 T038 通过）
+- [X] T040 [P] 创建 `FT/unit/internal-jwt.test.ts`（先失败）：`typ=user` 令牌含 `sub`、`tenant_id`（数字）、`account_id`、`sid`、`cip`、`iss=admin-center-bff`、`aud=tenant-core-api`、`jti`、`iat`、`exp`（有效期 60 秒）；`typ=service` 令牌含 `tenant_id`（取自 `DEFAULT_TENANT_ID`）与通用声明，不含用户声明；EdDSA 签名可由公钥验证；每次签发 `jti` 不同
+- [X] T041 创建 `F/server/backend/jwt.ts`（`jose`，私钥来自环境变量指定的文件）（使 T040 通过）
+- [X] T042 [P] 创建 `FT/unit/rate-limit.test.ts`（`ioredis-mock`，先失败）：按客户端 IP 的固定窗口计数，超限返回需等待秒数，窗口过后恢复；不同路由组计数互相独立；`client-ip` 仅在可信代理配置下采用 `X-Forwarded-For`，否则取连接地址
+- [X] T043 创建 `F/server/rate-limit.ts`（Redis `INCR` + `EXPIRE`）与 `F/server/client-ip.ts`（使 T042 通过）
+- [X] T044 [P] 创建 `FT/unit/backend-client.test.ts`（先失败）：服务端后端客户端按需签发 `typ=user`/`typ=service` JWT 并带 `Authorization: Bearer`；设置超时；后端 problem+json 原样透传；绝不转发浏览器的 `Cookie` 与 `Authorization` 头；不把 JWT 写入日志
+- [X] T045 创建 `F/server/backend/client.ts`（使 T044 通过）
+- [X] T046 [P] 创建 `FT/unit/session-resolver.test.ts`（先失败）：以 `typ=service` JWT 调后端 `POST /auth/sessions/resolve`；成功结果按令牌哈希做内存缓存，TTL 为 `SESSION_RESOLVE_CACHE_TTL_SECONDS`（默认 5 秒，0 关闭缓存）；后端 401 → 视为无会话并清除缓存；日志中绝不出现令牌
+- [X] T047 创建 `F/server/session/resolver.ts`（依赖 T041、T045；使 T046 通过）
+- [X] T048 [P] 创建 `FT/unit/proxy-route.test.ts`（先失败）：无会话 Cookie → 401 problem+json；有 Cookie → 经会话解析器取得会话身份（`sid`、用户、租户），以此签发 JWT 转发后端并回传状态与响应体；非 GET/HEAD 请求的 `Origin` 与自身来源不一致或 `Sec-Fetch-Site` 非 `same-origin` → 403；resolve 或后端返回 401 → 清除会话 Cookie；浏览器自带的 `X-Tenant-*`、`tenantId`、`Authorization` 不进入 JWT 与转发请求；改密、会话管理等均为纯代理，BFF 不持有会话状态
+- [X] T049 创建 `F/app/api/v1/[...path]/route.ts`（通用代理，使 T048 通过）
 
 **Checkpoint**: 数据库、租户上下文、内部 JWT 校验、错误模型、审计、前端基础与 BFF 基础设施就绪
 
@@ -158,7 +158,7 @@ description: "Task list for Tenant Admin Center"
 
 - [ ] T073 [P] [US4] 创建 `BT/isolation/TenantIsolationIT.java`（跨租户隔离测试集的基础，使用租户 0 与测试夹具租户 1）：RLS 下无上下文返回 0 行；上下文为租户 0 时读不到租户 1 的行、也无法写入租户 1 的行；请求头/参数/请求体里携带的任何租户标识都不影响授权；篡改 `tenant_id` 后签名失效的 JWT → 401；`/auth/me` 只返回调用者本人
 - [ ] T074 [P] [US4] 创建 `BT/isolation/SameUsernameAcrossTenantsIT.java`：租户 0 与夹具租户 1 存在同名用户名，各自登录（service JWT 的 `tenant_id` 不同）进入各自租户，互不冲突（US4-3、FR-014）
-- [ ] T075 [P] [US4] 创建 `FT/unit/proxy-tenant.test.ts`：BFF 签发的 JWT 租户只取自后端 resolve 返回的会话身份；浏览器请求里的 `X-Tenant-*`、`tenantId`（查询串、请求体）既不改变 JWT 也不被转发
+- [X] T075 [P] [US4] 创建 `FT/unit/proxy-tenant.test.ts`：BFF 签发的 JWT 租户只取自后端 resolve 返回的会话身份；浏览器请求里的 `X-Tenant-*`、`tenantId`（查询串、请求体）既不改变 JWT 也不被转发
 
 ### Implementation for User Story 4
 
