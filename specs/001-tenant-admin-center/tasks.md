@@ -162,7 +162,7 @@ description: "Task list for Tenant Admin Center"
 
 ### Implementation for User Story 4
 
-- [ ] T076 [US4] 配置 Hibernate 多租户判别（`@TenantId` 加在租户范围实体上，`CurrentTenantIdentifierResolver` 取自 `TenantContext`），并保证所有仓储查询带租户条件；跨租户 id 统一映射为 404 `NOT_FOUND`（使 T073、T074 通过）
+- [X] T076 [US4] 配置 Hibernate 多租户判别（`@TenantId` 加在租户范围实体上，`CurrentTenantIdentifierResolver` 取自 `TenantContext`），并保证所有仓储查询带租户条件；跨租户 id 统一映射为 404 `NOT_FOUND`（使 T073、T074 通过）
 - [X] T077 [P] [US4] 在 `BT/ArchitectureTest.java` 增加规则：`api` 包控制器的方法参数与请求体不得出现名为 `tenantId` 的授权依据字段
 
 **Checkpoint**: 隔离基线完成；US2/US3 阶段各含一条「扩展隔离套件」任务
