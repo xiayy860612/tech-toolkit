@@ -51,3 +51,4 @@ openspec/changes/**
 
 # Test coverage output
 **/coverage/
+*.tsbuildinfo
