@@ -22,7 +22,7 @@ public class Session {
 
   @TenantId
   @Column(name = "tenant_id", nullable = false, updatable = false)
-  private long tenantId;
+  private Long tenantId;
 
   @Column(name = "token_hash", nullable = false, updatable = false)
   private byte[] tokenHash;
@@ -85,7 +85,7 @@ public class Session {
   }
 
   public long getTenantId() {
-    return tenantId;
+    return tenantId == null ? 0 : tenantId;
   }
 
   public byte[] getTokenHash() {

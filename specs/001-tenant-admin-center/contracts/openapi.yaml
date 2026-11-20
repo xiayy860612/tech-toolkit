@@ -390,6 +390,7 @@ components:
         status: { type: integer }
         code: { type: string, description: 稳定的机器可读错误码 }
         detail: { type: string }
+        instance: { type: string, description: 触发错误的请求路径（RFC 9457） }
         errors:
           type: array
           items:

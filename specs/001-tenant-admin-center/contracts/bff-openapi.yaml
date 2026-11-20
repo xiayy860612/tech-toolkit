@@ -65,6 +65,7 @@ components:
         status: { type: integer }
         code: { type: string }
         detail: { type: string }
+        instance: { type: string, description: 触发错误的请求路径（RFC 9457） }
 
     LoginRequest:
       type: object

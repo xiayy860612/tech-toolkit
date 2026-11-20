@@ -1,4 +1,4 @@
-package tech.toolkit.tenantcore.api;
+package tech.toolkit.tenantcore.platform;
 
 import java.util.List;
 

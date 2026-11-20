@@ -22,7 +22,7 @@ public class AuditLog {
 
   @TenantId
   @Column(name = "tenant_id", nullable = false, updatable = false)
-  private long tenantId;
+  private Long tenantId;
 
   @Column(name = "occurred_at", nullable = false)
   private Instant occurredAt = Instant.now();
@@ -75,7 +75,7 @@ public class AuditLog {
   }
 
   public long getTenantId() {
-    return tenantId;
+    return tenantId == null ? 0 : tenantId;
   }
 
   public Instant getOccurredAt() {

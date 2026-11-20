@@ -24,7 +24,7 @@ public class Account {
 
   @TenantId
   @Column(name = "tenant_id", nullable = false, updatable = false)
-  private long tenantId;
+  private Long tenantId;
 
   @Column(name = "user_id", nullable = false, updatable = false)
   private UUID userId;
@@ -93,7 +93,7 @@ public class Account {
   }
 
   public long getTenantId() {
-    return tenantId;
+    return tenantId == null ? 0 : tenantId;
   }
 
   public UUID getUserId() {

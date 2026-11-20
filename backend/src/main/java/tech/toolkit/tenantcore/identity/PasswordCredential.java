@@ -19,7 +19,7 @@ public class PasswordCredential {
 
   @TenantId
   @Column(name = "tenant_id", nullable = false, updatable = false)
-  private long tenantId;
+  private Long tenantId;
 
   @Column(name = "password_hash", nullable = false)
   private String passwordHash;

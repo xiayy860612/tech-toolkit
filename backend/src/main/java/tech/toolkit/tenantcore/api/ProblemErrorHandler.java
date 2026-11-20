@@ -14,6 +14,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import tech.toolkit.tenantcore.platform.ApiException;
+import tech.toolkit.tenantcore.platform.ErrorCode;
 
 /** RFC 9457 problem+json：稳定 {@code code} 供前端映射，校验失败附逐字段说明。 */
 @RestControllerAdvice

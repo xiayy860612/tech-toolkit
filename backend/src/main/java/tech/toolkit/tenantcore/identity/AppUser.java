@@ -22,7 +22,7 @@ public class AppUser {
 
   @TenantId
   @Column(name = "tenant_id", nullable = false, updatable = false)
-  private long tenantId;
+  private Long tenantId;
 
   @Column(name = "display_name", nullable = false, length = 50)
   private String displayName;
@@ -73,7 +73,7 @@ public class AppUser {
   }
 
   public long getTenantId() {
-    return tenantId;
+    return tenantId == null ? 0 : tenantId;
   }
 
   public String getDisplayName() {

@@ -1,6 +1,11 @@
 admin-center:
   jwt:
     clock-skew: 30s
+  password:
+    # 测试里用最小的 Argon2id 参数加速
+    memory-kib: 1024
+    iterations: 1
+    parallelism: 1
 logging:
   level:
     org.testcontainers: WARN

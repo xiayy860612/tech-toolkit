@@ -105,18 +105,18 @@ description: "Task list for Tenant Admin Center"
 
 ### Tests for User Story 1 ⚠️（先写，确认失败）
 
-- [ ] T050 [P] [US1] 创建 `BT/auth/LoginServiceTest.java`：判定顺序「Account 存在 → Account ACTIVE → User ACTIVE → 未锁定 → 密码匹配」，任一失败返回同一 `INVALID_CREDENTIALS` 结果；失败累加 `failed_attempts`，达 5 次设置 `locked_until = now + 15min`；锁定期间正确密码也拒绝；成功清零、更新 `last_login_at`，创建会话并返回一次性会话令牌；用户名不存在时仍执行一次哑哈希比较；账号查找限定在 JWT 给出的租户内
-- [ ] T051 [P] [US1] 创建 `BT/api/AuthApiContractIT.java`：以 `typ=service` JWT（`tenant_id=0`）调用 `/auth/login`，响应（`LoginResult`，含一次性 `sessionToken` 与 `expiresAt`）通过 `contracts/openapi.yaml` 校验，请求体不含租户字段，库里只存令牌哈希；用户名不存在、密码错、Account 停用、User 停用、被锁定五种失败的 401 响应体完全一致；`/auth/sessions/resolve`：有效令牌 → 200 并续期，无效/过期/已撤销 → 401；以 `typ=user` JWT 调用 `/auth/me`（`role` 取自数据库当前值）、`/auth/logout`（撤销当前会话并记审计 `LOGOUT`，之后该会话的请求 → 401）、`/auth/change-password`（成功 204，同账号其他会话被撤销、当前会话保留，`mustChangePassword` 置 false）；当前密码错误返回 422
-- [ ] T052 [P] [US1] 创建 `BT/bootstrap/BootstrapRunnerIT.java`：在默认租户（`tenant_id=0`）创建首位 `TENANT_ADMIN`，系统生成 16 位临时密码仅输出一次到标准输出、不进入日志，`must_change_password=true`；显示名缺省为用户名；重复用户名被拒；不创建任何租户实体
+- [X] T050 [P] [US1] 创建 `BT/auth/LoginServiceTest.java`：判定顺序「Account 存在 → Account ACTIVE → User ACTIVE → 未锁定 → 密码匹配」，任一失败返回同一 `INVALID_CREDENTIALS` 结果；失败累加 `failed_attempts`，达 5 次设置 `locked_until = now + 15min`；锁定期间正确密码也拒绝；成功清零、更新 `last_login_at`，创建会话并返回一次性会话令牌；用户名不存在时仍执行一次哑哈希比较；账号查找限定在 JWT 给出的租户内
+- [X] T051 [P] [US1] 创建 `BT/api/AuthApiContractIT.java`：以 `typ=service` JWT（`tenant_id=0`）调用 `/auth/login`，响应（`LoginResult`，含一次性 `sessionToken` 与 `expiresAt`）通过 `contracts/openapi.yaml` 校验，请求体不含租户字段，库里只存令牌哈希；用户名不存在、密码错、Account 停用、User 停用、被锁定五种失败的 401 响应体完全一致；`/auth/sessions/resolve`：有效令牌 → 200 并续期，无效/过期/已撤销 → 401；以 `typ=user` JWT 调用 `/auth/me`（`role` 取自数据库当前值）、`/auth/logout`（撤销当前会话并记审计 `LOGOUT`，之后该会话的请求 → 401）、`/auth/change-password`（成功 204，同账号其他会话被撤销、当前会话保留，`mustChangePassword` 置 false）；当前密码错误返回 422
+- [X] T052 [P] [US1] 创建 `BT/bootstrap/BootstrapRunnerIT.java`：在默认租户（`tenant_id=0`）创建首位 `TENANT_ADMIN`，系统生成 16 位临时密码仅输出一次到标准输出、不进入日志，`must_change_password=true`；显示名缺省为用户名；重复用户名被拒；不创建任何租户实体
 
 ### Implementation for User Story 1（后端）
 
-- [ ] T053 [US1] 创建 `B/auth/Authenticator.java`（策略接口，按 Account `type` 分派）与 `B/auth/PasswordAuthenticator.java`（依赖 T019）
-- [ ] T054 [US1] 创建 `B/auth/LoginService.java`：登录判定、锁定/解锁计数、审计 `LOGIN_SUCCESS/LOGIN_FAILURE/ACCOUNT_LOCKED`、创建会话（`SessionService`，传入 `cip` 与登录请求中的 `userAgent`）并返回一次性令牌（依赖 T025、T053、T027；使 T050 通过）
-- [ ] T055 [US1] 创建 `B/auth/PasswordChangeService.java`：校验当前密码、复杂度、不得与当前/临时密码相同；成功后 `must_change_password=false`，撤销该 Account 除当前会话（`sid`）外的全部会话，审计 `PASSWORD_CHANGED`（依赖 T019、T027）
-- [ ] T056 [US1] 创建控制器 `B/api/AuthController.java`，按 `contracts/openapi.yaml` 实现 `/auth/*`（含 `/auth/sessions/resolve`；登出撤销当前会话）（使 T051 通过）
-- [ ] T057 [US1] 创建 `B/bootstrap/BootstrapRunner.java`：以启动参数/profile `bootstrap` 触发的非 Web 运行模式，接受管理员用户名与显示名（`display_name` 必填，缺省取用户名），在默认租户（`tenant_id=0`）创建首位 `TENANT_ADMIN`，输出一次性临时密码后退出（使 T052 通过）
-- [ ] T058 [P] [US1] 创建 `B/bootstrap/DevSeedRunner.java`（仅 `dev` profile）：在租户 0 预置管理员，测试凭证明示于 `backend/src/main/resources/application-dev.yml`；`test` profile 另预置租户 1 的夹具用户仅供隔离测试（本期无租户管理，租户 1 只存在于测试环境）
+- [X] T053 [US1] 创建 `B/auth/Authenticator.java`（策略接口，按 Account `type` 分派）与 `B/auth/PasswordAuthenticator.java`（依赖 T019）
+- [X] T054 [US1] 创建 `B/auth/LoginService.java`：登录判定、锁定/解锁计数、审计 `LOGIN_SUCCESS/LOGIN_FAILURE/ACCOUNT_LOCKED`、创建会话（`SessionService`，传入 `cip` 与登录请求中的 `userAgent`）并返回一次性令牌（依赖 T025、T053、T027；使 T050 通过）
+- [X] T055 [US1] 创建 `B/auth/PasswordChangeService.java`：校验当前密码、复杂度、不得与当前/临时密码相同；成功后 `must_change_password=false`，撤销该 Account 除当前会话（`sid`）外的全部会话，审计 `PASSWORD_CHANGED`（依赖 T019、T027）
+- [X] T056 [US1] 创建控制器 `B/api/AuthController.java`，按 `contracts/openapi.yaml` 实现 `/auth/*`（含 `/auth/sessions/resolve`；登出撤销当前会话）（使 T051 通过）
+- [X] T057 [US1] 创建 `B/bootstrap/BootstrapRunner.java`：以启动参数/profile `bootstrap` 触发的非 Web 运行模式，接受管理员用户名与显示名（`display_name` 必填，缺省取用户名），在默认租户（`tenant_id=0`）创建首位 `TENANT_ADMIN`，输出一次性临时密码后退出（使 T052 通过）
+- [X] T058 [P] [US1] 创建 `B/bootstrap/DevSeedRunner.java`（仅 `dev` profile）：在租户 0 预置管理员，测试凭证明示于 `backend/src/main/resources/application-dev.yml`；`test` profile 另预置租户 1 的夹具用户仅供隔离测试（本期无租户管理，租户 1 只存在于测试环境）
 
 ### Tests for User Story 1（BFF 专用路由）⚠️
 

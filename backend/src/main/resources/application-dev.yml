@@ -1,0 +1,5 @@
+# 仅本地开发：明示的测试凭证，首次登录会被强制改密。切勿用于任何共享或生产环境。
+admin-center:
+  dev-seed:
+    username: admin
+    password: Dev-Only-Passw0rd!

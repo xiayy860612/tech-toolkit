@@ -3,6 +3,7 @@ package tech.toolkit.tenantcore.api;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import tech.toolkit.tenantcore.platform.ErrorCode;
 
 /** 过滤器层（在控制器之外）输出 problem+json。 */
 public final class ProblemResponses {
