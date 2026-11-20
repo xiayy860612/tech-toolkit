@@ -263,11 +263,11 @@ description: "Task list for Tenant Admin Center"
 - [X] T111 实现 `B/audit/AuditQueryService.java` 与 `B/api/AuditLogController.java`（使 T110 通过）
 - [X] T112 [P] 创建 `BT/identity/ConcurrencyIT.java`：两个管理员同时编辑同一用户，后提交者 409 `VERSION_CONFLICT`；并发停用最后两名管理员不会使租户失去全部管理员（quickstart 场景 11、15）
 - [ ] T113 [P] 创建 `FT/unit/session-expiry.test.ts`：resolve 缓存 TTL 到期后重新向后端确认（TTL 为 0 时每次都确认）；缓存期内会话已被后端撤销或过期时，下一次 API 调用被后端 401 拒绝，BFF 清除 Cookie 并让页面跳回 `/login?next=<原目标页>`（quickstart 场景 14；401 后清除 Cookie 的基础行为见 T048）
-- [X] T114 [P] 创建 `BT/security/LogRedactionIT.java` 与 `FT/unit/log-redaction.test.ts`：登录、改密、创建用户、重置密码流程后，捕获的全部日志与审计 `detail` 不含任何密码、会话令牌或 JWT（FR-006）
+- [ ] T114 [P] 创建 `BT/security/LogRedactionIT.java` 与 `FT/unit/log-redaction.test.ts`：登录、改密、创建用户、重置密码流程后，捕获的全部日志与审计 `detail` 不含任何密码、会话令牌或 JWT（FR-006）
 - [X] T115 [P] 创建 `BT/performance/ListPerformanceIT.java`（带 `@Tag("performance")`，默认不在 CI 主流程运行）：租户内 1,000 用户，100 并发会话下列表与搜索 p95 ≤ 2 秒（SC-005、quickstart 场景 17）
 - [X] T116 后端门禁：运行 `verify`，确保 Spotless 与 JaCoCo 行覆盖率 ≥ 90% 通过；补齐缺口测试（排除路径仅 `*Application`）
 - [ ] T117 前端门禁：运行 lint、typecheck、`test:coverage`（行覆盖率 ≥ 90%）、build；补齐缺口测试
-- [X] T118 更新 `backend/AGENTS.md`、`frontend/AGENTS.md` 为最终命令、环境变量、覆盖率与 CI 说明
+- [ ] T118 更新 `backend/AGENTS.md`、`frontend/AGENTS.md` 为最终命令、环境变量、覆盖率与 CI 说明
 - [ ] T119 按 `quickstart.md` 逐条验证场景 1–19，记录结果；场景 12（跨租户隔离）、18（内部凭证校验）与 19（会话管理）必须 100% 通过
 - [ ] T120 安全复核：Cookie 属性、BFF 来源校验、限流、枚举防护、JWT 校验（算法白名单、过期、受众）、会话撤销与失效（`session` 表）、日志脱敏、RLS 角色权限、后端仅内网可达；结论记入 PR 说明
 - [ ] T121 归档（根 AGENTS.md「Project Context」）：把已落地的需求、设计沉淀到 `docs/achieve-specs/tenant-admin-center.md`，架构沉淀到 `docs/system-design/tenant-admin-center.md`
