@@ -1,0 +1,83 @@
+openapi: 3.1.0
+info:
+  title: Tenant Admin BFF API（BFF 自有接口）
+  version: 2.0.0
+  description: |
+    浏览器可见的 `/api/v1/*` 中，**由 BFF 自己实现**的两个接口（涉及浏览器 Cookie，不是对后端的纯代理）。
+    其余 `/api/v1/*`（含改密、用户、Account、会话管理等）都是对后端契约 `openapi.yaml` 的代理：
+    BFF 从 Cookie 取会话令牌 → 经后端 `POST /auth/sessions/resolve` 解析（可缓存 ≤ 5 秒）→ 签发内部 JWT → 转发。
+
+    - **会话由后端维护**：Cookie 里只有后端签发的不透明会话令牌；BFF 不保存任何会话数据。
+    - **来源校验**：非 GET/HEAD 请求必须 `Origin` 与 BFF 同源且 `Sec-Fetch-Site: same-origin`，否则 403。
+    - **Cookie**：`HttpOnly; Secure; SameSite=Lax; Path=/`，`Max-Age` 取自后端返回的 `expiresAt`；令牌**绝不出现在响应体**。
+    - 错误为 RFC 9457 `application/problem+json`，`code` 为稳定的机器可读码。
+servers:
+  - url: /api/v1
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: bffLogin
+      summary: 登录并设置会话 Cookie
+      description: |
+        先按客户端 IP 限流（超限 429 + `Retry-After`）；再以 `typ=service` JWT（`tenant_id` 取自 `DEFAULT_TENANT_ID`，本期为 0）调用后端 `/auth/login`，
+        并把浏览器 User-Agent 与可信客户端 IP 一并交给后端。后端 401 原样返回（统一的「用户名或密码错误」），且不设置 Cookie。
+        成功：设置会话 Cookie，响应体只含用户信息（`Me`），**不含** `sessionToken`/`tenantId` 等内部字段。
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } }
+      responses:
+        '200': { description: 登录成功, headers: { Set-Cookie: { schema: { type: string } } }, content: { application/json: { schema: { $ref: '#/components/schemas/BrowserMe' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: bffLogout
+      summary: 退出登录并清除会话 Cookie
+      description: 携带有效会话时，以用户 JWT 调用后端登出（后端撤销会话并记审计），随后清除 Cookie；无会话 Cookie 时幂等成功。
+      security:
+        - sessionCookie: []
+      responses:
+        '204': { description: 已退出, headers: { Set-Cookie: { schema: { type: string } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+
+components:
+  securitySchemes:
+    sessionCookie: { type: apiKey, in: cookie, name: SESSION_ID_COOKIE, description: 实际 Cookie 名由环境变量配置；值为后端签发的不透明会话令牌 }
+
+  responses:
+    Problem:
+      description: 错误（problem+json）
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string }
+        detail: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 64 }
+        password: { type: string, minLength: 1, maxLength: 128, format: password, writeOnly: true }
+
+    BrowserMe:
+      type: object
+      required: [userId, accountId, displayName, mustChangePassword]
+      properties:
+        userId: { type: string, format: uuid }
+        accountId: { type: string, format: uuid }
+        displayName: { type: string }
+        mustChangePassword: { type: boolean }

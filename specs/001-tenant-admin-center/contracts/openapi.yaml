@@ -1,0 +1,598 @@
+openapi: 3.1.0
+info:
+  title: Tenant Admin Center API
+  version: 1.0.0
+  description: |
+    Tenant Admin Center 后端 REST 契约，后端与前端（BFF）的唯一接口约定（FR-024）。
+    - **调用方只有 BFF**：后端仅内网可达，不直接面向浏览器（FR-024a）。浏览器侧看到的 `/api/v1/*` 由 BFF 代理同一套契约；BFF 专有行为（会话令牌 Cookie、限流、来源校验）不属于本契约。
+    - **认证**：所有请求须带 BFF 签发的内部 JWT（`Authorization: Bearer`，EdDSA，有效期约 60 秒）。`typ=user` 令牌携带当前用户、当前租户与会话 id（`sub`、`tenant_id`、`account_id`、`sid`、`cip`；**不含 `role`**，角色以数据库当前值为准）；`typ=service` 令牌仅用于 `/auth/login` 与 `/auth/sessions/resolve`，含 `tenant_id`（BFF 的默认租户）但不含用户声明。
+    - **租户上下文只来自已验签的 JWT**，请求头、参数、请求体中的任何租户标识都不作为授权依据（FR-025）。**本期不涉及租户管理**：`tenant_id` 为数字，恒为 0（BFF 的 `DEFAULT_TENANT_ID`），后端不提供任何租户查询或管理接口，但隔离能力照常实现。
+    - **会话由后端统一维护**（`session` 表）：每个 `typ=user` 请求，后端按 `sid` 校验会话仍然有效（未撤销、未过期、与 `sub`/`tenant_id`/`account_id` 一致），并核对 User 与 Account 均 `ACTIVE`；不满足则 401（会话立即失效，FR-010）。会话令牌只在登录时一次性返回给 BFF。
+    - 跨租户资源一律表现为 404，与"不存在"不可区分（FR-013）。
+    - 错误为 RFC 9457 `application/problem+json`，`code` 为稳定的机器可读码。
+    - 管理类接口需 `TENANT_ADMIN`，否则 403 `FORBIDDEN`。`mustChangePassword=true`（以库为准）时仅可访问 `/auth/me`、`/auth/change-password`、`/auth/logout`，其余返回 403 `PASSWORD_CHANGE_REQUIRED`。
+servers:
+  - url: /api/v1
+security:
+  - internalJwt: []
+tags:
+  - { name: auth, description: 登录、登出、当前用户、改密 }
+  - { name: users, description: 用户管理 }
+  - { name: accounts, description: 用户名下 Account 管理 }
+  - { name: sessions, description: 登录会话管理（独立「会话管理」页）}
+  - { name: audit, description: 审计日志（后端可查询） }
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: 用户名密码登录
+      description: |
+        任何失败（用户名不存在、密码错、Account/User 停用、被锁定）统一 401 `INVALID_CREDENTIALS`。
+        成功返回用户信息（含 `tenantId`）、**一次性的会话令牌** `sessionToken` 与 `expiresAt`；BFF 把令牌放入 HttpOnly Cookie（Cookie 不属于本契约）。仅接受 `typ=service` 令牌。
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } }
+      responses:
+        '200': { description: 登录成功, content: { application/json: { schema: { $ref: '#/components/schemas/LoginResult' } } } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidCredentials' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/sessions/resolve:
+    post:
+      tags: [auth]
+      operationId: resolveSession
+      summary: 把会话令牌解析为会话身份（BFF 用）
+      description: |
+        BFF 收到浏览器请求后调用，仅接受 `typ=service` 令牌。令牌有效时返回会话 id 与用户/租户信息，并续期会话（空闲滑动，写入有节流）；
+        令牌无效、已过期、已撤销，或 User/Account 已停用 → 401。BFF 据此签发 `typ=user` JWT，可短暂缓存本结果（默认 5 秒）。
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SessionResolveRequest' } } }
+      responses:
+        '200': { description: 会话有效, content: { application/json: { schema: { $ref: '#/components/schemas/SessionResolveResult' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: 退出登录：撤销当前会话（`sid`）并记审计（Cookie 由 BFF 清除）
+      responses:
+        '204': { description: 已退出 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: 当前登录用户、租户与改密状态（`role` 取自数据库当前值，BFF 据此判断是否管理员）
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/change-password:
+    post:
+      tags: [auth]
+      operationId: changePassword
+      summary: 修改自己的密码（强制改密与主动改密共用）
+      description: 成功后该 Account **除当前会话外**的全部会话被撤销，`mustChangePassword` 置 false。新密码须满足复杂度规则且不得与当前密码相同。
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ChangePasswordRequest' } } }
+      responses:
+        '204': { description: 已修改 }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422':
+          description: 当前密码不正确
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+
+  /users:
+    get:
+      tags: [users]
+      operationId: listUsers
+      summary: 本租户用户列表（搜索、分页、按状态筛选）
+      parameters:
+        - { name: keyword, in: query, schema: { type: string, maxLength: 50 }, description: 匹配显示名或用户名前缀 }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/Status' } }
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/UserPage' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [users]
+      operationId: createUser
+      summary: 创建 User 并同时创建其首个用户名密码 Account
+      description: 未提供 `temporaryPassword` 时由系统生成，并在响应中**仅返回一次**；用户首次登录须改密。
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateUserRequest' } } }
+      responses:
+        '201': { description: 已创建, content: { application/json: { schema: { $ref: '#/components/schemas/CreateUserResult' } } } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{userId}:
+    parameters:
+      - { $ref: '#/components/parameters/UserId' }
+    get:
+      tags: [users]
+      operationId: getUser
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [users]
+      operationId: updateUser
+      summary: 编辑 User 基本信息与角色
+      description: 带 `version` 做乐观锁；冲突 409 `VERSION_CONFLICT`。将最后一名管理员降级 409 `LAST_ADMIN`。
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateUserRequest' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{userId}/disable:
+    post:
+      tags: [users]
+      operationId: disableUser
+      summary: 停用 User（其全部 Account 不可登录，会话立即失效）
+      description: 停用自己 409 `CANNOT_DISABLE_SELF`；停用最后一名管理员 409 `LAST_ADMIN`。
+      parameters:
+        - { $ref: '#/components/parameters/UserId' }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{userId}/enable:
+    post:
+      tags: [users]
+      operationId: enableUser
+      parameters:
+        - { $ref: '#/components/parameters/UserId' }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /users/{userId}/accounts:
+    parameters:
+      - { $ref: '#/components/parameters/UserId' }
+    get:
+      tags: [accounts]
+      operationId: listAccounts
+      summary: User 名下全部 Account
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Account' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [accounts]
+      operationId: createAccount
+      summary: 为 User 新增 Account（首期仅 USERNAME_PASSWORD）
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateAccountRequest' } } }
+      responses:
+        '201': { description: 已创建, content: { application/json: { schema: { $ref: '#/components/schemas/AccountWithTemporaryPassword' } } } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{userId}/accounts/{accountId}:
+    delete:
+      tags: [accounts]
+      operationId: deleteAccount
+      summary: 删除 Account
+      description: 若为该 User 最后一个可用 Account，须 `confirm=true`，否则 409 `LAST_ACTIVE_ACCOUNT_CONFIRM_REQUIRED`。
+      parameters:
+        - { $ref: '#/components/parameters/UserId' }
+        - { $ref: '#/components/parameters/AccountId' }
+        - { name: confirm, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '204': { description: 已删除 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{userId}/accounts/{accountId}/disable:
+    post:
+      tags: [accounts]
+      operationId: disableAccount
+      description: 同删除，最后一个可用 Account 须 `confirm=true`。
+      parameters:
+        - { $ref: '#/components/parameters/UserId' }
+        - { $ref: '#/components/parameters/AccountId' }
+        - { name: confirm, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{userId}/accounts/{accountId}/enable:
+    post:
+      tags: [accounts]
+      operationId: enableAccount
+      parameters:
+        - { $ref: '#/components/parameters/UserId' }
+        - { $ref: '#/components/parameters/AccountId' }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /users/{userId}/accounts/{accountId}/unlock:
+    post:
+      tags: [accounts]
+      operationId: unlockAccount
+      summary: 手动解锁（清零失败计数与锁定时间）
+      parameters:
+        - { $ref: '#/components/parameters/UserId' }
+        - { $ref: '#/components/parameters/AccountId' }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /users/{userId}/accounts/{accountId}/reset-password:
+    post:
+      tags: [accounts]
+      operationId: resetPassword
+      summary: 重置密码为临时密码
+      description: 旧密码失效、该 Account 会话失效、下次登录强制改密。未提供 `temporaryPassword` 时系统生成，**仅返回一次**。
+      parameters:
+        - { $ref: '#/components/parameters/UserId' }
+        - { $ref: '#/components/parameters/AccountId' }
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: '#/components/schemas/ResetPasswordRequest' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AccountWithTemporaryPassword' } } } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /sessions:
+    get:
+      tags: [sessions]
+      operationId: listSessions
+      summary: 本租户当前所有有效登录会话（跨用户、跨 Account）
+      description: 仅 `TENANT_ADMIN`。已过期/已撤销的不返回；按最近活跃倒序；`current=true` 标识调用者本人的当前会话（依据 JWT 的 `sid`）。绝不返回令牌、令牌哈希或原始 User-Agent。
+      parameters:
+        - { name: keyword, in: query, schema: { type: string, maxLength: 50 }, description: 匹配用户显示名或登录标识 }
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/LoginSessionPage' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /sessions/{sessionId}:
+    delete:
+      tags: [sessions]
+      operationId: revokeSession
+      summary: 强制下线单个会话
+      description: |
+        撤销（`ADMIN_REVOKED`）并写审计 `SESSION_REVOKED`（同事务）。目标是调用者当前会话时 409 `CANNOT_REVOKE_CURRENT_SESSION`。
+        会话不存在、已过期、已撤销或属于其他租户一律 204（幂等，不泄露存在性）。
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 已下线 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{userId}/sessions:
+    delete:
+      tags: [sessions]
+      operationId: revokeUserSessions
+      summary: 下线某个用户的全部会话
+      description: |
+        撤销该 User 全部会话并写审计 `SESSIONS_REVOKED_ALL`（含数量，同事务）。目标是调用者本人时 409 `CANNOT_REVOKE_OWN_SESSIONS`；
+        用户不存在或属于其他租户 → 404。
+      parameters:
+        - { $ref: '#/components/parameters/UserId' }
+      responses:
+        '204': { description: 已下线 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /audit-logs:
+    get:
+      tags: [audit]
+      operationId: listAuditLogs
+      summary: 本租户审计日志（首期仅后端可查询，界面后续增强）
+      parameters:
+        - { name: action, in: query, schema: { type: string } }
+        - { name: actorUserId, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AuditLogPage' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    internalJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: BFF 签发的内部 JWT（EdDSA，iss=admin-center-bff，aud=tenant-core-api，约 60 秒有效）；typ=user 或 typ=service，见 info 说明
+
+  parameters:
+    UserId: { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+    AccountId: { name: accountId, in: path, required: true, schema: { type: string, format: uuid } }
+
+  responses:
+    Unauthorized:
+      description: JWT 缺失、无效或过期；或用户/Account 已停用；或 `sid` 对应会话已撤销/已过期/不存在（如密码被重置、被强制下线）。BFF 应销毁浏览器会话
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    InvalidCredentials:
+      description: 用户名或密码错误、账号停用、被锁定——统一返回，不可区分（code=INVALID_CREDENTIALS）
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Forbidden:
+      description: 非租户管理员（FORBIDDEN）或须先改密（PASSWORD_CHANGE_REQUIRED）
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    NotFound:
+      description: 资源不存在或不属于当前租户（不可区分）
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Conflict:
+      description: 'code 取值：USERNAME_TAKEN、VERSION_CONFLICT、LAST_ADMIN、CANNOT_DISABLE_SELF、LAST_ACTIVE_ACCOUNT_CONFIRM_REQUIRED、CANNOT_REVOKE_CURRENT_SESSION、CANNOT_REVOKE_OWN_SESSIONS'
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    ValidationError:
+      description: 参数校验失败；含密码复杂度不达标（code=VALIDATION_FAILED，errors 逐字段说明）
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    TooManyRequests:
+      description: 触发限流，含 Retry-After（由 BFF 返回，后端不返回 429）
+      headers: { Retry-After: { schema: { type: integer } } }
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string, description: 稳定的机器可读错误码 }
+        detail: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties: { field: { type: string }, message: { type: string } }
+
+    Status: { type: string, enum: [ACTIVE, DISABLED] }
+    Role: { type: string, enum: [TENANT_ADMIN, MEMBER] }
+    AccountType: { type: string, enum: [USERNAME_PASSWORD], description: 首期仅此一种；后续新增不影响 User }
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 64 }
+        password: { type: string, minLength: 1, maxLength: 128, format: password, writeOnly: true }
+        userAgent: { type: [string, 'null'], maxLength: 512, description: 浏览器 User-Agent（仅用于会话设备摘要，不影响授权） }
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string, format: password, writeOnly: true }
+        newPassword: { type: string, format: password, writeOnly: true, description: 长度 ≥ 10，含大小写/数字/符号至少 3 类，不含用户名 }
+
+    LoginResult:
+      type: object
+      required: [me, sessionToken, expiresAt]
+      properties:
+        me: { $ref: '#/components/schemas/Me' }
+        sessionToken: { type: string, description: 会话令牌（256 位随机，仅此一次返回；后端只存哈希），BFF 放入 HttpOnly Cookie }
+        expiresAt: { type: string, format: date-time, description: 绝对到期时间，可用作 Cookie 的 Max-Age 依据 }
+
+    SessionResolveRequest:
+      type: object
+      required: [sessionToken]
+      properties:
+        sessionToken: { type: string, minLength: 16, maxLength: 256 }
+
+    SessionResolveResult:
+      type: object
+      required: [sessionId, userId, accountId, tenantId, displayName, mustChangePassword, expiresAt]
+      properties:
+        sessionId: { type: string, format: uuid, description: 会话 id，BFF 放入 JWT 的 sid }
+        userId: { type: string, format: uuid }
+        accountId: { type: string, format: uuid }
+        tenantId: { type: integer, format: int64 }
+        displayName: { type: string }
+        mustChangePassword: { type: boolean }
+        expiresAt: { type: string, format: date-time }
+
+    Me:
+      type: object
+      required: [userId, accountId, tenantId, displayName, role, mustChangePassword]
+      properties:
+        userId: { type: string, format: uuid }
+        accountId: { type: string, format: uuid }
+        displayName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        mustChangePassword: { type: boolean }
+        tenantId: { type: integer, format: int64, description: 租户 id（本期恒为 0） }
+
+    User:
+      type: object
+      required: [id, displayName, role, status, accountCount, version, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string, maxLength: 50 }
+        phone: { type: [string, 'null'] }
+        email: { type: [string, 'null'], format: email }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { $ref: '#/components/schemas/Status' }
+        primaryUsername: { type: [string, 'null'], description: 列表展示用，取最早创建的可用 Account }
+        accountCount: { type: integer }
+        lastLoginAt: { type: [string, 'null'], format: date-time }
+        version: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+
+    UserPage:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/User' } }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer, format: int64 }
+
+    CreateUserRequest:
+      type: object
+      required: [displayName, role, account]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 50 }
+        phone: { type: [string, 'null'], pattern: '^1[3-9]\d{9}$' }
+        email: { type: [string, 'null'], format: email }
+        role: { $ref: '#/components/schemas/Role' }
+        account:
+          type: object
+          required: [type, username]
+          properties:
+            type: { $ref: '#/components/schemas/AccountType' }
+            username: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$' }
+            temporaryPassword: { type: string, format: password, writeOnly: true, description: 缺省则系统生成 }
+
+    CreateUserResult:
+      type: object
+      required: [user, account]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        account: { $ref: '#/components/schemas/AccountWithTemporaryPassword' }
+
+    UpdateUserRequest:
+      type: object
+      required: [displayName, role, version]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 50 }
+        phone: { type: [string, 'null'], pattern: '^1[3-9]\d{9}$' }
+        email: { type: [string, 'null'], format: email }
+        role: { $ref: '#/components/schemas/Role' }
+        version: { type: integer, format: int64 }
+
+    Account:
+      type: object
+      required: [id, userId, type, identifier, status, locked, version, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/AccountType' }
+        identifier: { type: string }
+        status: { $ref: '#/components/schemas/Status' }
+        locked: { type: boolean }
+        lockedUntil: { type: [string, 'null'], format: date-time }
+        mustChangePassword: { type: boolean }
+        lastLoginAt: { type: [string, 'null'], format: date-time }
+        version: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+
+    AccountWithTemporaryPassword:
+      allOf:
+        - $ref: '#/components/schemas/Account'
+        - type: object
+          properties:
+            temporaryPassword:
+              type: [string, 'null']
+              description: 仅在系统生成时返回，且只返回这一次；服务端不保存明文，也不写入日志
+
+    CreateAccountRequest:
+      type: object
+      required: [type, username]
+      properties:
+        type: { $ref: '#/components/schemas/AccountType' }
+        username: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$' }
+        temporaryPassword: { type: string, format: password, writeOnly: true }
+
+    ResetPasswordRequest:
+      type: object
+      properties:
+        temporaryPassword: { type: string, format: password, writeOnly: true, description: 缺省则系统生成 }
+
+    LoginSession:
+      type: object
+      required: [id, userId, displayName, accountIdentifier, device, ip, createdAt, lastSeenAt, expiresAt, current]
+      properties:
+        id: { type: string, format: uuid, description: 会话 id（不是令牌） }
+        userId: { type: string, format: uuid }
+        displayName: { type: string }
+        accountIdentifier: { type: string, description: 该会话所用 Account 的登录标识（用户名） }
+        device: { type: string, description: 设备摘要，如「Chrome 130 / macOS」；不返回原始 UA }
+        ip: { type: string }
+        createdAt: { type: string, format: date-time }
+        lastSeenAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time, description: 空闲到期与绝对到期中较早者 }
+        current: { type: boolean }
+
+    LoginSessionPage:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/LoginSession' } }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer, format: int64 }
+
+    AuditLog:
+      type: object
+      required: [id, occurredAt, action, result]
+      properties:
+        id: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        actorUserId: { type: [string, 'null'], format: uuid }
+        actorAccountId: { type: [string, 'null'], format: uuid }
+        action: { type: string }
+        targetType: { type: [string, 'null'], enum: [USER, ACCOUNT, null] }
+        targetId: { type: [string, 'null'], format: uuid }
+        result: { type: string, enum: [SUCCESS, FAILURE] }
+        reason: { type: [string, 'null'] }
+        ip: { type: [string, 'null'] }
+
+    AuditLogPage:
+      type: object
+      required: [items, page, size, total]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer, format: int64 }
