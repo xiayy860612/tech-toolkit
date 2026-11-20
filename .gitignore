@@ -40,3 +40,11 @@ openspec/changes/**
 # Claude Code — session state (generated at runtime)
 .claude/hooks/.state*
 .claude/agent-memory
+# Java / Maven
+**/target/
+*.class
+*.iml
+.idea/
+
+# Internal JWT dev keys (never commit)
+.keys/

@@ -1,0 +1,7 @@
+admin-center:
+  jwt:
+    clock-skew: 30s
+logging:
+  level:
+    org.testcontainers: WARN
+    com.github.dockerjava: WARN

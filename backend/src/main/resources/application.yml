@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: tenant-core
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/tenantcore}
+    username: ${DB_APP_USER:tenantcore_app}
+    password: ${DB_APP_PASSWORD:}
+  flyway:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/tenantcore}
+    user: ${DB_MIGRATION_USER:tenantcore}
+    password: ${DB_MIGRATION_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+  jackson:
+    default-property-inclusion: non_null
+
+admin-center:
+  login:
+    max-failed-attempts: ${LOGIN_MAX_FAILED_ATTEMPTS:5}
+    lock-duration: ${LOGIN_LOCK_DURATION:15m}
+  session:
+    idle-timeout: ${SESSION_IDLE_TIMEOUT:30m}
+    absolute-timeout: ${SESSION_ABSOLUTE_TIMEOUT:8h}
+    retention: ${SESSION_RETENTION:7d}
+    touch-interval: 1m
+  jwt:
+    issuer: ${INTERNAL_JWT_ISSUER:admin-center-bff}
+    audience: ${INTERNAL_JWT_AUDIENCE:tenant-core-api}
+    # JWK JSON，或指向 JWK 文件的路径；开发密钥由 frontend/scripts/gen-internal-jwt-keys.mjs 生成
+    public-key: ${INTERNAL_JWT_PUBLIC_KEY:}
+    clock-skew: ${INTERNAL_JWT_CLOCK_SKEW:30s}
+  password:
+    # Argon2id（Spring Security 的 Argon2PasswordEncoder）：盐 16B、哈希 32B
+    memory-kib: ${PASSWORD_ARGON2_MEMORY_KIB:49152}
+    iterations: ${PASSWORD_ARGON2_ITERATIONS:4}
+    parallelism: ${PASSWORD_ARGON2_PARALLELISM:1}
