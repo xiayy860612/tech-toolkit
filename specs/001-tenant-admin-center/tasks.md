@@ -268,9 +268,9 @@ description: "Task list for Tenant Admin Center"
 - [X] T116 后端门禁：运行 `verify`，确保 Spotless 与 JaCoCo 行覆盖率 ≥ 90% 通过；补齐缺口测试（排除路径仅 `*Application`）
 - [X] T117 前端门禁：运行 lint、typecheck、`test:coverage`（行覆盖率 ≥ 90%）、build；补齐缺口测试
 - [X] T118 更新 `backend/AGENTS.md`、`frontend/AGENTS.md` 为最终命令、环境变量、覆盖率与 CI 说明
-- [ ] T119 按 `quickstart.md` 逐条验证场景 1–19，记录结果；场景 12（跨租户隔离）、18（内部凭证校验）与 19（会话管理）必须 100% 通过
-- [ ] T120 安全复核：Cookie 属性、BFF 来源校验、限流、枚举防护、JWT 校验（算法白名单、过期、受众）、会话撤销与失效（`session` 表）、日志脱敏、RLS 角色权限、后端仅内网可达；结论记入 PR 说明
-- [ ] T121 归档（根 AGENTS.md「Project Context」）：把已落地的需求、设计沉淀到 `docs/achieve-specs/tenant-admin-center.md`，架构沉淀到 `docs/system-design/tenant-admin-center.md`
+- [X] T119 按 `quickstart.md` 逐条验证场景 1–19，记录结果；场景 12（跨租户隔离）、18（内部凭证校验）与 19（会话管理）必须 100% 通过
+- [X] T120 安全复核：Cookie 属性、BFF 来源校验、限流、枚举防护、JWT 校验（算法白名单、过期、受众）、会话撤销与失效（`session` 表）、日志脱敏、RLS 角色权限、后端仅内网可达；结论记入 PR 说明
+- [X] T121 归档（根 AGENTS.md「Project Context」）：把已落地的需求、设计沉淀到 `docs/achieve-specs/tenant-admin-center.md`，架构沉淀到 `docs/system-design/tenant-admin-center.md`
 
 ---
 
