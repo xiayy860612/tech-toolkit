@@ -1,11 +1,8 @@
 package tech.toolkit.tenantcore.api;
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
-import tech.toolkit.tenantcore.identity.AccountType;
 import tech.toolkit.tenantcore.identity.Role;
 import tech.toolkit.tenantcore.identity.Status;
 import tech.toolkit.tenantcore.identity.UserView;
@@ -16,20 +13,11 @@ public final class UserDtos {
 
   private UserDtos() {}
 
-  public record NewAccountSpec(
-      @NotNull AccountType type, @NotNull String username, String temporaryPassword) {
-    @Override
-    public String toString() {
-      return "NewAccountSpec[redacted]";
-    }
-  }
-
   public record CreateUserRequest(
       @NotNull String displayName,
-      String phone,
-      String email,
       @NotNull Role role,
-      @NotNull @Valid NewAccountSpec account) {
+      @NotNull String username,
+      String temporaryPassword) {
     @Override
     public String toString() {
       return "CreateUserRequest[redacted]";
@@ -37,37 +25,41 @@ public final class UserDtos {
   }
 
   public record UpdateUserRequest(
-      @NotNull String displayName,
-      String phone,
-      String email,
-      @NotNull Role role,
-      @NotNull Long version) {}
+      @NotNull String displayName, @NotNull Role role, @NotNull Long version) {}
+
+  public record ResetPasswordRequest(String temporaryPassword) {
+    @Override
+    public String toString() {
+      return "ResetPasswordRequest[redacted]";
+    }
+  }
 
   public record User(
-      UUID id,
+      Long id,
       String displayName,
-      String phone,
-      String email,
+      String username,
       Role role,
       Status status,
-      String primaryUsername,
-      int accountCount,
+      boolean locked,
+      Instant lockedUntil,
+      boolean mustChangePassword,
       Instant lastLoginAt,
       long version,
       Instant createdAt) {
 
-    static User of(UserView v) {
+    static User of(UserView v, Instant now) {
       var u = v.user();
+      boolean locked = u.isLocked(now);
       return new User(
           u.getId(),
           u.getDisplayName(),
-          u.getPhone(),
-          u.getEmail(),
+          u.getUsername(),
           u.getRole(),
           u.getStatus(),
-          v.primaryUsername(),
-          v.accountCount(),
-          v.lastLoginAt(),
+          locked,
+          locked ? u.getLockedUntil() : null,
+          u.isMustChangePassword(),
+          u.getLastLoginAt(),
           u.getVersion(),
           u.getCreatedAt());
     }
@@ -75,15 +67,16 @@ public final class UserDtos {
 
   public record UserPage(List<User> items, int page, int size, long total) {
 
-    static UserPage of(PageResult<UserView> p) {
-      return new UserPage(p.items().stream().map(User::of).toList(), p.page(), p.size(), p.total());
+    static UserPage of(PageResult<UserView> p, Instant now) {
+      return new UserPage(
+          p.items().stream().map(v -> User.of(v, now)).toList(), p.page(), p.size(), p.total());
     }
   }
 
-  public record CreateUserResult(User user, AccountDtos.AccountWithTemporaryPassword account) {
+  public record UserWithTemporaryPassword(User user, String temporaryPassword) {
     @Override
     public String toString() {
-      return "CreateUserResult[redacted]";
+      return "UserWithTemporaryPassword[redacted]";
     }
   }
 }

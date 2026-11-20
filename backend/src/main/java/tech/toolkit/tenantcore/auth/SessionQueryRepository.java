@@ -7,14 +7,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.stereotype.Repository;
-import tech.toolkit.tenantcore.identity.Account;
+import tech.toolkit.tenantcore.identity.IdentityRules;
 import tech.toolkit.tenantcore.platform.PageResult;
 
-/** 本租户当前有效会话的分页查询（跨用户、跨 Account）；租户条件由 {@code @TenantId} 与 RLS 保证。 */
+/** 本租户当前有效会话的分页查询（跨用户）；租户条件由 {@code @TenantId} 与 RLS 保证。 */
 @Repository
 class SessionQueryRepository {
 
-  record Row(Session session, String displayName, String accountIdentifier) {}
+  record Row(Session session, String displayName, String username) {}
 
   @PersistenceContext private EntityManager em;
 
@@ -22,17 +22,16 @@ class SessionQueryRepository {
       String keyword, Instant notExpiredAfter, Instant activeAfter, int page, int size) {
     boolean hasKeyword = keyword != null && !keyword.isBlank();
     String from =
-        " from Session s, tech.toolkit.tenantcore.identity.AppUser u,"
-            + " tech.toolkit.tenantcore.identity.Account a"
-            + " where s.userId = u.id and s.accountId = a.id and s.revokedAt is null"
+        " from Session s, tech.toolkit.tenantcore.identity.AppUser u"
+            + " where s.userId = u.id and s.revokedAt is null"
             + " and s.absoluteExpiresAt > :now and s.lastSeenAt > :idleCutoff"
             + (hasKeyword
                 ? " and (lower(u.displayName) like :like escape '\\'"
-                    + " or a.identifierNormalized like :nlike escape '\\')"
+                    + " or u.usernameNormalized like :nlike escape '\\')"
                 : "");
     TypedQuery<Object[]> query =
         em.createQuery(
-            "select s, u.displayName, a.identifier" + from + " order by s.lastSeenAt desc, s.id",
+            "select s, u.displayName, u.username" + from + " order by s.lastSeenAt desc, s.id",
             Object[].class);
     TypedQuery<Long> count = em.createQuery("select count(s)" + from, Long.class);
     for (TypedQuery<?> q : List.of(query, count)) {
@@ -41,7 +40,7 @@ class SessionQueryRepository {
       if (hasKeyword) {
         String k = keyword.trim();
         q.setParameter("like", escape(k.toLowerCase(Locale.ROOT)) + "%");
-        q.setParameter("nlike", escape(Account.normalize(k)) + "%");
+        q.setParameter("nlike", escape(IdentityRules.normalizeUsername(k)) + "%");
       }
     }
     List<Row> rows =

@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { Table, TBody, Td, Th, THead, Tr } from "@/components/ui/table";
-import { ConfirmDialog } from "@/features/accounts/ConfirmDialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { apiRequest } from "@/lib/api/client";
 import { messageOf } from "@/lib/api/errors";
 import type { LoginSession, LoginSessionPage, Me } from "@/lib/api/types";
@@ -25,7 +25,7 @@ export function SessionsTable() {
   const [page, setPage] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
   const [state, setState] = useState<State>({ kind: "loading" });
-  const [ownUserId, setOwnUserId] = useState<string | null>(null);
+  const [ownUserId, setOwnUserId] = useState<number | null>(null);
   const [intent, setIntent] = useState<Intent | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -63,7 +63,7 @@ export function SessionsTable() {
 
   const currentRowUserId =
     state.kind === "ok" ? state.data.items.find((s) => s.current)?.userId : undefined;
-  const isOwnUser = (userId: string) => userId === ownUserId || userId === currentRowUserId;
+  const isOwnUser = (userId: number) => userId === ownUserId || userId === currentRowUserId;
 
   async function confirm(active: Intent) {
     setActionError(null);
@@ -134,7 +134,7 @@ export function SessionsTable() {
               <THead>
                 <Tr>
                   <Th>用户</Th>
-                  <Th>账号</Th>
+                  <Th>用户名</Th>
                   <Th>设备</Th>
                   <Th>IP</Th>
                   <Th>登录时间</Th>
@@ -147,7 +147,7 @@ export function SessionsTable() {
                 {state.data.items.map((s) => (
                   <Tr key={s.id}>
                     <Td className="font-medium">{s.displayName}</Td>
-                    <Td>{s.accountIdentifier}</Td>
+                    <Td>{s.username}</Td>
                     <Td>{s.device}</Td>
                     <Td>{s.ip}</Td>
                     <Td>{formatDateTime(s.createdAt)}</Td>

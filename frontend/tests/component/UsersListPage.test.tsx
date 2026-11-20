@@ -11,14 +11,14 @@ import UsersPage from "@/app/(console)/users/page";
 import { jsonRes, mockApi, noContent, problemRes } from "@tests/helpers/fetch-mock";
 
 const user = (over: Record<string, unknown> = {}) => ({
-  id: "u1",
+  id: 1,
   displayName: "张三",
-  phone: null,
-  email: null,
   role: "MEMBER",
   status: "ACTIVE",
-  primaryUsername: "zhangsan",
-  accountCount: 1,
+  username: "zhangsan",
+  locked: false,
+  lockedUntil: null,
+  mustChangePassword: false,
   lastLoginAt: null,
   version: 0,
   createdAt: "2030-01-01T00:00:00Z",
@@ -44,11 +44,13 @@ describe("UsersListPage", () => {
             [
               user(),
               user({
-                id: "u2",
+                id: 2,
                 displayName: "李四",
                 role: "TENANT_ADMIN",
-                primaryUsername: "lisi",
-                accountCount: 3,
+                username: "lisi",
+                locked: false,
+                lockedUntil: null,
+                mustChangePassword: false,
                 status: "DISABLED",
               }),
             ],
@@ -61,21 +63,20 @@ describe("UsersListPage", () => {
   it("renders the columns and rows", async () => {
     render(<UsersPage />);
     expect(await screen.findByText("张三")).toBeInTheDocument();
-    for (const h of ["姓名", "主用户名", "角色", "状态", "最近登录", "操作"]) {
+    for (const h of ["姓名", "用户名", "角色", "状态", "最近登录", "操作"]) {
       expect(screen.getByRole("columnheader", { name: h })).toBeInTheDocument();
     }
     const row = screen.getByText("李四").closest("tr")!;
     expect(within(row).getByText("lisi")).toBeInTheDocument();
-    expect(within(row).getByText("+2 个账号")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("个账号");
     expect(within(row).getByText("租户管理员")).toBeInTheDocument();
     expect(within(row).getByText("停用")).toBeInTheDocument();
     const first = screen.getByText("张三").closest("tr")!;
     expect(within(first).getByText("从未登录")).toBeInTheDocument();
-    expect(within(first).queryByText(/个账号/)).toBeNull();
-    expect(within(first).getByRole("link", { name: "详情" })).toHaveAttribute("href", "/users/u1");
+    expect(within(first).getByRole("link", { name: "详情" })).toHaveAttribute("href", "/users/1");
     expect(within(first).getByRole("link", { name: "编辑" })).toHaveAttribute(
       "href",
-      "/users/u1/edit",
+      "/users/1/edit",
     );
   });
 
@@ -144,35 +145,56 @@ describe("UsersListPage", () => {
     expect(await screen.findByText("张三")).toBeInTheDocument();
   });
 
+  it("shows no 停用 on your own row, but keeps it on other users", async () => {
+    mockApi({
+      "GET /auth/me": () =>
+        jsonRes(200, {
+          userId: 1,
+          tenantId: 0,
+          displayName: "张三",
+          role: "TENANT_ADMIN",
+          mustChangePassword: false,
+        }),
+      "GET /users": () => jsonRes(200, page([user(), user({ id: 2, displayName: "李四" })])),
+    });
+    render(<UsersPage />);
+    await screen.findByText("李四");
+    const mine = screen.getByText("张三").closest("tr")!;
+    const other = screen.getByText("李四").closest("tr")!;
+    await waitFor(() => expect(within(mine).queryByRole("button", { name: "停用" })).toBeNull());
+    expect(within(mine).getByRole("link", { name: "编辑" })).toBeInTheDocument();
+    expect(within(other).getByRole("button", { name: "停用" })).toBeEnabled();
+  });
+
   it("disables a user after confirmation and refreshes the list", async () => {
     api = mockApi({
       "GET /users": () => jsonRes(200, page([user()])),
-      "POST /users/u1/disable": () => jsonRes(200, user({ status: "DISABLED" })),
+      "POST /users/1/disable": () => jsonRes(200, user({ status: "DISABLED" })),
     });
     render(<UsersPage />);
     await screen.findByText("张三");
     await userEvent.click(screen.getByRole("button", { name: "停用" }));
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "确认停用" }));
-    await waitFor(() => expect(api.callsTo("POST /users/u1/disable")).toHaveLength(1));
+    await waitFor(() => expect(api.callsTo("POST /users/1/disable")).toHaveLength(1));
     await waitFor(() => expect(api.callsTo("GET /users").length).toBeGreaterThan(1));
   });
 
   it("enables a disabled user directly", async () => {
     api = mockApi({
       "GET /users": () => jsonRes(200, page([user({ status: "DISABLED" })])),
-      "POST /users/u1/enable": () => jsonRes(200, user()),
+      "POST /users/1/enable": () => jsonRes(200, user()),
     });
     render(<UsersPage />);
     await screen.findByText("张三");
     await userEvent.click(screen.getByRole("button", { name: "启用" }));
-    await waitFor(() => expect(api.callsTo("POST /users/u1/enable")).toHaveLength(1));
+    await waitFor(() => expect(api.callsTo("POST /users/1/enable")).toHaveLength(1));
   });
 
   it("maps guard errors from disabling by code", async () => {
     api = mockApi({
       "GET /users": () => jsonRes(200, page([user()])),
-      "POST /users/u1/disable": () => problemRes(409, "LAST_ADMIN"),
+      "POST /users/1/disable": () => problemRes(409, "LAST_ADMIN"),
     });
     render(<UsersPage />);
     await screen.findByText("张三");
@@ -186,7 +208,7 @@ describe("UsersListPage", () => {
   it("ignores a no-content enable response shape", async () => {
     api = mockApi({
       "GET /users": () => jsonRes(200, page([user({ status: "DISABLED" })])),
-      "POST /users/u1/enable": () => noContent(),
+      "POST /users/1/enable": () => noContent(),
     });
     render(<UsersPage />);
     await screen.findByText("张三");

@@ -82,13 +82,11 @@ class ListPerformanceIT extends AbstractPostgresIT {
   /** 直接用 SQL 批量造数（绕开 Argon2），凭证哈希对列表无影响。 */
   private void seedUsers() {
     owner.update(
-        "insert into app_user(id, tenant_id, display_name, role) select gen_random_uuid(), ?, 'perf user ' || g, 'MEMBER' from generate_series(1, ?) g",
+        "insert into app_user(tenant_id, display_name, role, username, username_normalized,"
+            + " password_hash, must_change_password)"
+            + " select ?, 'perf user ' || g, 'MEMBER', 'perf' || g, 'perf' || g, 'h', false"
+            + " from generate_series(1, ?) g",
         TENANT,
         USERS);
-    owner.update(
-        "insert into account(id, tenant_id, user_id, type, identifier, identifier_normalized)"
-            + " select gen_random_uuid(), tenant_id, id, 'USERNAME_PASSWORD', 'perf' || row_number() over (), 'perf' || row_number() over ()"
-            + " from app_user where tenant_id = ? and display_name like 'perf user %'",
-        TENANT);
   }
 }

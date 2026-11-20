@@ -27,11 +27,8 @@ import tech.toolkit.tenantcore.auth.PasswordChangeService;
 import tech.toolkit.tenantcore.auth.RevokeReason;
 import tech.toolkit.tenantcore.auth.Session;
 import tech.toolkit.tenantcore.auth.SessionService;
-import tech.toolkit.tenantcore.identity.Account;
-import tech.toolkit.tenantcore.identity.AccountRepository;
 import tech.toolkit.tenantcore.identity.AppUser;
 import tech.toolkit.tenantcore.identity.AppUserRepository;
-import tech.toolkit.tenantcore.identity.PasswordCredentialRepository;
 import tech.toolkit.tenantcore.identity.Status;
 import tech.toolkit.tenantcore.platform.ApiException;
 import tech.toolkit.tenantcore.platform.ErrorCode;
@@ -45,8 +42,6 @@ public class AuthController {
   private final PasswordChangeService passwordChange;
   private final AuditService audit;
   private final AppUserRepository users;
-  private final AccountRepository accounts;
-  private final PasswordCredentialRepository credentials;
   private final TransactionTemplate tx;
 
   public AuthController(
@@ -55,16 +50,12 @@ public class AuthController {
       PasswordChangeService passwordChange,
       AuditService audit,
       AppUserRepository users,
-      AccountRepository accounts,
-      PasswordCredentialRepository credentials,
       TransactionTemplate tx) {
     this.login = login;
     this.sessions = sessions;
     this.passwordChange = passwordChange;
     this.audit = audit;
     this.users = users;
-    this.accounts = accounts;
-    this.credentials = credentials;
     this.tx = tx;
   }
 
@@ -76,7 +67,6 @@ public class AuthController {
     Me me =
         new Me(
             in.user().getId(),
-            in.account().getId(),
             caller.tenantId(),
             in.user().getDisplayName(),
             in.user().getRole(),
@@ -96,25 +86,15 @@ public class AuthController {
                 return null;
               }
               AppUser user = users.findById(s.getUserId()).orElse(null);
-              Account account = accounts.findById(s.getAccountId()).orElse(null);
-              if (user == null
-                  || account == null
-                  || user.getStatus() != Status.ACTIVE
-                  || account.getStatus() != Status.ACTIVE) {
+              if (user == null || user.getStatus() != Status.ACTIVE) {
                 return null;
               }
-              boolean mustChange =
-                  credentials
-                      .findById(account.getId())
-                      .map(c -> c.isMustChangePassword())
-                      .orElse(false);
               return new SessionResolveResult(
                   s.getId(),
                   user.getId(),
-                  account.getId(),
                   caller.tenantId(),
                   user.getDisplayName(),
-                  mustChange,
+                  user.isMustChangePassword(),
                   s.getAbsoluteExpiresAt());
             });
     if (result == null) {
@@ -132,7 +112,6 @@ public class AuthController {
             .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED));
     return new Me(
         user.getId(),
-        principal.accountId(),
         principal.tenantId(),
         user.getDisplayName(),
         user.getRole(),
@@ -150,9 +129,8 @@ public class AuthController {
               AuditEvent.success(
                   AuditAction.LOGOUT,
                   principal.userId(),
-                  principal.accountId(),
-                  AuditEvent.TargetType.ACCOUNT,
-                  principal.accountId(),
+                  AuditEvent.TargetType.USER,
+                  principal.userId(),
                   principal.clientIp(),
                   Map.of()));
         });
@@ -164,7 +142,6 @@ public class AuthController {
     AuthenticatedUser principal = AuthenticatedUser.of(request);
     passwordChange.change(
         principal.userId(),
-        principal.accountId(),
         principal.sessionId(),
         body.currentPassword(),
         body.newPassword(),

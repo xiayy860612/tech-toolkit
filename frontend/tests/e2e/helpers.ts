@@ -70,7 +70,7 @@ export async function apiFetch<T = unknown>(
 }
 
 export interface CreatedUser {
-  id: string;
+  id: number;
   username: string;
   displayName: string;
   temporaryPassword: string;
@@ -84,21 +84,19 @@ export async function createUser(
   const username = uniqueName(opts.prefix ?? "e2e");
   const displayName = `E2E ${username}`;
   const res = await apiFetch<{
-    user: { id: string };
-    account: { temporaryPassword: string };
+    user: { id: number };
+    temporaryPassword: string;
   }>(adminPage, "POST", "/users", {
     displayName,
-    phone: null,
-    email: null,
     role: opts.role ?? "MEMBER",
-    account: { type: "USERNAME_PASSWORD", username },
+    username,
   });
   expect(res.status).toBe(201);
   return {
     id: res.body.user.id,
     username,
     displayName,
-    temporaryPassword: res.body.account.temporaryPassword,
+    temporaryPassword: res.body.temporaryPassword,
   };
 }
 

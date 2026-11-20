@@ -15,7 +15,7 @@ public enum ErrorCode {
   VERSION_CONFLICT(HttpStatus.CONFLICT, "数据已被他人修改，请刷新后重试"),
   LAST_ADMIN(HttpStatus.CONFLICT, "租户至少需要保留一名可用的管理员"),
   CANNOT_DISABLE_SELF(HttpStatus.CONFLICT, "不能停用自己"),
-  LAST_ACTIVE_ACCOUNT_CONFIRM_REQUIRED(HttpStatus.CONFLICT, "这是该用户最后一个可用 Account，需要确认"),
+  CANNOT_CHANGE_OWN_ROLE(HttpStatus.CONFLICT, "不能修改自己的角色"),
   CANNOT_REVOKE_CURRENT_SESSION(HttpStatus.CONFLICT, "不能下线自己的当前会话，请使用退出登录"),
   CANNOT_REVOKE_OWN_SESSIONS(HttpStatus.CONFLICT, "不能下线自己的全部会话");
 

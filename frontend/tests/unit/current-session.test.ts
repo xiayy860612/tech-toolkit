@@ -11,7 +11,6 @@ beforeAll(async () => {
 
 const ME = {
   userId: IDENTITY.userId,
-  accountId: IDENTITY.accountId,
   tenantId: 0,
   displayName: "管理员",
   role: "MEMBER",

@@ -10,18 +10,13 @@ import { Input } from "@/components/ui/input";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError, fieldErrorMap, messageOf } from "@/lib/api/errors";
-import type { CreateUserResult, Role, User } from "@/lib/api/types";
+import type { Role, User, UserWithTemporaryPassword } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
-import {
-  displayNameSchema,
-  emailSchema,
-  passwordSchema,
-  phoneSchema,
-  usernameSchema,
-} from "@/lib/validation";
+import { displayNameSchema, passwordSchema, usernameSchema } from "@/lib/validation";
 import { TempPasswordDialog } from "./TempPasswordDialog";
 
-type Props = { mode: "create" } | { mode: "edit"; user: User; onReload?: () => void };
+type Props =
+  { mode: "create" } | { mode: "edit"; user: User; onReload?: () => void; currentUserId?: number };
 
 const ROLES: { value: Role; label: string; hint: string }[] = [
   { value: "TENANT_ADMIN", label: "租户管理员", hint: "可管理本租户的用户、账号与登录会话" },
@@ -43,10 +38,13 @@ function check(
 export function UserForm(props: Props) {
   const router = useRouter();
   const editing = props.mode === "edit" ? props.user : null;
+  // 不能修改自己的角色（会让自己失去管理权限）；后端同样以 409 拒绝
+  const ownRoleLocked =
+    props.mode === "edit" &&
+    props.currentUserId !== undefined &&
+    props.currentUserId === props.user.id;
 
   const [displayName, setDisplayName] = useState(editing?.displayName ?? "");
-  const [phone, setPhone] = useState(editing?.phone ?? "");
-  const [email, setEmail] = useState(editing?.email ?? "");
   const [role, setRole] = useState<Role>(editing?.role ?? "MEMBER");
   const [username, setUsername] = useState("");
   const [temporaryPassword, setTemporaryPassword] = useState("");
@@ -55,7 +53,7 @@ export function UserForm(props: Props) {
     null,
   );
   const [loading, setLoading] = useState(false);
-  const [issuedPassword, setIssuedPassword] = useState<{ password: string; userId: string } | null>(
+  const [issuedPassword, setIssuedPassword] = useState<{ password: string; userId: number } | null>(
     null,
   );
 
@@ -64,8 +62,6 @@ export function UserForm(props: Props) {
   function validateAll(): Record<string, string> {
     const found: Record<string, string> = {};
     check(found, "displayName", displayNameSchema, displayName);
-    if (phone) check(found, "phone", phoneSchema, phone);
-    if (email) check(found, "email", emailSchema, email);
     if (!editing) {
       check(found, "username", usernameSchema, username);
       if (temporaryPassword) check(found, "temporaryPassword", passwordSchema, temporaryPassword);
@@ -82,8 +78,6 @@ export function UserForm(props: Props) {
 
     const base = {
       displayName: displayName.trim(),
-      phone: phone || null,
-      email: email || null,
       role,
     };
     setLoading(true);
@@ -95,18 +89,15 @@ export function UserForm(props: Props) {
         });
         router.push(`/users/${props.user.id}`);
       } else {
-        const created = await apiRequest<CreateUserResult>("/users", {
+        const created = await apiRequest<UserWithTemporaryPassword>("/users", {
           method: "POST",
           body: {
             ...base,
-            account: {
-              type: "USERNAME_PASSWORD",
-              username,
-              ...(temporaryPassword ? { temporaryPassword } : {}),
-            },
+            username,
+            ...(temporaryPassword ? { temporaryPassword } : {}),
           },
         });
-        const issued = created.account.temporaryPassword;
+        const issued = created.temporaryPassword;
         if (issued) setIssuedPassword({ password: issued, userId: created.user.id });
         else router.push(`/users/${created.user.id}`);
       }
@@ -145,21 +136,6 @@ export function UserForm(props: Props) {
               />
             )}
           </Field>
-          <Field label="手机号" error={errors.phone}>
-            {(p) => (
-              <Input
-                {...p}
-                inputMode="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="邮箱" error={errors.email}>
-            {(p) => (
-              <Input {...p} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            )}
-          </Field>
         </div>
       </Card>
 
@@ -170,6 +146,7 @@ export function UserForm(props: Props) {
         <div className="flex flex-col gap-5">
           <fieldset>
             <legend className="mb-1.5 text-sm font-medium">角色</legend>
+            {ownRoleLocked && <p className="mb-2 text-xs text-text-muted">不能修改自己的角色</p>}
             <div className="grid gap-3 md:grid-cols-2">
               {ROLES.map((r) => (
                 <label
@@ -184,6 +161,7 @@ export function UserForm(props: Props) {
                     name="role"
                     value={r.value}
                     checked={role === r.value}
+                    disabled={ownRoleLocked}
                     onChange={() => setRole(r.value)}
                     className="mt-1"
                   />

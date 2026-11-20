@@ -23,7 +23,7 @@ test.describe("users journey (quickstart 5, 6)", () => {
     await dialog.getByRole("button", { name: "我已记下，关闭" }).click();
 
     // 关闭后进入详情页，且临时密码不再可见
-    await expect(page).toHaveURL(/\/users\/[0-9a-f-]{36}$/);
+    await expect(page).toHaveURL(/\/users\/\d+$/);
     await expect(page.getByRole("heading", { name: `E2E ${username}` })).toBeVisible();
     await expect(page.getByText(temporaryPassword)).toHaveCount(0);
 
@@ -57,7 +57,7 @@ test.describe("users journey (quickstart 5, 6)", () => {
       await page.getByRole("button", { name: "创建用户" }).click();
       if (attempt === 1) {
         await page.getByRole("button", { name: "我已记下，关闭" }).click();
-        await expect(page).toHaveURL(/\/users\/[0-9a-f-]{36}$/);
+        await expect(page).toHaveURL(/\/users\/\d+$/);
       }
     }
     await expect(page.getByText("该用户名已被使用")).toBeVisible();

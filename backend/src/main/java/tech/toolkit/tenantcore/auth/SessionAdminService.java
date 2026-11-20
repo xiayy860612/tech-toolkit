@@ -24,13 +24,9 @@ import tech.toolkit.tenantcore.platform.PageResult;
 @Service
 public class SessionAdminService {
 
-  /** 列表行：会话本身与展示所需的用户/登录标识；{@code current} 依据 JWT 的 sid。 */
+  /** 列表行：会话本身与展示所需的用户信息；{@code current} 依据 JWT 的 sid。 */
   public record Item(
-      Session session,
-      String displayName,
-      String accountIdentifier,
-      Instant expiresAt,
-      boolean current) {}
+      Session session, String displayName, String username, Instant expiresAt, boolean current) {}
 
   private final SessionQueryRepository queries;
   private final SessionService sessions;
@@ -70,11 +66,7 @@ public class SessionAdminService {
                 expires = s.getAbsoluteExpiresAt();
               }
               return new Item(
-                  s,
-                  r.displayName(),
-                  r.accountIdentifier(),
-                  expires,
-                  s.getId().equals(currentSessionId));
+                  s, r.displayName(), r.username(), expires, s.getId().equals(currentSessionId));
             });
   }
 
@@ -93,7 +85,6 @@ public class SessionAdminService {
           AuditEvent.success(
               AuditAction.SESSION_REVOKED,
               actor.userId(),
-              actor.accountId(),
               AuditEvent.TargetType.USER,
               target.getUserId(),
               actor.ip(),
@@ -102,7 +93,7 @@ public class SessionAdminService {
   }
 
   @Transactional
-  public void revokeAllOfUser(Actor actor, UUID userId) {
+  public void revokeAllOfUser(Actor actor, Long userId) {
     if (userId.equals(actor.userId())) {
       throw new ApiException(ErrorCode.CANNOT_REVOKE_OWN_SESSIONS);
     }
@@ -112,7 +103,6 @@ public class SessionAdminService {
         AuditEvent.success(
             AuditAction.SESSIONS_REVOKED_ALL,
             actor.userId(),
-            actor.accountId(),
             AuditEvent.TargetType.USER,
             userId,
             actor.ip(),

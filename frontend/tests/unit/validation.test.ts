@@ -3,10 +3,8 @@ import {
   checkPassword,
   changePasswordSchema,
   displayNameSchema,
-  emailSchema,
   loginSchema,
   passwordSchema,
-  phoneSchema,
   usernameSchema,
   validate,
 } from "@/lib/validation";
@@ -23,23 +21,7 @@ describe("username", () => {
   );
 });
 
-describe("phone", () => {
-  it.each(["13800138000", "19912345678"])("accepts %s", (v) => {
-    expect(phoneSchema.safeParse(v).success).toBe(true);
-  });
-  it.each(["12800138000", "1380013800", "138001380000", "abc", "+8613800138000"])(
-    "rejects %s",
-    (v) => {
-      expect(phoneSchema.safeParse(v).success).toBe(false);
-    },
-  );
-});
-
-describe("email and display name", () => {
-  it("validates email", () => {
-    expect(emailSchema.safeParse("a@b.co").success).toBe(true);
-    expect(emailSchema.safeParse("not-an-email").success).toBe(false);
-  });
+describe("display name", () => {
   it("display name is non-empty and at most 50 chars", () => {
     expect(displayNameSchema.safeParse("张三").success).toBe(true);
     expect(displayNameSchema.safeParse("   ").success).toBe(false);

@@ -17,71 +17,104 @@ class SchemaConstraintsIT extends AbstractPostgresIT {
   @Autowired JdbcTemplate jdbc;
   @Autowired TransactionTemplate tx;
 
-  private UUID insertUser(long tenant, String name) {
-    UUID id = UUID.randomUUID();
-    jdbc.update(
-        "insert into app_user(id, tenant_id, display_name, role) values (?, ?, ?, 'MEMBER')",
-        id,
+  private Long insertUser(long tenant, String name, String username) {
+    return jdbc.queryForObject(
+        "insert into app_user(tenant_id, display_name, role, username, username_normalized,"
+            + " password_hash, must_change_password)"
+            + " values (?, ?, 'MEMBER', ?, lower(?), 'hash', false) returning id",
+        Long.class,
         tenant,
-        name);
-    return id;
+        name,
+        username,
+        username);
   }
 
-  private void insertAccount(long tenant, UUID userId, String identifier) {
-    jdbc.update(
-        "insert into account(tenant_id, user_id, type, identifier, identifier_normalized)"
-            + " values (?, ?, 'USERNAME_PASSWORD', ?, lower(?))",
-        tenant,
-        userId,
-        identifier,
-        identifier);
+  private static String unique() {
+    return "u" + UUID.randomUUID().toString().substring(0, 8);
   }
 
   @Test
   void usernameIsUniquePerTenantCaseInsensitively() {
-    String name = "u" + UUID.randomUUID().toString().substring(0, 8);
-    TenantContext.runAs(
-        0L,
-        () ->
-            tx.executeWithoutResult(
-                s -> {
-                  UUID user = insertUser(0, "A");
-                  insertAccount(0, user, name);
-                }));
+    String name = unique();
+    TenantContext.runAs(0L, () -> tx.executeWithoutResult(s -> insertUser(0, "A", name)));
     assertThatThrownBy(
             () ->
                 TenantContext.runAs(
-                    0L,
-                    () ->
-                        tx.executeWithoutResult(
-                            s -> {
-                              UUID user = insertUser(0, "B");
-                              insertAccount(0, user, name.toUpperCase());
-                            })))
+                    0L, () -> tx.executeWithoutResult(s -> insertUser(0, "B", name.toUpperCase()))))
         .isInstanceOf(DataAccessException.class);
   }
 
   @Test
   void sameUsernameAllowedInAnotherTenant() {
-    String name = "u" + UUID.randomUUID().toString().substring(0, 8);
-    TenantContext.runAs(
-        0L, () -> tx.executeWithoutResult(s -> insertAccount(0, insertUser(0, "A"), name)));
-    TenantContext.runAs(
-        1L, () -> tx.executeWithoutResult(s -> insertAccount(1, insertUser(1, "A"), name)));
+    String name = unique();
+    TenantContext.runAs(0L, () -> tx.executeWithoutResult(s -> insertUser(0, "A", name)));
+    TenantContext.runAs(1L, () -> tx.executeWithoutResult(s -> insertUser(1, "A", name)));
   }
 
   @Test
-  void accountMustReferenceUserOfTheSameTenant() {
-    UUID[] tenant1User = new UUID[1];
+  void everyUserMustHaveAUsernameAndAPasswordHash() {
+    for (String column : new String[] {"username", "username_normalized", "password_hash"}) {
+      assertThat(
+              new JdbcTemplate(ownerDataSource())
+                  .queryForObject(
+                      "select is_nullable from information_schema.columns"
+                          + " where table_name = 'app_user' and column_name = ?",
+                      String.class,
+                      column))
+          .as(column)
+          .isEqualTo("NO");
+    }
+  }
+
+  @Test
+  void aUserHasNoPhoneOrEmailColumns() {
+    JdbcTemplate owner = new JdbcTemplate(ownerDataSource());
+    assertThat(
+            owner.queryForObject(
+                "select count(*) from information_schema.columns"
+                    + " where table_name = 'app_user' and column_name in ('phone', 'email')",
+                Integer.class))
+        .isZero();
+  }
+
+  @Test
+  void userAndAuditIdsAreIncreasingIntegersButSessionIdsAreUuids() {
+    JdbcTemplate owner = new JdbcTemplate(ownerDataSource());
+    assertThat(columnType(owner, "app_user", "id")).isEqualTo("bigint");
+    assertThat(columnType(owner, "audit_log", "id")).isEqualTo("bigint");
+    assertThat(columnType(owner, "session", "id")).isEqualTo("uuid");
+    Long[] ids = new Long[2];
     TenantContext.runAs(
-        1L, () -> tx.executeWithoutResult(s -> tenant1User[0] = insertUser(1, "X")));
-    assertThatThrownBy(
-            () ->
-                TenantContext.runAs(
-                    0L,
-                    () ->
-                        tx.executeWithoutResult(s -> insertAccount(0, tenant1User[0], "cross-fk"))))
-        .isInstanceOf(DataAccessException.class);
+        0L,
+        () ->
+            tx.executeWithoutResult(
+                s -> {
+                  ids[0] = insertUser(0, "A", unique());
+                  ids[1] = insertUser(0, "B", unique());
+                }));
+    assertThat(ids[1]).isGreaterThan(ids[0]);
+  }
+
+  @Test
+  void thereIsNoAccountTableYetAndNoSeparatePasswordCredentialTable() {
+    JdbcTemplate owner = new JdbcTemplate(ownerDataSource());
+    for (String table : new String[] {"account", "password_credential"}) {
+      assertThat(
+              owner.queryForObject(
+                  "select count(*) from information_schema.tables where table_name = ?",
+                  Integer.class,
+                  table))
+          .as(table)
+          .isZero();
+    }
+  }
+
+  private static String columnType(JdbcTemplate owner, String table, String column) {
+    return owner.queryForObject(
+        "select data_type from information_schema.columns where table_name = ? and column_name = ?",
+        String.class,
+        table,
+        column);
   }
 
   @Test
@@ -95,28 +128,28 @@ class SchemaConstraintsIT extends AbstractPostgresIT {
                     tx.executeWithoutResult(
                         s ->
                             jdbc.update(
-                                "insert into session(tenant_id, token_hash, user_id, account_id,"
+                                "insert into session(tenant_id, token_hash, user_id,"
                                     + " last_seen_at, absolute_expires_at)"
-                                    + " values (0, ?, ?, ?, now(), now() + interval '8 hours')",
-                                hash,
-                                UUID.randomUUID(),
-                                UUID.randomUUID())));
+                                    + " values (0, ?, 1, now(), now() + interval '8 hours')",
+                                hash)));
     insert.run();
     assertThatThrownBy(insert::run).isInstanceOf(DataAccessException.class);
   }
 
   @Test
   void auditLogIsAppendOnly() {
-    UUID id = UUID.randomUUID();
+    Long[] holder = new Long[1];
     TenantContext.runAs(
         0L,
         () ->
             tx.executeWithoutResult(
                 s ->
-                    jdbc.update(
-                        "insert into audit_log(id, tenant_id, action, result)"
-                            + " values (?, 0, 'LOGIN_SUCCESS', 'SUCCESS')",
-                        id)));
+                    holder[0] =
+                        jdbc.queryForObject(
+                            "insert into audit_log(tenant_id, action, result)"
+                                + " values (0, 'LOGIN_SUCCESS', 'SUCCESS') returning id",
+                            Long.class)));
+    Long id = holder[0];
     // 应用角色无 UPDATE/DELETE 权限
     assertThatThrownBy(
             () ->
@@ -138,7 +171,7 @@ class SchemaConstraintsIT extends AbstractPostgresIT {
 
   @Test
   void rowLevelSecurityReturnsNothingWithoutTenantContext() {
-    TenantContext.runAs(0L, () -> tx.executeWithoutResult(s -> insertUser(0, "visible")));
+    TenantContext.runAs(0L, () -> tx.executeWithoutResult(s -> insertUser(0, "visible", unique())));
     Integer count =
         tx.execute(s -> jdbc.queryForObject("select count(*) from app_user", Integer.class));
     assertThat(count).isZero();

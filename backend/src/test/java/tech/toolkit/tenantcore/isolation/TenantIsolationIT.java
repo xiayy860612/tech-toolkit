@@ -10,7 +10,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -74,9 +73,10 @@ class TenantIsolationIT extends AbstractPostgresIT {
                         tx.executeWithoutResult(
                             s ->
                                 jdbc.update(
-                                    "insert into app_user(id, tenant_id, display_name, role)"
-                                        + " values (?, ?, 'x', 'MEMBER')",
-                                    UUID.randomUUID(),
+                                    "insert into app_user(tenant_id, display_name, role, username,"
+                                        + " username_normalized, password_hash,"
+                                        + " must_change_password)"
+                                        + " values (?, 'x', 'MEMBER', 'x', 'x', 'h', false)",
                                     B))))
         .isInstanceOf(DataAccessException.class);
     Integer updated =
@@ -105,7 +105,7 @@ class TenantIsolationIT extends AbstractPostgresIT {
                 .header("Authorization", open.bearer()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.tenantId").value(0))
-        .andExpect(jsonPath("$.userId").value(inA.user().getId().toString()));
+        .andExpect(jsonPath("$.userId").value(inA.user().getId()));
   }
 
   @Test
@@ -139,8 +139,8 @@ class TenantIsolationIT extends AbstractPostgresIT {
 
     mvc.perform(get("/auth/me").header("Authorization", openSecond.bearer()))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.userId").value(second.user().getId().toString()))
-        .andExpect(jsonPath("$.accountId").value(second.account().getId().toString()));
+        .andExpect(jsonPath("$.userId").value(second.user().getId()))
+        .andExpect(jsonPath("$.accountId").doesNotExist());
     assertThat(first.user().getId()).isNotEqualTo(second.user().getId());
   }
 
@@ -194,50 +194,38 @@ class TenantIsolationIT extends AbstractPostgresIT {
             .andReturn()
             .getResponse()
             .getContentAsString();
-    assertThat(listed).doesNotContain(id).doesNotContain(marker);
+    assertThat(listed).doesNotContain(marker).doesNotContain("\"id\":" + id + ",");
   }
 
-  // ---- T095：Account 端点 ----
+  // ---- T095：用户解锁/重置密码端点 ----
   @Test
-  void accountEndpointsTreatForeignAccountsAsNotFound() throws Exception {
+  void unlockAndResetPasswordTreatForeignUsersAsNotFound() throws Exception {
     var adminA =
         sessions.open(
             A, fixture.create(A, TestAccounts.uniqueName(), PW, Role.TENANT_ADMIN, false));
     var inB = fixture.create(B, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
-    String base = "/users/" + inB.user().getId() + "/accounts";
-    String acc = base + "/" + inB.account().getId();
+    String base = "/users/" + inB.user().getId();
 
-    as(get(base), adminA, null).andExpect(status().isNotFound());
-    as(
-            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(base),
-            adminA,
-            "{\"type\":\"USERNAME_PASSWORD\",\"username\":\"intruder1\"}")
-        .andExpect(status().isNotFound());
     for (String action : new String[] {"/disable", "/enable", "/unlock", "/reset-password"}) {
       as(
               org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
-                  acc + action),
+                  base + action),
               adminA,
               null)
           .andExpect(status().isNotFound());
     }
-    as(
-            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(acc)
-                .param("confirm", "true"),
-            adminA,
-            null)
-        .andExpect(status().isNotFound());
-    // 目标账号未被改动
+    // 目标用户未被改动
     var owner = new JdbcTemplate(ownerDataSource());
     assertThat(
             owner.queryForObject(
-                "select status from account where id = ?", String.class, inB.account().getId()))
+                "select status from app_user where id = ?", String.class, inB.user().getId()))
         .isEqualTo("ACTIVE");
     assertThat(
             owner.queryForObject(
-                "select count(*) from account where tenant_id = 0 and identifier = 'intruder1'",
-                Integer.class))
-        .isZero();
+                "select password_hash from app_user where id = ?",
+                String.class,
+                inB.user().getId()))
+        .isEqualTo(inB.user().getPasswordHash());
   }
 
   // ---- T102：会话端点 ----

@@ -86,7 +86,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const { me, sessionToken, expiresAt } = (await upstream.json()) as {
-      me: { userId: string; accountId: string; displayName: string; mustChangePassword: boolean };
+      me: { userId: number; displayName: string; mustChangePassword: boolean };
       sessionToken: string;
       expiresAt: string;
     };
@@ -99,7 +99,6 @@ export async function POST(request: Request): Promise<Response> {
     return new Response(
       JSON.stringify({
         userId: me.userId,
-        accountId: me.accountId,
         displayName: me.displayName,
         mustChangePassword: me.mustChangePassword,
       }),

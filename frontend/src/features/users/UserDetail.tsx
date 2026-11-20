@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { ConfirmDialog } from "@/features/accounts/ConfirmDialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { CredentialSection } from "@/features/credentials/CredentialSection";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError, messageOf } from "@/lib/api/errors";
 import type { User } from "@/lib/api/types";
@@ -17,7 +18,7 @@ type State =
   | { kind: "error"; message: string; notFound: boolean }
   | { kind: "ok"; user: User };
 
-export function UserDetail({ id }: { id: string }) {
+export function UserDetail({ id, currentUserId }: { id: string; currentUserId?: number }) {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -76,25 +77,28 @@ export function UserDetail({ id }: { id: string }) {
 
   const { user } = state;
   const active = user.status === "ACTIVE";
+  const isSelf = currentUserId !== undefined && currentUserId === user.id;
 
   return (
     <div className="flex flex-col gap-5">
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold">{user.displayName}</h1>
             <Badge tone={active ? "success" : "danger"}>{statusLabel(user.status)}</Badge>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm">
-              <Switch
-                aria-label="启用状态"
-                checked={active}
-                onCheckedChange={() =>
-                  active ? setConfirming(true) : void setStatus(user, "enable")
-                }
-              />
-            </div>
+          <div className="flex flex-wrap items-center gap-4">
+            {!isSelf && (
+              <div className="flex items-center gap-2 text-sm">
+                <Switch
+                  aria-label="启用状态"
+                  checked={active}
+                  onCheckedChange={() =>
+                    active ? setConfirming(true) : void setStatus(user, "enable")
+                  }
+                />
+              </div>
+            )}
             <Link
               href={`/users/${user.id}/edit`}
               className="inline-flex min-h-10 items-center rounded-control border border-input-border px-4 text-sm hover:bg-table-head"
@@ -114,19 +118,21 @@ export function UserDetail({ id }: { id: string }) {
         <CardTitle className="sr-only">用户信息</CardTitle>
         <dl className="grid gap-x-8 gap-y-4 text-sm md:grid-cols-2">
           <Info label="角色">{roleLabel(user.role)}</Info>
-          <Info label="手机号">{user.phone ?? "—"}</Info>
-          <Info label="邮箱">{user.email ?? "—"}</Info>
-          <Info label="账号数">{`${user.accountCount} 个账号`}</Info>
           <Info label="最近登录">{formatDateTime(user.lastLoginAt, "从未登录")}</Info>
           <Info label="创建时间">{formatDateTime(user.createdAt)}</Info>
         </dl>
       </Card>
 
+      <CredentialSection
+        user={user}
+        onChanged={(updated) => setState({ kind: "ok", user: updated })}
+      />
+
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
         title={`停用 ${user.displayName}？`}
-        description="停用后该用户的所有账号将无法登录，已登录状态立即失效。"
+        description="停用后该用户将无法登录，已登录状态立即失效。"
         confirmLabel="确认停用"
         onConfirm={() => setStatus(user, "disable")}
       />

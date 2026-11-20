@@ -13,39 +13,31 @@ import { jsonRes, mockApi, problemRes } from "@tests/helpers/fetch-mock";
 
 const created = (temporaryPassword: string | null = "Tmp-Pa55w0rd-xyz") => ({
   user: {
-    id: "new-id",
+    id: 7,
     displayName: "王五",
+    username: "wangwu",
     role: "MEMBER",
     status: "ACTIVE",
-    accountCount: 1,
-    version: 0,
-    createdAt: "2030-01-01T00:00:00Z",
-  },
-  account: {
-    id: "a1",
-    userId: "new-id",
-    type: "USERNAME_PASSWORD",
-    identifier: "wangwu",
-    status: "ACTIVE",
     locked: false,
+    mustChangePassword: true,
     version: 0,
     createdAt: "2030-01-01T00:00:00Z",
-    temporaryPassword,
   },
+  temporaryPassword,
 });
 
 beforeEach(() => push.mockReset());
 afterEach(() => vi.unstubAllGlobals());
 
 const existing = {
-  id: "u1",
+  id: 1,
   displayName: "张三",
-  phone: "13800138000",
-  email: "z@example.com",
   role: "MEMBER" as const,
   status: "ACTIVE" as const,
-  primaryUsername: "zhangsan",
-  accountCount: 1,
+  username: "zhangsan",
+  locked: false,
+  lockedUntil: null,
+  mustChangePassword: false,
   lastLoginAt: null,
   version: 3,
   createdAt: "2030-01-01T00:00:00Z",
@@ -57,8 +49,8 @@ describe("UserForm (create)", () => {
     expect(screen.getByRole("heading", { name: "基本信息" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "账号与角色" })).toBeInTheDocument();
     expect(screen.getByLabelText(/姓名/)).toBeInTheDocument();
-    expect(screen.getByLabelText("手机号")).toBeInTheDocument();
-    expect(screen.getByLabelText("邮箱")).toBeInTheDocument();
+    expect(screen.queryByLabelText("手机号")).toBeNull();
+    expect(screen.queryByLabelText("邮箱")).toBeNull();
     expect(screen.getByLabelText(/登录用户名/)).toBeInTheDocument();
     expect(screen.getByLabelText("临时密码")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /租户管理员/ })).toBeInTheDocument();
@@ -77,16 +69,14 @@ describe("UserForm (create)", () => {
     expect(screen.getByLabelText(/登录用户名/)).toHaveAttribute("aria-invalid", "true");
   });
 
-  it("validates phone, email, username format and password complexity", async () => {
+  it("validates username format and password complexity", async () => {
     mockApi({});
     render(<UserForm mode="create" />);
     await userEvent.type(screen.getByLabelText(/姓名/), "王五");
-    await userEvent.type(screen.getByLabelText("手机号"), "123");
-    await userEvent.type(screen.getByLabelText("邮箱"), "bad");
     await userEvent.type(screen.getByLabelText(/登录用户名/), "a!");
     await userEvent.type(screen.getByLabelText("临时密码"), "weak");
     await userEvent.click(screen.getByRole("button", { name: "创建用户" }));
-    expect(await screen.findByText("有 4 项校验未通过")).toBeInTheDocument();
+    expect(await screen.findByText("有 2 项校验未通过")).toBeInTheDocument();
   });
 
   it("creates the user with a system-generated password and shows it once", async () => {
@@ -102,10 +92,8 @@ describe("UserForm (create)", () => {
 
     expect(api.callsTo("POST /users")[0]!.body).toEqual({
       displayName: "王五",
-      phone: null,
-      email: null,
       role: "TENANT_ADMIN",
-      account: { type: "USERNAME_PASSWORD", username: "wangwu" },
+      username: "wangwu",
     });
 
     const dialog = await screen.findByRole("dialog", { name: /临时密码/ });
@@ -116,7 +104,7 @@ describe("UserForm (create)", () => {
     expect(await within(dialog).findByText("已复制")).toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole("button", { name: "我已记下，关闭" }));
-    expect(push).toHaveBeenCalledWith("/users/new-id");
+    expect(push).toHaveBeenCalledWith("/users/7");
   });
 
   it("sends a supplied temporary password and skips the dialog when none comes back", async () => {
@@ -126,10 +114,9 @@ describe("UserForm (create)", () => {
     await userEvent.type(screen.getByLabelText(/登录用户名/), "wangwu");
     await userEvent.type(screen.getByLabelText("临时密码"), "Abcdefg1!xyz");
     await userEvent.click(screen.getByRole("button", { name: "创建用户" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/users/new-id"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/users/7"));
     expect(
-      (api.callsTo("POST /users")[0]!.body as { account: { temporaryPassword: string } }).account
-        .temporaryPassword,
+      (api.callsTo("POST /users")[0]!.body as { temporaryPassword: string }).temporaryPassword,
     ).toBe("Abcdefg1!xyz");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -148,13 +135,13 @@ describe("UserForm (create)", () => {
   it("maps server-side field errors onto fields", async () => {
     mockApi({
       "POST /users": () =>
-        problemRes(400, "VALIDATION_FAILED", [{ field: "phone", message: "手机号不合法" }]),
+        problemRes(400, "VALIDATION_FAILED", [{ field: "displayName", message: "姓名不合法" }]),
     });
     render(<UserForm mode="create" />);
     await userEvent.type(screen.getByLabelText(/姓名/), "王五");
     await userEvent.type(screen.getByLabelText(/登录用户名/), "wangwu");
     await userEvent.click(screen.getByRole("button", { name: "创建用户" }));
-    expect(await screen.findByText("手机号不合法")).toBeInTheDocument();
+    expect(await screen.findByText("姓名不合法")).toBeInTheDocument();
   });
 
   it("shows a generic alert for other failures", async () => {
@@ -178,31 +165,57 @@ describe("UserForm (edit)", () => {
     expect(screen.queryByLabelText(/登录用户名/)).toBeNull();
     expect(screen.queryByLabelText("临时密码")).toBeNull();
     expect(screen.getByLabelText(/姓名/)).toHaveValue("张三");
-    expect(screen.getByLabelText("手机号")).toHaveValue("13800138000");
-    expect(screen.getByLabelText("邮箱")).toHaveValue("z@example.com");
+    expect(screen.queryByLabelText("手机号")).toBeNull();
+    expect(screen.queryByLabelText("邮箱")).toBeNull();
+  });
+
+  it("locks the role choice when editing yourself and still saves other fields", async () => {
+    const api = mockApi({
+      "PATCH /users/1": () => jsonRes(200, { ...existing, displayName: "张三丰", version: 4 }),
+    });
+    render(<UserForm mode="edit" user={{ ...existing, role: "TENANT_ADMIN" }} currentUserId={1} />);
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
+    expect(screen.getByText("不能修改自己的角色")).toBeInTheDocument();
+    const name = screen.getByLabelText(/姓名/);
+    await userEvent.clear(name);
+    await userEvent.type(name, "张三丰");
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(api.callsTo("PATCH /users/1")).toHaveLength(1));
+    expect(api.callsTo("PATCH /users/1")[0]!.body).toMatchObject({ role: "TENANT_ADMIN" });
+  });
+
+  it("keeps the role choice open when editing someone else", () => {
+    render(<UserForm mode="edit" user={existing} currentUserId={2} />);
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeEnabled();
+    expect(screen.queryByText("不能修改自己的角色")).toBeNull();
+  });
+
+  it("maps CANNOT_CHANGE_OWN_ROLE from the server", async () => {
+    mockApi({ "PATCH /users/1": () => problemRes(409, "CANNOT_CHANGE_OWN_ROLE") });
+    render(<UserForm mode="edit" user={existing} />);
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("不能修改自己的角色");
   });
 
   it("patches with the version for optimistic locking", async () => {
     const api = mockApi({
-      "PATCH /users/u1": () => jsonRes(200, { ...existing, displayName: "张三丰", version: 4 }),
+      "PATCH /users/1": () => jsonRes(200, { ...existing, displayName: "张三丰", version: 4 }),
     });
     render(<UserForm mode="edit" user={existing} />);
     const name = screen.getByLabelText(/姓名/);
     await userEvent.clear(name);
     await userEvent.type(name, "张三丰");
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/users/u1"));
-    expect(api.callsTo("PATCH /users/u1")[0]!.body).toEqual({
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/users/1"));
+    expect(api.callsTo("PATCH /users/1")[0]!.body).toEqual({
       displayName: "张三丰",
-      phone: "13800138000",
-      email: "z@example.com",
       role: "MEMBER",
       version: 3,
     });
   });
 
   it("on VERSION_CONFLICT tells the user to refresh and offers a reload", async () => {
-    mockApi({ "PATCH /users/u1": () => problemRes(409, "VERSION_CONFLICT") });
+    mockApi({ "PATCH /users/1": () => problemRes(409, "VERSION_CONFLICT") });
     const onReload = vi.fn();
     render(<UserForm mode="edit" user={existing} onReload={onReload} />);
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
@@ -212,7 +225,7 @@ describe("UserForm (edit)", () => {
   });
 
   it("maps LAST_ADMIN when demoting the last administrator", async () => {
-    mockApi({ "PATCH /users/u1": () => problemRes(409, "LAST_ADMIN") });
+    mockApi({ "PATCH /users/1": () => problemRes(409, "LAST_ADMIN") });
     render(<UserForm mode="edit" user={{ ...existing, role: "TENANT_ADMIN" }} />);
     await userEvent.click(screen.getByRole("radio", { name: /普通用户/ }));
     await userEvent.click(screen.getByRole("button", { name: "保存" }));

@@ -4,7 +4,7 @@ import { UsersTable } from "@/features/users/UsersTable";
 export default function UsersPage() {
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">用户管理</h1>
         <Link
           href="/users/new"

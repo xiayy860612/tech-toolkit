@@ -4,12 +4,13 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.net.InetAddress;
 import java.time.Instant;
 import java.util.Map;
-import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.TenantId;
 import org.hibernate.type.SqlTypes;
@@ -18,7 +19,9 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "audit_log")
 public class AuditLog {
 
-  @Id private UUID id = UUID.randomUUID();
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
   @TenantId
   @Column(name = "tenant_id", nullable = false, updatable = false)
@@ -28,10 +31,7 @@ public class AuditLog {
   private Instant occurredAt = Instant.now();
 
   @Column(name = "actor_user_id")
-  private UUID actorUserId;
-
-  @Column(name = "actor_account_id")
-  private UUID actorAccountId;
+  private Long actorUserId;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 40)
@@ -42,7 +42,7 @@ public class AuditLog {
   private AuditEvent.TargetType targetType;
 
   @Column(name = "target_id")
-  private UUID targetId;
+  private Long targetId;
 
   @Column(nullable = false, length = 10)
   private String result;
@@ -60,7 +60,6 @@ public class AuditLog {
 
   AuditLog(AuditEvent e, InetAddress ip, Map<String, Object> detail) {
     this.actorUserId = e.actorUserId();
-    this.actorAccountId = e.actorAccountId();
     this.action = e.action();
     this.targetType = e.targetType();
     this.targetId = e.targetId();
@@ -70,7 +69,7 @@ public class AuditLog {
     this.detail = detail;
   }
 
-  public UUID getId() {
+  public Long getId() {
     return id;
   }
 
@@ -82,12 +81,8 @@ public class AuditLog {
     return occurredAt;
   }
 
-  public UUID getActorUserId() {
+  public Long getActorUserId() {
     return actorUserId;
-  }
-
-  public UUID getActorAccountId() {
-    return actorAccountId;
   }
 
   public AuditAction getAction() {
@@ -98,7 +93,7 @@ public class AuditLog {
     return targetType;
   }
 
-  public UUID getTargetId() {
+  public Long getTargetId() {
     return targetId;
   }
 

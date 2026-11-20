@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +39,7 @@ class UserServiceTest extends AbstractPostgresIT {
   void tenantWithOneAdmin() {
     tenant = TENANTS.incrementAndGet();
     admin = fixture.create(tenant, TestAccounts.uniqueName(), PW, Role.TENANT_ADMIN, false);
-    actor = new Actor(admin.user().getId(), admin.account().getId(), "203.0.113.5");
+    actor = new Actor(admin.user().getId(), "203.0.113.5");
   }
 
   private <T> T inTenant(Supplier<T> action) {
@@ -49,9 +48,7 @@ class UserServiceTest extends AbstractPostgresIT {
 
   private UserService.Created create(String username) {
     return inTenant(
-        () ->
-            service.create(
-                actor, new UserService.NewUser("Alice", null, null, Role.MEMBER, username, null)));
+        () -> service.create(actor, new UserService.NewUser("Alice", Role.MEMBER, username, null)));
   }
 
   private int auditCount(String action) {
@@ -68,14 +65,14 @@ class UserServiceTest extends AbstractPostgresIT {
   }
 
   @Test
-  void createsAUserWithAUsernamePasswordAccountThatMustChangeItsPassword() {
+  void createsAUserWithBuiltInUsernameAndPasswordThatMustBeChanged() {
     UserService.Created created = create("alice.w");
 
     assertThat(created.user().user().getRole()).isEqualTo(Role.MEMBER);
-    assertThat(created.user().accountCount()).isEqualTo(1);
-    assertThat(created.user().primaryUsername()).isEqualTo("alice.w");
-    assertThat(created.account().account().getType()).isEqualTo(AccountType.USERNAME_PASSWORD);
-    assertThat(created.account().mustChangePassword()).isTrue();
+    assertThat(created.user().user().getUsername()).isEqualTo("alice.w");
+    assertThat(created.user().user().getUsernameNormalized()).isEqualTo("alice.w");
+    assertThat(created.user().user().getPasswordHash()).startsWith("$argon2id$");
+    assertThat(created.user().user().isMustChangePassword()).isTrue();
     assertThat(created.temporaryPassword()).isNotBlank();
     assertThat(auditCount("USER_CREATED")).isEqualTo(1);
     assertThat(
@@ -93,10 +90,9 @@ class UserServiceTest extends AbstractPostgresIT {
             () ->
                 service.create(
                     actor,
-                    new UserService.NewUser(
-                        "Bob", null, null, Role.MEMBER, "bob.b", "Giv3n-Passw0rd!")));
+                    new UserService.NewUser("Bob", Role.MEMBER, "bob.b", "Giv3n-Passw0rd!")));
     assertThat(created.temporaryPassword()).isNull();
-    assertThat(created.account().mustChangePassword()).isTrue();
+    assertThat(created.user().user().isMustChangePassword()).isTrue();
   }
 
   @Test
@@ -106,34 +102,26 @@ class UserServiceTest extends AbstractPostgresIT {
                 inTenant(
                     () ->
                         service.create(
-                            actor,
-                            new UserService.NewUser(
-                                "Bob", null, null, Role.MEMBER, "bob.c", "weak"))))
+                            actor, new UserService.NewUser("Bob", Role.MEMBER, "bob.c", "weak"))))
         .satisfies(e -> assertCode(e, ErrorCode.VALIDATION_FAILED));
   }
 
   @Test
-  void validatesDisplayNamePhoneEmailAndUsername() {
+  void validatesDisplayNameAndUsername() {
     for (UserService.NewUser bad :
         List.of(
-            new UserService.NewUser("", null, null, Role.MEMBER, "okname", null),
-            new UserService.NewUser("x".repeat(51), null, null, Role.MEMBER, "okname", null),
-            new UserService.NewUser("N", "12345", null, Role.MEMBER, "okname", null),
-            new UserService.NewUser("N", null, "not-an-email", Role.MEMBER, "okname", null),
-            new UserService.NewUser("N", null, null, Role.MEMBER, "ab", null),
-            new UserService.NewUser("N", null, null, Role.MEMBER, "-leading", null),
-            new UserService.NewUser("N", null, null, Role.MEMBER, "has space", null))) {
+            new UserService.NewUser("", Role.MEMBER, "okname", null),
+            new UserService.NewUser("x".repeat(51), Role.MEMBER, "okname", null),
+            new UserService.NewUser("N", Role.MEMBER, "ab", null),
+            new UserService.NewUser("N", Role.MEMBER, "-leading", null),
+            new UserService.NewUser("N", Role.MEMBER, "has space", null))) {
       assertThatThrownBy(() -> inTenant(() -> service.create(actor, bad)))
           .satisfies(e -> assertCode(e, ErrorCode.VALIDATION_FAILED));
     }
     var ok =
         inTenant(
-            () ->
-                service.create(
-                    actor,
-                    new UserService.NewUser(
-                        "N", "13812345678", "n@x.io", Role.MEMBER, "okname", null)));
-    assertThat(ok.user().user().getPhone()).isEqualTo("13812345678");
+            () -> service.create(actor, new UserService.NewUser("N", Role.MEMBER, "okname", null)));
+    assertThat(ok.user().user().getDisplayName()).isEqualTo("N");
   }
 
   @Test
@@ -146,16 +134,13 @@ class UserServiceTest extends AbstractPostgresIT {
   @Test
   void updatesWithOptimisticLocking() {
     var created = create("dave.d");
-    UUID id = created.user().user().getId();
+    Long id = created.user().user().getId();
     long version = created.user().user().getVersion();
 
     var updated =
         inTenant(
             () ->
-                service.update(
-                    actor,
-                    id,
-                    new UserService.Changes("Dave D", null, null, Role.MEMBER, version)));
+                service.update(actor, id, new UserService.Changes("Dave D", Role.MEMBER, version)));
     assertThat(updated.user().getDisplayName()).isEqualTo("Dave D");
     assertThat(updated.user().getVersion()).isGreaterThan(version);
     assertThat(auditCount("USER_UPDATED")).isEqualTo(1);
@@ -165,15 +150,13 @@ class UserServiceTest extends AbstractPostgresIT {
                 inTenant(
                     () ->
                         service.update(
-                            actor,
-                            id,
-                            new UserService.Changes("Stale", null, null, Role.MEMBER, version))))
+                            actor, id, new UserService.Changes("Stale", Role.MEMBER, version))))
         .satisfies(e -> assertCode(e, ErrorCode.VERSION_CONFLICT));
   }
 
   @Test
   void unknownUsersAreNotFound() {
-    assertThatThrownBy(() -> inTenant(() -> service.get(UUID.randomUUID())))
+    assertThatThrownBy(() -> inTenant(() -> service.get(Long.MAX_VALUE)))
         .satisfies(e -> assertCode(e, ErrorCode.NOT_FOUND));
   }
 
@@ -184,9 +167,48 @@ class UserServiceTest extends AbstractPostgresIT {
   }
 
   @Test
+  void anAdministratorCannotChangeTheirOwnRoleButCanEditTheirOtherFields() {
+    var second = fixture.create(tenant, TestAccounts.uniqueName(), PW, Role.TENANT_ADMIN, false);
+    Long id = admin.user().getId();
+    long version = admin.user().getVersion();
+    assertThatThrownBy(
+            () ->
+                inTenant(
+                    () ->
+                        service.update(
+                            actor, id, new UserService.Changes("Me", Role.MEMBER, version))))
+        .satisfies(e -> assertCode(e, ErrorCode.CANNOT_CHANGE_OWN_ROLE));
+    var memberActor = new Actor(second.user().getId(), null);
+    // 升级自己同样不可：先由另一名管理员把 second 降为 MEMBER，再让 second 自己升级
+    inTenant(
+        () ->
+            service.update(
+                actor,
+                second.user().getId(),
+                new UserService.Changes("Second", Role.MEMBER, second.user().getVersion())));
+    long secondVersion = inTenant(() -> service.get(second.user().getId())).user().getVersion();
+    assertThatThrownBy(
+            () ->
+                inTenant(
+                    () ->
+                        service.update(
+                            memberActor,
+                            second.user().getId(),
+                            new UserService.Changes("Second", Role.TENANT_ADMIN, secondVersion))))
+        .satisfies(e -> assertCode(e, ErrorCode.CANNOT_CHANGE_OWN_ROLE));
+    // 角色不变时其它字段照常保存
+    var edited =
+        inTenant(
+            () ->
+                service.update(
+                    actor, id, new UserService.Changes("Renamed", Role.TENANT_ADMIN, version)));
+    assertThat(edited.user().getDisplayName()).isEqualTo("Renamed");
+  }
+
+  @Test
   void theLastAdministratorCannotBeDisabledOrDemoted() {
     var other = fixture.create(tenant, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
-    Actor otherActor = new Actor(other.user().getId(), other.account().getId(), null);
+    Actor otherActor = new Actor(other.user().getId(), null);
     assertThatThrownBy(() -> inTenant(() -> service.disable(otherActor, admin.user().getId())))
         .satisfies(e -> assertCode(e, ErrorCode.LAST_ADMIN));
     long version = admin.user().getVersion();
@@ -197,14 +219,14 @@ class UserServiceTest extends AbstractPostgresIT {
                         service.update(
                             otherActor,
                             admin.user().getId(),
-                            new UserService.Changes("Test", null, null, Role.MEMBER, version))))
+                            new UserService.Changes("Test", Role.MEMBER, version))))
         .satisfies(e -> assertCode(e, ErrorCode.LAST_ADMIN));
   }
 
   @Test
   void aSecondAdministratorMakesDisablingTheFirstPossible() {
     var second = fixture.create(tenant, TestAccounts.uniqueName(), PW, Role.TENANT_ADMIN, false);
-    Actor secondActor = new Actor(second.user().getId(), second.account().getId(), null);
+    Actor secondActor = new Actor(second.user().getId(), null);
     var disabled = inTenant(() -> service.disable(secondActor, admin.user().getId()));
     assertThat(disabled.user().getStatus()).isEqualTo(Status.DISABLED);
   }
@@ -231,11 +253,78 @@ class UserServiceTest extends AbstractPostgresIT {
   }
 
   @Test
+  void unlockClearsFailedAttemptsAndTheLock() {
+    var target = fixture.create(tenant, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
+    owner.update(
+        "update app_user set failed_attempts = 3, locked_until = now() + interval '10 minutes'"
+            + " where id = ?",
+        target.user().getId());
+
+    var unlocked = inTenant(() -> service.unlock(actor, target.user().getId()));
+
+    assertThat(unlocked.user().getFailedAttempts()).isZero();
+    assertThat(unlocked.user().getLockedUntil()).isNull();
+    assertThat(auditCount("USER_UNLOCKED")).isEqualTo(1);
+  }
+
+  @Test
+  void resetPasswordWritesANewHashForcesChangeAndRevokesSessions() {
+    var target = fixture.create(tenant, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
+    var open = sessions.open(tenant, target);
+    String oldHash =
+        owner.queryForObject(
+            "select password_hash from app_user where id = ?", String.class, target.user().getId());
+
+    var reset = inTenant(() -> service.resetPassword(actor, target.user().getId(), null));
+
+    assertThat(reset.temporaryPassword()).isNotBlank();
+    assertThat(reset.user().user().isMustChangePassword()).isTrue();
+    assertThat(
+            owner.queryForObject(
+                "select password_hash from app_user where id = ?",
+                String.class,
+                target.user().getId()))
+        .isNotEqualTo(oldHash);
+    assertThat(
+            owner.queryForObject(
+                "select revoke_reason from session where id = ?", String.class, open.sessionId()))
+        .isEqualTo("PASSWORD_RESET");
+    assertThat(auditCount("PASSWORD_RESET")).isEqualTo(1);
+    assertThat(
+            owner.queryForObject(
+                "select detail::text from audit_log where action='PASSWORD_RESET' and tenant_id = ?",
+                String.class,
+                tenant))
+        .doesNotContain(reset.temporaryPassword());
+
+    var supplied =
+        inTenant(() -> service.resetPassword(actor, target.user().getId(), "Giv3n-Passw0rd!"));
+    assertThat(supplied.temporaryPassword()).isNull();
+    assertThatThrownBy(
+            () -> inTenant(() -> service.resetPassword(actor, target.user().getId(), "weak")))
+        .satisfies(e -> assertCode(e, ErrorCode.VALIDATION_FAILED));
+  }
+
+  @Test
+  void anAdministratorMayResetTheirOwnPassword() {
+    var reset = inTenant(() -> service.resetPassword(actor, admin.user().getId(), null));
+    assertThat(reset.temporaryPassword()).isNotBlank();
+  }
+
+  @Test
+  void unknownUsersCannotBeUnlockedOrReset() {
+    assertThatThrownBy(() -> inTenant(() -> service.unlock(actor, Long.MAX_VALUE)))
+        .satisfies(e -> assertCode(e, ErrorCode.NOT_FOUND));
+    assertThatThrownBy(() -> inTenant(() -> service.resetPassword(actor, Long.MAX_VALUE, null)))
+        .satisfies(e -> assertCode(e, ErrorCode.NOT_FOUND));
+  }
+
+  @Test
   void listsOnlyMatchingUsersWithPaging() {
     create("erin.e");
     create("frank.f");
     PageResult<UserView> page = inTenant(() -> service.list("erin", null, 0, 20));
-    assertThat(page.items()).extracting(UserView::primaryUsername).containsExactly("erin.e");
+    assertThat(page.items()).extracting(v -> v.user().getUsername()).containsExactly("erin.e");
     PageResult<UserView> all = inTenant(() -> service.list(null, Status.ACTIVE, 0, 2));
     assertThat(all.total()).isEqualTo(3);
     assertThat(all.items()).hasSize(2);

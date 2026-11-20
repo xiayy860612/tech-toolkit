@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 export function Table({ className, ...props }: HTMLAttributes<HTMLTableElement>) {
   return (
     <div className="w-full overflow-x-auto">
-      <table className={cn("w-full border-collapse text-sm", className)} {...props} />
+      <table className={cn("w-full min-w-max border-collapse text-sm", className)} {...props} />
     </div>
   );
 }
@@ -24,12 +24,15 @@ export function Tr({ className, ...props }: HTMLAttributes<HTMLTableRowElement>)
 export function Th({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
-      className={cn("px-4 py-3 text-left text-xs font-medium text-text-muted", className)}
+      className={cn(
+        "px-4 py-3 text-left text-xs font-medium whitespace-nowrap text-text-muted",
+        className,
+      )}
       {...props}
     />
   );
 }
 
 export function Td({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("px-4 py-3 align-middle", className)} {...props} />;
+  return <td className={cn("px-4 py-3 align-middle whitespace-nowrap", className)} {...props} />;
 }

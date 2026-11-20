@@ -4,8 +4,7 @@ import ForbiddenPage from "@/app/(console)/forbidden/page";
 import { decideGuard } from "@/server/guard";
 
 const admin = {
-  userId: "u",
-  accountId: "a",
+  userId: 1,
   tenantId: 0,
   displayName: "管理员",
   role: "TENANT_ADMIN" as const,

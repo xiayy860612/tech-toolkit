@@ -2,7 +2,6 @@ package tech.toolkit.tenantcore.api;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,13 +14,12 @@ import tech.toolkit.tenantcore.platform.PageResult;
 public class AuditLogController {
 
   public record AuditLogItem(
-      UUID id,
+      Long id,
       Instant occurredAt,
-      UUID actorUserId,
-      UUID actorAccountId,
+      Long actorUserId,
       String action,
       String targetType,
-      UUID targetId,
+      Long targetId,
       String result,
       String reason,
       String ip) {
@@ -31,7 +29,6 @@ public class AuditLogController {
           l.getId(),
           l.getOccurredAt(),
           l.getActorUserId(),
-          l.getActorAccountId(),
           l.getAction().name(),
           l.getTargetType() == null ? null : l.getTargetType().name(),
           l.getTargetId(),
@@ -52,7 +49,7 @@ public class AuditLogController {
   @GetMapping("/audit-logs")
   AuditLogPage list(
       @RequestParam(required = false) String action,
-      @RequestParam(required = false) UUID actorUserId,
+      @RequestParam(required = false) Long actorUserId,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
           Instant from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)

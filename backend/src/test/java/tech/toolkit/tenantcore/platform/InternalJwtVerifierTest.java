@@ -22,12 +22,11 @@ class InternalJwtVerifierTest {
           TestJwt.ISSUER, TestJwt.AUDIENCE, TestKeys.publicKeyPem(), Duration.ofSeconds(30));
   private final InternalJwtVerifier verifier = new InternalJwtVerifier(config, Clock.systemUTC());
 
-  private final UUID user = UUID.randomUUID();
-  private final UUID account = UUID.randomUUID();
+  private final Long user = 42L;
   private final UUID sid = UUID.randomUUID();
 
   private TestJwt userJwt() {
-    return TestJwt.user(user, account, sid, 0L);
+    return TestJwt.user(user, sid, 0L);
   }
 
   @Test
@@ -35,7 +34,6 @@ class InternalJwtVerifierTest {
     InternalJwtClaims c = verifier.verify(userJwt().sign());
     assertThat(c.type()).isEqualTo(InternalJwtClaims.Type.USER);
     assertThat(c.userId()).isEqualTo(user);
-    assertThat(c.accountId()).isEqualTo(account);
     assertThat(c.sessionId()).isEqualTo(sid);
     assertThat(c.tenantId()).isZero();
     assertThat(c.clientIp()).isEqualTo("203.0.113.5");
@@ -89,7 +87,7 @@ class InternalJwtVerifierTest {
         .isInstanceOf(InvalidInternalJwtException.class);
     assertThatThrownBy(() -> verifier.verify(userJwt().without("tenant_id").sign()))
         .isInstanceOf(InvalidInternalJwtException.class);
-    assertThatThrownBy(() -> verifier.verify(userJwt().without("account_id").sign()))
+    assertThatThrownBy(() -> verifier.verify(userJwt().without("sub").sign()))
         .isInstanceOf(InvalidInternalJwtException.class);
     assertThatThrownBy(() -> verifier.verify(userJwt().without("typ").sign()))
         .isInstanceOf(InvalidInternalJwtException.class);

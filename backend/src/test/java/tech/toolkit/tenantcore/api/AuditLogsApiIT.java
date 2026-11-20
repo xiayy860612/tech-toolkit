@@ -55,9 +55,7 @@ class AuditLogsApiIT extends AbstractPostgresIT {
     call(
             post("/users"),
             admin,
-            "{\"displayName\":\"Audit Me\",\"role\":\"MEMBER\",\"account\":{\"type\":\"USERNAME_PASSWORD\",\"username\":\""
-                + name
-                + "\"}}")
+            "{\"displayName\":\"Audit Me\",\"role\":\"MEMBER\",\"username\":\"" + name + "\"}")
         .andExpect(status().isCreated());
 
     call(

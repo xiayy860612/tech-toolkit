@@ -17,16 +17,12 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.support.TransactionTemplate;
+import tech.toolkit.tenantcore.auth.LoginType;
 import tech.toolkit.tenantcore.auth.RevokeReason;
 import tech.toolkit.tenantcore.auth.Session;
 import tech.toolkit.tenantcore.auth.SessionService;
-import tech.toolkit.tenantcore.identity.Account;
-import tech.toolkit.tenantcore.identity.AccountRepository;
-import tech.toolkit.tenantcore.identity.AccountType;
 import tech.toolkit.tenantcore.identity.AppUser;
 import tech.toolkit.tenantcore.identity.AppUserRepository;
-import tech.toolkit.tenantcore.identity.PasswordCredential;
-import tech.toolkit.tenantcore.identity.PasswordCredentialRepository;
 import tech.toolkit.tenantcore.identity.Role;
 import tech.toolkit.tenantcore.identity.Status;
 import tech.toolkit.tenantcore.platform.TenantContext;
@@ -40,13 +36,11 @@ class JwtAuthenticationFilterIT extends AbstractPostgresIT {
 
   @Autowired MockMvc mvc;
   @Autowired AppUserRepository users;
-  @Autowired AccountRepository accounts;
-  @Autowired PasswordCredentialRepository credentials;
   @Autowired SessionService sessions;
   @Autowired MutableClock clock;
   @Autowired TransactionTemplate tx;
 
-  record Fixture(UUID userId, UUID accountId, Session session) {}
+  record Fixture(Long userId, Session session) {}
 
   @BeforeEach
   void resetClock() {
@@ -57,21 +51,24 @@ class JwtAuthenticationFilterIT extends AbstractPostgresIT {
     return TenantContext.callAs(
         0L,
         () -> {
-          AppUser user = users.save(new AppUser("tester", null, null, role));
-          Account account =
-              accounts.save(
-                  new Account(
-                      user.getId(),
-                      AccountType.USERNAME_PASSWORD,
-                      "u" + UUID.randomUUID().toString().substring(0, 8)));
-          credentials.save(new PasswordCredential(account.getId(), "{noop}x", mustChange));
+          AppUser user =
+              users.save(
+                  new AppUser(
+                      "tester",
+                      role,
+                      "u" + UUID.randomUUID().toString().substring(0, 8),
+                      "{noop}x",
+                      mustChange));
           try {
             Session s =
                 sessions
                     .create(
-                        user.getId(), account.getId(), InetAddress.getByName("203.0.113.1"), "UA")
+                        user.getId(),
+                        LoginType.USERNAME_PASSWORD,
+                        InetAddress.getByName("203.0.113.1"),
+                        "UA")
                     .session();
-            return new Fixture(user.getId(), account.getId(), s);
+            return new Fixture(user.getId(), s);
           } catch (Exception e) {
             throw new IllegalStateException(e);
           }
@@ -79,7 +76,7 @@ class JwtAuthenticationFilterIT extends AbstractPostgresIT {
   }
 
   private TestJwt jwtOf(Fixture f) {
-    return TestJwt.user(f.userId(), f.accountId(), f.session().getId(), 0L);
+    return TestJwt.user(f.userId(), f.session().getId(), 0L);
   }
 
   private MockHttpServletRequestBuilder withToken(MockHttpServletRequestBuilder b, String token) {
@@ -114,7 +111,7 @@ class JwtAuthenticationFilterIT extends AbstractPostgresIT {
   }
 
   @Test
-  void disabledUserOrAccountIsUnauthorized() throws Exception {
+  void disabledUserIsUnauthorized() throws Exception {
     Fixture a = fixture(Role.TENANT_ADMIN, false);
     mvc.perform(withToken(get("/_test/admin"), jwtOf(a).sign())).andExpect(status().isOk());
     TenantContext.runAs(
@@ -125,18 +122,6 @@ class JwtAuthenticationFilterIT extends AbstractPostgresIT {
     mvc.perform(withToken(get("/_test/admin"), jwtOf(a).sign()))
         .andExpect(status().isUnauthorized());
 
-    Fixture b = fixture(Role.TENANT_ADMIN, false);
-    TenantContext.runAs(
-        0L,
-        () ->
-            tx.executeWithoutResult(
-                s -> accounts.findById(b.accountId()).orElseThrow().setStatus(Status.DISABLED)));
-    mvc.perform(withToken(get("/_test/admin"), jwtOf(b).sign()))
-        .andExpect(status().isUnauthorized());
-  }
-
-  @Test
-  void revokedExpiredOrMismatchedSessionsAreUnauthorized() throws Exception {
     Fixture revoked = fixture(Role.TENANT_ADMIN, false);
     TenantContext.runAs(
         0L, () -> sessions.revoke(revoked.session().getId(), RevokeReason.ADMIN_REVOKED));
@@ -146,15 +131,11 @@ class JwtAuthenticationFilterIT extends AbstractPostgresIT {
     Fixture mismatched = fixture(Role.TENANT_ADMIN, false);
     Fixture other = fixture(Role.TENANT_ADMIN, false);
     // sid 属于另一个用户的会话
-    String forged =
-        TestJwt.user(mismatched.userId(), mismatched.accountId(), other.session().getId(), 0L)
-            .sign();
+    String forged = TestJwt.user(mismatched.userId(), other.session().getId(), 0L).sign();
     mvc.perform(withToken(get("/_test/admin"), forged)).andExpect(status().isUnauthorized());
 
     Fixture unknownSession = fixture(Role.TENANT_ADMIN, false);
-    String nonexistent =
-        TestJwt.user(unknownSession.userId(), unknownSession.accountId(), UUID.randomUUID(), 0L)
-            .sign();
+    String nonexistent = TestJwt.user(unknownSession.userId(), UUID.randomUUID(), 0L).sign();
     mvc.perform(withToken(get("/_test/admin"), nonexistent)).andExpect(status().isUnauthorized());
   }
 

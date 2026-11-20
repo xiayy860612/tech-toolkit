@@ -74,9 +74,8 @@ describe("proxy route", () => {
     const { payload } = await env.verify(bearer);
     expect(payload).toMatchObject({
       typ: "user",
-      sub: IDENTITY.userId,
+      sub: String(IDENTITY.userId),
       sid: IDENTITY.sessionId,
-      account_id: IDENTITY.accountId,
       tenant_id: 0,
     });
   });

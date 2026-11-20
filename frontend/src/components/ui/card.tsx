@@ -9,7 +9,10 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
 
 export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("mb-4 flex items-center justify-between gap-3", className)} {...props} />
+    <div
+      className={cn("mb-4 flex flex-wrap items-center justify-between gap-3", className)}
+      {...props}
+    />
   );
 }
 

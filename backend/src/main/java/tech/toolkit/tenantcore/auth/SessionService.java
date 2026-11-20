@@ -46,7 +46,7 @@ public class SessionService {
   }
 
   @Transactional
-  public Created create(UUID userId, UUID accountId, InetAddress ip, String userAgent) {
+  public Created create(Long userId, LoginType loginType, InetAddress ip, String userAgent) {
     byte[] raw = new byte[32];
     random.nextBytes(raw);
     String token = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
@@ -57,7 +57,7 @@ public class SessionService {
         new Session(
             sha256(token),
             userId,
-            accountId,
+            loginType,
             now,
             now.plus(config.absoluteTimeout()),
             ip,
@@ -103,17 +103,12 @@ public class SessionService {
   }
 
   @Transactional
-  public int revokeAllOfAccount(UUID accountId, RevokeReason reason) {
-    return sessions.revokeByAccount(accountId, clock.instant(), reason);
+  public int revokeOthersOfUser(Long userId, UUID keepSessionId, RevokeReason reason) {
+    return sessions.revokeByUserExcept(userId, keepSessionId, clock.instant(), reason);
   }
 
   @Transactional
-  public int revokeOthersOfAccount(UUID accountId, UUID keepSessionId, RevokeReason reason) {
-    return sessions.revokeByAccountExcept(accountId, keepSessionId, clock.instant(), reason);
-  }
-
-  @Transactional
-  public int revokeAllOfUser(UUID userId, RevokeReason reason) {
+  public int revokeAllOfUser(Long userId, RevokeReason reason) {
     return sessions.revokeByUser(userId, clock.instant(), reason);
   }
 

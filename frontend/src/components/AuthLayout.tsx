@@ -3,7 +3,11 @@ import type { ReactNode } from "react";
 
 const POINTS = [
   { icon: ShieldCheck, title: "多租户隔离", text: "数据按租户严格隔离，互不可见" },
-  { icon: Layers, title: "多登录方式 Account", text: "一个用户可拥有多个登录账号，互相独立" },
+  {
+    icon: Layers,
+    title: "可扩展的登录方式",
+    text: "用户名密码之外，手机号、微信等登录方式可逐步接入",
+  },
   { icon: FileSearch, title: "操作审计", text: "登录与管理操作全程留痕，可追溯" },
 ];
 

@@ -9,8 +9,7 @@ import tech.toolkit.tenantcore.identity.Role;
  * {@code sid}，用于判断"当前会话"。
  */
 public record AuthenticatedUser(
-    UUID userId,
-    UUID accountId,
+    Long userId,
     UUID sessionId,
     long tenantId,
     Role role,

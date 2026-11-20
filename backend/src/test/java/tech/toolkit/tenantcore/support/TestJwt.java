@@ -34,12 +34,9 @@ public final class TestJwt {
     claims.claim("cip", "203.0.113.5");
   }
 
-  public static TestJwt user(UUID userId, UUID accountId, UUID sessionId, long tenantId) {
+  public static TestJwt user(Long userId, UUID sessionId, long tenantId) {
     TestJwt t = new TestJwt("user", tenantId);
-    t.claims
-        .subject(userId.toString())
-        .claim("account_id", accountId.toString())
-        .claim("sid", sessionId.toString());
+    t.claims.subject(userId.toString()).claim("sid", sessionId.toString());
     return t;
   }
 

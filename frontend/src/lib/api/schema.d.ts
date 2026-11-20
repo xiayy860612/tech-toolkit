@@ -15,7 +15,7 @@ export interface paths {
         put?: never;
         /**
          * 用户名密码登录
-         * @description 任何失败（用户名不存在、密码错、Account/User 停用、被锁定）统一 401 `INVALID_CREDENTIALS`。
+         * @description 任何失败（用户名不存在、密码错、User 停用、被锁定）统一 401 `INVALID_CREDENTIALS`。
          *     成功返回用户信息（含 `tenantId`）、**一次性的会话令牌** `sessionToken` 与 `expiresAt`；BFF 把令牌放入 HttpOnly Cookie（Cookie 不属于本契约）。仅接受 `typ=service` 令牌。
          */
         post: operations["login"];
@@ -37,7 +37,7 @@ export interface paths {
         /**
          * 把会话令牌解析为会话身份（BFF 用）
          * @description BFF 收到浏览器请求后调用，仅接受 `typ=service` 令牌。令牌有效时返回会话 id 与用户/租户信息，并续期会话（空闲滑动，写入有节流）；
-         *     令牌无效、已过期、已撤销，或 User/Account 已停用 → 401。BFF 据此签发 `typ=user` JWT，可短暂缓存本结果（默认 5 秒）。
+         *     令牌无效、已过期、已撤销，或 User 已停用 → 401。BFF 据此签发 `typ=user` JWT，可短暂缓存本结果（默认 5 秒）。
          */
         post: operations["resolveSession"];
         delete?: never;
@@ -91,7 +91,7 @@ export interface paths {
         put?: never;
         /**
          * 修改自己的密码（强制改密与主动改密共用）
-         * @description 成功后该 Account **除当前会话外**的全部会话被撤销，`mustChangePassword` 置 false。新密码须满足复杂度规则且不得与当前密码相同。
+         * @description 成功后该用户**除当前会话外**的全部会话被撤销，`mustChangePassword` 置 false。新密码须满足复杂度规则且不得与当前密码相同。
          */
         post: operations["changePassword"];
         delete?: never;
@@ -111,8 +111,8 @@ export interface paths {
         get: operations["listUsers"];
         put?: never;
         /**
-         * 创建 User 并同时创建其首个用户名密码 Account
-         * @description 未提供 `temporaryPassword` 时由系统生成，并在响应中**仅返回一次**；用户首次登录须改密。
+         * 创建 User（含用户名与临时密码）
+         * @description 用户名密码是 User 自身的一部分。未提供 `temporaryPassword` 时由系统生成，并在响应中**仅返回一次**；用户首次登录须改密。
          */
         post: operations["createUser"];
         delete?: never;
@@ -138,7 +138,7 @@ export interface paths {
         head?: never;
         /**
          * 编辑 User 基本信息与角色
-         * @description 带 `version` 做乐观锁；冲突 409 `VERSION_CONFLICT`。将最后一名管理员降级 409 `LAST_ADMIN`。
+         * @description 带 `version` 做乐观锁；冲突 409 `VERSION_CONFLICT`。修改自己的角色 409 `CANNOT_CHANGE_OWN_ROLE`（其余字段仍可改）；将最后一名管理员降级 409 `LAST_ADMIN`。
          */
         patch: operations["updateUser"];
         trace?: never;
@@ -153,7 +153,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 停用 User（其全部 Account 不可登录，会话立即失效）
+         * 停用 User（无法以任何方式登录，会话立即失效）
          * @description 停用自己 409 `CANNOT_DISABLE_SELF`；停用最后一名管理员 409 `LAST_ADMIN`。
          */
         post: operations["disableUser"];
@@ -179,27 +179,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/users/{userId}/accounts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: components["parameters"]["UserId"];
-            };
-            cookie?: never;
-        };
-        /** User 名下全部 Account */
-        get: operations["listAccounts"];
-        put?: never;
-        /** 为 User 新增 Account（首期仅 USERNAME_PASSWORD） */
-        post: operations["createAccount"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/{userId}/accounts/{accountId}": {
+    "/users/{userId}/unlock": {
         parameters: {
             query?: never;
             header?: never;
@@ -208,68 +188,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
         /**
-         * 删除 Account
-         * @description 若为该 User 最后一个可用 Account，须 `confirm=true`，否则 409 `LAST_ACTIVE_ACCOUNT_CONFIRM_REQUIRED`。
+         * 手动解锁用户名密码登录（清零失败计数与锁定时间）
+         * @description 写审计 `USER_UNLOCKED`。
          */
-        delete: operations["deleteAccount"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/{userId}/accounts/{accountId}/disable": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description 同删除，最后一个可用 Account 须 `confirm=true`。 */
-        post: operations["disableAccount"];
+        post: operations["unlockUser"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/users/{userId}/accounts/{accountId}/enable": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["enableAccount"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/{userId}/accounts/{accountId}/unlock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 手动解锁（清零失败计数与锁定时间） */
-        post: operations["unlockAccount"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/{userId}/accounts/{accountId}/reset-password": {
+    "/users/{userId}/reset-password": {
         parameters: {
             query?: never;
             header?: never;
@@ -280,7 +210,7 @@ export interface paths {
         put?: never;
         /**
          * 重置密码为临时密码
-         * @description 旧密码失效、该 Account 会话失效、下次登录强制改密。未提供 `temporaryPassword` 时系统生成，**仅返回一次**。
+         * @description 旧密码失效、该用户全部会话失效、下次登录强制改密；可重置自己的密码（随后需用新临时密码重新登录）。未提供 `temporaryPassword` 时系统生成，**仅返回一次**。
          */
         post: operations["resetPassword"];
         delete?: never;
@@ -297,7 +227,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 本租户当前所有有效登录会话（跨用户、跨 Account）
+         * 本租户当前所有有效登录会话（跨用户）
          * @description 仅 `TENANT_ADMIN`。已过期/已撤销的不返回；按最近活跃倒序；`current=true` 标识调用者本人的当前会话（依据 JWT 的 `sid`）。绝不返回令牌、令牌哈希或原始 User-Agent。
          */
         get: operations["listSessions"];
@@ -390,11 +320,6 @@ export interface components {
         Status: "ACTIVE" | "DISABLED";
         /** @enum {string} */
         Role: "TENANT_ADMIN" | "MEMBER";
-        /**
-         * @description 首期仅此一种；后续新增不影响 User
-         * @enum {string}
-         */
-        AccountType: "USERNAME_PASSWORD";
         LoginRequest: {
             username: string;
             /** Format: password */
@@ -430,10 +355,8 @@ export interface components {
              * @description 会话 id，BFF 放入 JWT 的 sid
              */
             sessionId: string;
-            /** Format: uuid */
-            userId: string;
-            /** Format: uuid */
-            accountId: string;
+            /** Format: int64 */
+            userId: number;
             /** Format: int64 */
             tenantId: number;
             displayName: string;
@@ -442,10 +365,8 @@ export interface components {
             expiresAt: string;
         };
         Me: {
-            /** Format: uuid */
-            userId: string;
-            /** Format: uuid */
-            accountId: string;
+            /** Format: int64 */
+            userId: number;
             displayName: string;
             role: components["schemas"]["Role"];
             mustChangePassword: boolean;
@@ -456,17 +377,17 @@ export interface components {
             tenantId: number;
         };
         User: {
-            /** Format: uuid */
-            id: string;
+            /** Format: int64 */
+            id: number;
             displayName: string;
-            phone?: string | null;
-            /** Format: email */
-            email?: string | null;
+            /** @description 登录用户名（用户名密码是 User 自身的一部分） */
+            username: string;
             role: components["schemas"]["Role"];
             status: components["schemas"]["Status"];
-            /** @description 列表展示用，取最早创建的可用 Account */
-            primaryUsername?: string | null;
-            accountCount: number;
+            locked: boolean;
+            /** Format: date-time */
+            lockedUntil?: string | null;
+            mustChangePassword: boolean;
             /** Format: date-time */
             lastLoginAt?: string | null;
             /** Format: int64 */
@@ -483,61 +404,24 @@ export interface components {
         };
         CreateUserRequest: {
             displayName: string;
-            phone?: string | null;
-            /** Format: email */
-            email?: string | null;
             role: components["schemas"]["Role"];
-            account: {
-                type: components["schemas"]["AccountType"];
-                username: string;
-                /**
-                 * Format: password
-                 * @description 缺省则系统生成
-                 */
-                temporaryPassword?: string;
-            };
+            username: string;
+            /**
+             * Format: password
+             * @description 缺省则系统生成
+             */
+            temporaryPassword?: string;
         };
-        CreateUserResult: {
+        UserWithTemporaryPassword: {
             user: components["schemas"]["User"];
-            account: components["schemas"]["AccountWithTemporaryPassword"];
-        };
-        UpdateUserRequest: {
-            displayName: string;
-            phone?: string | null;
-            /** Format: email */
-            email?: string | null;
-            role: components["schemas"]["Role"];
-            /** Format: int64 */
-            version: number;
-        };
-        Account: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            userId: string;
-            type: components["schemas"]["AccountType"];
-            identifier: string;
-            status: components["schemas"]["Status"];
-            locked: boolean;
-            /** Format: date-time */
-            lockedUntil?: string | null;
-            mustChangePassword?: boolean;
-            /** Format: date-time */
-            lastLoginAt?: string | null;
-            /** Format: int64 */
-            version: number;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        AccountWithTemporaryPassword: components["schemas"]["Account"] & {
             /** @description 仅在系统生成时返回，且只返回这一次；服务端不保存明文，也不写入日志 */
             temporaryPassword?: string | null;
         };
-        CreateAccountRequest: {
-            type: components["schemas"]["AccountType"];
-            username: string;
-            /** Format: password */
-            temporaryPassword?: string;
+        UpdateUserRequest: {
+            displayName: string;
+            role: components["schemas"]["Role"];
+            /** Format: int64 */
+            version: number;
         };
         ResetPasswordRequest: {
             /**
@@ -552,11 +436,13 @@ export interface components {
              * @description 会话 id（不是令牌）
              */
             id: string;
-            /** Format: uuid */
-            userId: string;
+            /** Format: int64 */
+            userId: number;
             displayName: string;
-            /** @description 该会话所用 Account 的登录标识（用户名） */
-            accountIdentifier: string;
+            /** @description 登录用户名 */
+            username: string;
+            /** @description 登录方式；首期恒为 USERNAME_PASSWORD */
+            loginType: string;
             /** @description 设备摘要，如「Chrome 130 / macOS」；不返回原始 UA */
             device: string;
             ip: string;
@@ -579,19 +465,17 @@ export interface components {
             total: number;
         };
         AuditLog: {
-            /** Format: uuid */
-            id: string;
+            /** Format: int64 */
+            id: number;
             /** Format: date-time */
             occurredAt: string;
-            /** Format: uuid */
-            actorUserId?: string | null;
-            /** Format: uuid */
-            actorAccountId?: string | null;
+            /** Format: int64 */
+            actorUserId?: number | null;
             action: string;
             /** @enum {string|null} */
-            targetType?: "USER" | "ACCOUNT" | null;
-            /** Format: uuid */
-            targetId?: string | null;
+            targetType?: "USER" | null;
+            /** Format: int64 */
+            targetId?: number | null;
             /** @enum {string} */
             result: "SUCCESS" | "FAILURE";
             reason?: string | null;
@@ -606,7 +490,7 @@ export interface components {
         };
     };
     responses: {
-        /** @description JWT 缺失、无效或过期；或用户/Account 已停用；或 `sid` 对应会话已撤销/已过期/不存在（如密码被重置、被强制下线）。BFF 应销毁浏览器会话 */
+        /** @description JWT 缺失、无效或过期；或用户已停用；或 `sid` 对应会话已撤销/已过期/不存在（如密码被重置、被强制下线）。BFF 应销毁浏览器会话 */
         Unauthorized: {
             headers: {
                 [name: string]: unknown;
@@ -615,7 +499,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description 用户名或密码错误、账号停用、被锁定——统一返回，不可区分（code=INVALID_CREDENTIALS） */
+        /** @description 用户名或密码错误、用户停用、被锁定——统一返回，不可区分（code=INVALID_CREDENTIALS） */
         InvalidCredentials: {
             headers: {
                 [name: string]: unknown;
@@ -642,7 +526,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description code 取值：USERNAME_TAKEN、VERSION_CONFLICT、LAST_ADMIN、CANNOT_DISABLE_SELF、LAST_ACTIVE_ACCOUNT_CONFIRM_REQUIRED、CANNOT_REVOKE_CURRENT_SESSION、CANNOT_REVOKE_OWN_SESSIONS */
+        /** @description code 取值：USERNAME_TAKEN、VERSION_CONFLICT、LAST_ADMIN、CANNOT_DISABLE_SELF、CANNOT_CHANGE_OWN_ROLE、CANNOT_REVOKE_CURRENT_SESSION、CANNOT_REVOKE_OWN_SESSIONS（日后新增 Account 类型时另有 ACCOUNT_TYPE_ALREADY_LINKED） */
         Conflict: {
             headers: {
                 [name: string]: unknown;
@@ -672,8 +556,7 @@ export interface components {
         };
     };
     parameters: {
-        UserId: string;
-        AccountId: string;
+        UserId: number;
     };
     requestBodies: never;
     headers: never;
@@ -830,6 +713,7 @@ export interface operations {
                     "application/json": components["schemas"]["UserPage"];
                 };
             };
+            400: components["responses"]["ValidationError"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
         };
@@ -853,7 +737,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CreateUserResult"];
+                    "application/json": components["schemas"]["UserWithTemporaryPassword"];
                 };
             };
             400: components["responses"]["ValidationError"];
@@ -969,7 +853,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
-    listAccounts: {
+    unlockUser: {
         parameters: {
             query?: never;
             header?: never;
@@ -986,146 +870,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Account"][];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    createAccount: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: components["parameters"]["UserId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateAccountRequest"];
-            };
-        };
-        responses: {
-            /** @description 已创建 */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AccountWithTemporaryPassword"];
-                };
-            };
-            400: components["responses"]["ValidationError"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    deleteAccount: {
-        parameters: {
-            query?: {
-                confirm?: boolean;
-            };
-            header?: never;
-            path: {
-                userId: components["parameters"]["UserId"];
-                accountId: components["parameters"]["AccountId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 已删除 */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    disableAccount: {
-        parameters: {
-            query?: {
-                confirm?: boolean;
-            };
-            header?: never;
-            path: {
-                userId: components["parameters"]["UserId"];
-                accountId: components["parameters"]["AccountId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Account"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    enableAccount: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: components["parameters"]["UserId"];
-                accountId: components["parameters"]["AccountId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Account"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    unlockAccount: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: components["parameters"]["UserId"];
-                accountId: components["parameters"]["AccountId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Account"];
+                    "application/json": components["schemas"]["User"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -1139,7 +884,6 @@ export interface operations {
             header?: never;
             path: {
                 userId: components["parameters"]["UserId"];
-                accountId: components["parameters"]["AccountId"];
             };
             cookie?: never;
         };
@@ -1155,7 +899,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AccountWithTemporaryPassword"];
+                    "application/json": components["schemas"]["UserWithTemporaryPassword"];
                 };
             };
             400: components["responses"]["ValidationError"];
@@ -1167,7 +911,7 @@ export interface operations {
     listSessions: {
         parameters: {
             query?: {
-                /** @description 匹配用户显示名或登录标识 */
+                /** @description 匹配用户显示名或用户名 */
                 keyword?: string;
                 page?: number;
                 size?: number;
@@ -1187,6 +931,7 @@ export interface operations {
                     "application/json": components["schemas"]["LoginSessionPage"];
                 };
             };
+            400: components["responses"]["ValidationError"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
         };
@@ -1242,7 +987,7 @@ export interface operations {
         parameters: {
             query?: {
                 action?: string;
-                actorUserId?: string;
+                actorUserId?: number;
                 from?: string;
                 to?: string;
                 page?: number;
@@ -1263,6 +1008,7 @@ export interface operations {
                     "application/json": components["schemas"]["AuditLogPage"];
                 };
             };
+            400: components["responses"]["ValidationError"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
         };

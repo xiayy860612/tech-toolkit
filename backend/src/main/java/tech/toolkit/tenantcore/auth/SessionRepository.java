@@ -26,18 +26,9 @@ public interface SessionRepository extends JpaRepository<Session, UUID> {
   @Modifying
   @Query(
       "update Session s set s.revokedAt = :now, s.revokeReason = :reason"
-          + " where s.accountId = :accountId and s.revokedAt is null")
-  int revokeByAccount(
-      @Param("accountId") UUID accountId,
-      @Param("now") Instant now,
-      @Param("reason") RevokeReason reason);
-
-  @Modifying
-  @Query(
-      "update Session s set s.revokedAt = :now, s.revokeReason = :reason"
-          + " where s.accountId = :accountId and s.revokedAt is null and s.id <> :exceptId")
-  int revokeByAccountExcept(
-      @Param("accountId") UUID accountId,
+          + " where s.userId = :userId and s.revokedAt is null and s.id <> :exceptId")
+  int revokeByUserExcept(
+      @Param("userId") Long userId,
       @Param("exceptId") UUID exceptId,
       @Param("now") Instant now,
       @Param("reason") RevokeReason reason);
@@ -47,7 +38,7 @@ public interface SessionRepository extends JpaRepository<Session, UUID> {
       "update Session s set s.revokedAt = :now, s.revokeReason = :reason"
           + " where s.userId = :userId and s.revokedAt is null")
   int revokeByUser(
-      @Param("userId") UUID userId,
+      @Param("userId") Long userId,
       @Param("now") Instant now,
       @Param("reason") RevokeReason reason);
 }

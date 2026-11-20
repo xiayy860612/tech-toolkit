@@ -10,13 +10,13 @@ beforeAll(async () => {
 });
 
 describe("internal JWT", () => {
-  it("typ=user carries sub, tenant_id (number), account_id, sid, cip and standard claims", async () => {
+  it("typ=user carries sub (integer user id), tenant_id (number), sid, cip and standard claims", async () => {
     const token = await signUserJwt(IDENTITY, "203.0.113.9");
     const { payload } = await env.verify(token);
     expect(payload.typ).toBe("user");
-    expect(payload.sub).toBe(IDENTITY.userId);
+    expect(payload.sub).toBe(String(IDENTITY.userId));
     expect(payload.tenant_id).toBe(0);
-    expect(payload.account_id).toBe(IDENTITY.accountId);
+    expect(payload).not.toHaveProperty("account_id");
     expect(payload.sid).toBe(IDENTITY.sessionId);
     expect(payload.cip).toBe("203.0.113.9");
     expect(payload.iss).toBe("admin-center-bff");
@@ -36,7 +36,7 @@ describe("internal JWT", () => {
     process.env.DEFAULT_TENANT_ID = "0";
     expect(payload.typ).toBe("service");
     expect(payload.tenant_id).toBe(7);
-    for (const k of ["sub", "account_id", "sid"]) expect(payload).not.toHaveProperty(k);
+    for (const k of ["sub", "sid"]) expect(payload).not.toHaveProperty(k);
   });
 
   it("is signed with EdDSA and carries the kid", async () => {

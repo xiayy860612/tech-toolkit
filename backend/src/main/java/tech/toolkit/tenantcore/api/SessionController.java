@@ -42,7 +42,7 @@ public class SessionController {
 
   @DeleteMapping("/users/{userId}/sessions")
   @ResponseStatus(HttpStatus.NO_CONTENT)
-  void revokeAllOfUser(@PathVariable UUID userId, HttpServletRequest request) {
+  void revokeAllOfUser(@PathVariable Long userId, HttpServletRequest request) {
     service.revokeAllOfUser(Actors.of(request), userId);
   }
 }

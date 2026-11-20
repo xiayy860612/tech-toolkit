@@ -8,13 +8,13 @@ Tenant Admin Center 的前端，同时是平台分层中的 **Tenant Admin BFF**
 - 测试：Vitest + Testing Library + jsdom（覆盖率 v8）；E2E：Playwright
 - `src/app/`：`(public)/login`、`(console)/…`（用户、会话管理、改密、无权限）、`api/v1/auth/{login,logout}`（BFF 自有路由）、`api/v1/[...path]`（通用代理）
 - `src/server/`：**仅服务端**——`session/`（Cookie、resolve）、`backend/`（内部 JWT 签发与后端客户端）、`rate-limit`、`client-ip`、`origin`、`config`
-- `src/features/`：auth、users、accounts、sessions；`src/components/ui/`：原子组件；`src/lib/`：api 客户端与生成类型、validation、utils
+- `src/features/`：auth、users、credentials、sessions；`src/components/ui/`：原子组件；`src/lib/`：api 客户端与生成类型、validation、utils
 - `tests/unit`、`tests/component`（Vitest）、`tests/e2e`（Playwright）
 
 ## BFF 职责（务必遵守）
 
 - 浏览器只持后端签发的不透明会话令牌（HttpOnly Cookie）；**BFF 不保存会话数据**，只在内存短 TTL 缓存 resolve 结果（`SESSION_RESOLVE_CACHE_TTL_SECONDS`，默认 5，0 关闭）；Redis 仅用于限流
-- 每次请求：Cookie → 后端 `POST /auth/sessions/resolve`（`typ=service` JWT，`tenant_id=DEFAULT_TENANT_ID`）→ 签发 `typ=user` JWT（`sub`、`tenant_id`、`account_id`、`sid`、`cip`，EdDSA，60 秒；**不含 `role`**）→ 转发后端
+- 每次请求：Cookie → 后端 `POST /auth/sessions/resolve`（`typ=service` JWT，`tenant_id=DEFAULT_TENANT_ID`）→ 签发 `typ=user` JWT（`sub`（整型用户 id）、`tenant_id`、`sid`、`cip`，EdDSA，60 秒；**不含 `role`**）→ 转发后端
 - 浏览器自带的 `X-Tenant-*`、`tenantId`、`Authorization`、`Cookie` 一律不转发、不进 JWT
 - 只有 `/api/v1/auth/login`、`/api/v1/auth/logout` 是自有路由，其余均为纯代理；非 GET/HEAD 校验 `Origin` 与 `Sec-Fetch-Site`；**不使用 Next.js rewrites**
 - 登录与租户无关（无租户入口页）；界面不得出现「忘记密码」「企业 SSO」「扫码登录」「7 天内免登录」
@@ -63,7 +63,7 @@ Tenant Admin Center 的前端，同时是平台分层中的 **Tenant Admin BFF**
 2. `pnpm keys` 生成密钥；启动后端：`DB_APP_PASSWORD=<上面的密码> DB_MIGRATION_PASSWORD=tenantcore-dev-only INTERNAL_JWT_PUBLIC_KEY=<绝对路径>/frontend/.keys/internal-jwt-public.jwk.json mvn spring-boot:run -Dspring-boot.run.profiles=dev`（公钥是 **JWK 文件**）。`dev` profile 会种子管理员 `admin`（初始密码见 `application-dev.yml`，首次登录须改密）
 3. 在 `.env.local` 写入 `COOKIE_SECURE=false`、`TRUSTED_PROXY_HOPS=1`、`LOGIN_RATE_LIMIT_MAX=1000`，再 `pnpm build && pnpm start`
 4. `pnpm test:e2e`。Playwright 版本对应的 Chromium 未安装时，用本机 Chrome：`E2E_CHANNEL=chrome pnpm test:e2e`。用例对重复运行幂等（种子管理员改密到 `E2E_ADMIN_PASSWORD`，其余数据用随机用户名）
-5. 注意：登录失败会累计锁定（5 次 / 15 分钟）；若 E2E 因种子管理员被锁，在**本地开发库**执行 `update account set failed_attempts=0, locked_until=null where identifier='admin'`
+5. 注意：登录失败会累计锁定（5 次 / 15 分钟）；若 E2E 因种子管理员被锁，在**本地开发库**执行 `update app_user set failed_attempts=0, locked_until=null where username='admin'`
 
 ## 实现要点与已知坑
 

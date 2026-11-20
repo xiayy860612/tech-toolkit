@@ -22,12 +22,7 @@ public final class AuthDtos {
   }
 
   public record Me(
-      UUID userId,
-      UUID accountId,
-      long tenantId,
-      String displayName,
-      Role role,
-      boolean mustChangePassword) {}
+      Long userId, long tenantId, String displayName, Role role, boolean mustChangePassword) {}
 
   public record LoginResult(Me me, String sessionToken, Instant expiresAt) {
     @Override
@@ -45,8 +40,7 @@ public final class AuthDtos {
 
   public record SessionResolveResult(
       UUID sessionId,
-      UUID userId,
-      UUID accountId,
+      Long userId,
       long tenantId,
       String displayName,
       boolean mustChangePassword,

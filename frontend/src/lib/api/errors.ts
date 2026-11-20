@@ -25,7 +25,7 @@ const MESSAGES: Record<string, string> = {
   VERSION_CONFLICT: "数据已被他人修改，请刷新后重试",
   LAST_ADMIN: "不能停用或降级最后一名管理员",
   CANNOT_DISABLE_SELF: "不能停用自己",
-  LAST_ACTIVE_ACCOUNT_CONFIRM_REQUIRED: "这是该用户最后一个可用账号，请确认后继续",
+  CANNOT_CHANGE_OWN_ROLE: "不能修改自己的角色",
   CANNOT_REVOKE_CURRENT_SESSION: "不能下线当前会话",
   CANNOT_REVOKE_OWN_SESSIONS: "不能下线自己的全部会话",
   VALIDATION_FAILED: "提交的内容有误，请检查后重试",

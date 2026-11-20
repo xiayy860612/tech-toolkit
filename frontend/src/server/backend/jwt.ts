@@ -6,8 +6,7 @@ import { getConfig } from "../config";
 /** 会话身份（来自后端 resolve），用于签发 typ=user JWT。 */
 export interface UserIdentity {
   sessionId: string;
-  userId: string;
-  accountId: string;
+  userId: number;
   tenantId: number;
 }
 
@@ -40,9 +39,8 @@ async function sign(claims: Record<string, unknown>): Promise<string> {
 export function signUserJwt(identity: UserIdentity, cip: string): Promise<string> {
   return sign({
     typ: "user",
-    sub: identity.userId,
+    sub: String(identity.userId),
     tenant_id: identity.tenantId,
-    account_id: identity.accountId,
     sid: identity.sessionId,
     cip,
   });

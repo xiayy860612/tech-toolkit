@@ -80,7 +80,7 @@ class ProblemErrorHandlerTest {
             "VERSION_CONFLICT",
             "LAST_ADMIN",
             "CANNOT_DISABLE_SELF",
-            "LAST_ACTIVE_ACCOUNT_CONFIRM_REQUIRED",
+            "CANNOT_CHANGE_OWN_ROLE",
             "VALIDATION_FAILED",
             "NOT_FOUND",
             "CANNOT_REVOKE_OWN_SESSIONS",

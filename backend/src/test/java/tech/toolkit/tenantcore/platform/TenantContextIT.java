@@ -18,9 +18,12 @@ class TenantContextIT extends AbstractPostgresIT {
 
   private void insertUser(long tenant) {
     jdbc.update(
-        "insert into app_user(id, tenant_id, display_name, role) values (?, ?, 'n', 'MEMBER')",
-        UUID.randomUUID(),
-        tenant);
+        "insert into app_user(tenant_id, display_name, role, username, username_normalized,"
+            + " password_hash, must_change_password)"
+            + " values (?, 'n', 'MEMBER', ?, ?, 'h', false)",
+        tenant,
+        "u" + UUID.randomUUID(),
+        "u" + UUID.randomUUID());
   }
 
   private int visibleUsers() {

@@ -14,9 +14,10 @@ public final class SessionDtos {
 
   public record LoginSession(
       UUID id,
-      UUID userId,
+      Long userId,
       String displayName,
-      String accountIdentifier,
+      String username,
+      String loginType,
       String device,
       String ip,
       Instant createdAt,
@@ -30,7 +31,8 @@ public final class SessionDtos {
           s.getId(),
           s.getUserId(),
           i.displayName(),
-          i.accountIdentifier(),
+          i.username(),
+          s.getLoginType().name(),
           s.getDevice(),
           s.getIp() == null ? "" : s.getIp().getHostAddress(),
           s.getCreatedAt(),

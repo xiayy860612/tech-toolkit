@@ -17,8 +17,7 @@ beforeAll(async () => {
 const TOKEN = "opaque-session-token-ABCDEFGHIJKLMNOP";
 const LOGIN_RESULT = {
   me: {
-    userId: "22222222-2222-4222-8222-222222222222",
-    accountId: "33333333-3333-4333-8333-333333333333",
+    userId: 42,
     tenantId: 0,
     displayName: "管理员",
     role: "TENANT_ADMIN",
@@ -62,7 +61,6 @@ describe("POST /api/v1/auth/login", () => {
     const text = await res.text();
     expect(JSON.parse(text)).toEqual({
       userId: LOGIN_RESULT.me.userId,
-      accountId: LOGIN_RESULT.me.accountId,
       displayName: "管理员",
       mustChangePassword: true,
     });

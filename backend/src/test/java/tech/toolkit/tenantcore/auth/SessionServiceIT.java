@@ -35,12 +35,19 @@ class SessionServiceIT extends AbstractPostgresIT {
     clock.reset();
   }
 
-  private SessionService.Created login(UUID user, UUID account) {
+  private static final java.util.concurrent.atomic.AtomicLong NEXT_USER =
+      new java.util.concurrent.atomic.AtomicLong(1_000);
+
+  private SessionService.Created login(long user) {
     return TenantContext.callAs(
         0L,
         () -> {
           try {
-            return sessions.create(user, account, InetAddress.getByName("203.0.113.9"), CHROME_MAC);
+            return sessions.create(
+                user,
+                LoginType.USERNAME_PASSWORD,
+                InetAddress.getByName("203.0.113.9"),
+                CHROME_MAC);
           } catch (Exception e) {
             throw new IllegalStateException(e);
           }
@@ -57,8 +64,8 @@ class SessionServiceIT extends AbstractPostgresIT {
 
   @Test
   void tokenIsRandomAndOnlyItsSha256IsStored() throws Exception {
-    SessionService.Created a = login(UUID.randomUUID(), UUID.randomUUID());
-    SessionService.Created b = login(UUID.randomUUID(), UUID.randomUUID());
+    SessionService.Created a = login(NEXT_USER.incrementAndGet());
+    SessionService.Created b = login(NEXT_USER.incrementAndGet());
     assertThat(a.token()).isNotEqualTo(b.token()).hasSizeGreaterThanOrEqualTo(43);
 
     byte[] expected = MessageDigest.getInstance("SHA-256").digest(a.token().getBytes());
@@ -71,7 +78,7 @@ class SessionServiceIT extends AbstractPostgresIT {
 
   @Test
   void storesIpUserAgentAndDerivedDevice() {
-    SessionService.Created c = login(UUID.randomUUID(), UUID.randomUUID());
+    SessionService.Created c = login(NEXT_USER.incrementAndGet());
     Map<String, Object> row =
         owner.queryForMap("select * from session where id = ?", c.session().getId());
     assertThat(row.get("device")).isEqualTo("Chrome 130 / macOS");
@@ -81,7 +88,7 @@ class SessionServiceIT extends AbstractPostgresIT {
 
   @Test
   void resolveReturnsActiveSessionAndRejectsUnknownTokens() {
-    SessionService.Created c = login(UUID.randomUUID(), UUID.randomUUID());
+    SessionService.Created c = login(NEXT_USER.incrementAndGet());
     assertThat(resolve(c.token())).get().extracting(Session::getId).isEqualTo(c.session().getId());
     assertThat(resolve("not-a-real-token")).isEmpty();
     assertThat(resolve(null)).isEmpty();
@@ -89,7 +96,7 @@ class SessionServiceIT extends AbstractPostgresIT {
 
   @Test
   void lastSeenIsWrittenAtMostOncePerMinute() {
-    SessionService.Created c = login(UUID.randomUUID(), UUID.randomUUID());
+    SessionService.Created c = login(NEXT_USER.incrementAndGet());
     UUID id = c.session().getId();
     var created =
         owner.queryForObject(
@@ -112,7 +119,7 @@ class SessionServiceIT extends AbstractPostgresIT {
 
   @Test
   void idleTimeoutIsSlidingThirtyMinutes() {
-    SessionService.Created c = login(UUID.randomUUID(), UUID.randomUUID());
+    SessionService.Created c = login(NEXT_USER.incrementAndGet());
     clock.advance(Duration.ofMinutes(20));
     assertThat(resolve(c.token())).isPresent(); // 续期
     clock.advance(Duration.ofMinutes(20));
@@ -124,7 +131,7 @@ class SessionServiceIT extends AbstractPostgresIT {
 
   @Test
   void absoluteTimeoutIsEightHoursEvenWhenActive() {
-    SessionService.Created c = login(UUID.randomUUID(), UUID.randomUUID());
+    SessionService.Created c = login(NEXT_USER.incrementAndGet());
     for (int i = 0; i < 23; i++) {
       clock.advance(Duration.ofMinutes(20)); // 持续活跃，累计 7 小时 40 分
       assertThat(resolve(c.token())).isPresent();
@@ -135,7 +142,7 @@ class SessionServiceIT extends AbstractPostgresIT {
 
   @Test
   void revokeByIdMakesTheSessionInvalidAndRecordsTheReason() {
-    SessionService.Created c = login(UUID.randomUUID(), UUID.randomUUID());
+    SessionService.Created c = login(NEXT_USER.incrementAndGet());
     assertThat(
             TenantContext.callAs(
                 0L, () -> sessions.revoke(c.session().getId(), RevokeReason.LOGOUT)))
@@ -154,44 +161,38 @@ class SessionServiceIT extends AbstractPostgresIT {
   }
 
   @Test
-  void revokeByAccountUserAndExceptCurrent() {
-    UUID user = UUID.randomUUID();
-    UUID account = UUID.randomUUID();
-    UUID otherAccount = UUID.randomUUID();
-    SessionService.Created s1 = login(user, account);
-    SessionService.Created s2 = login(user, account);
-    SessionService.Created s3 = login(user, otherAccount);
+  void revokeByUserAndExceptCurrent() {
+    long user = NEXT_USER.incrementAndGet();
+    long otherUser = NEXT_USER.incrementAndGet();
+    SessionService.Created s1 = login(user);
+    SessionService.Created s2 = login(user);
+    SessionService.Created s3 = login(otherUser);
 
     int others =
         TenantContext.callAs(
             0L,
             () ->
-                sessions.revokeOthersOfAccount(
-                    account, s1.session().getId(), RevokeReason.PASSWORD_CHANGED));
+                sessions.revokeOthersOfUser(
+                    user, s1.session().getId(), RevokeReason.PASSWORD_CHANGED));
     assertThat(others).isEqualTo(1);
     assertThat(resolve(s1.token())).isPresent();
     assertThat(resolve(s2.token())).isEmpty();
     assertThat(resolve(s3.token())).isPresent();
 
-    int all =
-        TenantContext.callAs(
-            0L, () -> sessions.revokeAllOfAccount(account, RevokeReason.PASSWORD_RESET));
-    assertThat(all).isEqualTo(1);
-    assertThat(resolve(s1.token())).isEmpty();
-
     int byUser =
         TenantContext.callAs(0L, () -> sessions.revokeAllOfUser(user, RevokeReason.USER_DISABLED));
     assertThat(byUser).isEqualTo(1);
-    assertThat(resolve(s3.token())).isEmpty();
+    assertThat(resolve(s1.token())).isEmpty();
+    assertThat(resolve(s3.token())).isPresent();
     assertThat(
             owner.queryForObject(
-                "select revoke_reason from session where id=?", String.class, s3.session().getId()))
+                "select revoke_reason from session where id=?", String.class, s1.session().getId()))
         .isEqualTo("USER_DISABLED");
   }
 
   @Test
   void sessionsOfAnotherTenantAreInvisible() {
-    SessionService.Created c = login(UUID.randomUUID(), UUID.randomUUID());
+    SessionService.Created c = login(NEXT_USER.incrementAndGet());
     assertThat(TenantContext.callAs(1L, () -> sessions.resolve(c.token()))).isEmpty();
     assertThat(TenantContext.callAs(1L, () -> sessions.validate(c.session().getId()))).isEmpty();
   }
@@ -202,15 +203,14 @@ class SessionServiceIT extends AbstractPostgresIT {
     UUID oldExpired = UUID.randomUUID();
     UUID recentRevoked = UUID.randomUUID();
     String insert =
-        "insert into session(id, tenant_id, token_hash, user_id, account_id, last_seen_at,"
-            + " absolute_expires_at, revoked_at) values (?, ?, ?, ?, ?, ?::timestamptz, ?::timestamptz, ?::timestamptz)";
+        "insert into session(id, tenant_id, token_hash, user_id, last_seen_at,"
+            + " absolute_expires_at, revoked_at) values (?, ?, ?, ?, ?::timestamptz, ?::timestamptz, ?::timestamptz)";
     owner.update(
         insert,
         oldRevoked,
         5L,
         UUID.randomUUID().toString().getBytes(),
-        UUID.randomUUID(),
-        UUID.randomUUID(),
+        NEXT_USER.incrementAndGet(),
         "2000-01-01T00:00:00Z",
         "2100-01-01T00:00:00Z",
         "2000-01-01T00:00:00Z");
@@ -219,8 +219,7 @@ class SessionServiceIT extends AbstractPostgresIT {
         oldExpired,
         6L,
         UUID.randomUUID().toString().getBytes(),
-        UUID.randomUUID(),
-        UUID.randomUUID(),
+        NEXT_USER.incrementAndGet(),
         "2000-01-01T00:00:00Z",
         "2000-01-02T00:00:00Z",
         null);
@@ -229,8 +228,7 @@ class SessionServiceIT extends AbstractPostgresIT {
         recentRevoked,
         7L,
         UUID.randomUUID().toString().getBytes(),
-        UUID.randomUUID(),
-        UUID.randomUUID(),
+        NEXT_USER.incrementAndGet(),
         java.time.Instant.now().toString(),
         "2100-01-01T00:00:00Z",
         java.time.Instant.now().toString());

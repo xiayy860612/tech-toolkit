@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -72,8 +71,8 @@ class ConcurrencyIT extends AbstractPostgresIT {
     long tenant = 301;
     var admin = fixture.create(tenant, TestAccounts.uniqueName(), PW, Role.TENANT_ADMIN, false);
     var target = fixture.create(tenant, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
-    Actor actor = new Actor(admin.user().getId(), admin.account().getId(), null);
-    UUID id = target.user().getId();
+    Actor actor = new Actor(admin.user().getId(), null);
+    Long id = target.user().getId();
     long version = target.user().getVersion();
 
     List<ErrorCode> results =
@@ -82,14 +81,10 @@ class ConcurrencyIT extends AbstractPostgresIT {
             List.of(
                 () ->
                     users.update(
-                        actor,
-                        id,
-                        new UserService.Changes("Editor One", null, null, Role.MEMBER, version)),
+                        actor, id, new UserService.Changes("Editor One", Role.MEMBER, version)),
                 () ->
                     users.update(
-                        actor,
-                        id,
-                        new UserService.Changes("Editor Two", null, null, Role.MEMBER, version))));
+                        actor, id, new UserService.Changes("Editor Two", Role.MEMBER, version))));
 
     assertThat(results).containsExactlyInAnyOrder(null, ErrorCode.VERSION_CONFLICT);
   }
@@ -100,8 +95,8 @@ class ConcurrencyIT extends AbstractPostgresIT {
     long tenant = 302;
     var a = fixture.create(tenant, TestAccounts.uniqueName(), PW, Role.TENANT_ADMIN, false);
     var b = fixture.create(tenant, TestAccounts.uniqueName(), PW, Role.TENANT_ADMIN, false);
-    Actor actorA = new Actor(a.user().getId(), a.account().getId(), null);
-    Actor actorB = new Actor(b.user().getId(), b.account().getId(), null);
+    Actor actorA = new Actor(a.user().getId(), null);
+    Actor actorB = new Actor(b.user().getId(), null);
 
     List<ErrorCode> results =
         raceInTenant(

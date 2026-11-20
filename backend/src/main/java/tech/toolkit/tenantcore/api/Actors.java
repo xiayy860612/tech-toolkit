@@ -11,6 +11,6 @@ final class Actors {
 
   static Actor of(HttpServletRequest request) {
     AuthenticatedUser u = AuthenticatedUser.of(request);
-    return new Actor(u.userId(), u.accountId(), u.clientIp());
+    return new Actor(u.userId(), u.clientIp());
   }
 }

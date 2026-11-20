@@ -11,8 +11,7 @@ import SessionsPage from "@/app/(console)/sessions/page";
 import { jsonRes, mockApi, noContent, problemRes } from "@tests/helpers/fetch-mock";
 
 const ME = {
-  userId: "admin-id",
-  accountId: "x",
+  userId: 99,
   tenantId: 0,
   displayName: "管理员",
   role: "TENANT_ADMIN",
@@ -21,9 +20,10 @@ const ME = {
 
 const session = (over: Record<string, unknown> = {}) => ({
   id: "s1",
-  userId: "u1",
+  userId: 1,
   displayName: "张三",
-  accountIdentifier: "zhangsan",
+  username: "zhangsan",
+  loginType: "USERNAME_PASSWORD",
   device: "Chrome 130 / macOS",
   ip: "203.0.113.9",
   createdAt: "2030-01-01T08:00:00Z",
@@ -38,17 +38,19 @@ const rows = () => [
   session(),
   session({
     id: "s2",
-    userId: "admin-id",
+    userId: 99,
     displayName: "管理员",
-    accountIdentifier: "admin",
+    username: "admin",
+    loginType: "USERNAME_PASSWORD",
     device: "Safari 18 / macOS",
     current: true,
   }),
   session({
     id: "s3",
-    userId: "admin-id",
+    userId: 99,
     displayName: "管理员",
-    accountIdentifier: "admin",
+    username: "admin",
+    loginType: "USERNAME_PASSWORD",
     device: "Firefox 131 / Windows",
   }),
 ];
@@ -70,7 +72,7 @@ describe("SessionsPage", () => {
     render(<SessionsPage />);
     await screen.findByText("Chrome 130 / macOS");
     expect(screen.getByLabelText("用户关键字")).toBeInTheDocument();
-    for (const h of ["用户", "账号", "设备", "IP", "登录时间", "最近活跃", "到期时间", "操作"]) {
+    for (const h of ["用户", "用户名", "设备", "IP", "登录时间", "最近活跃", "到期时间", "操作"]) {
       expect(screen.getByRole("columnheader", { name: h })).toBeInTheDocument();
     }
     const row = within(rowByDevice("Chrome 130 / macOS"));
@@ -122,7 +124,7 @@ describe("SessionsPage", () => {
     api = mockApi({
       "GET /auth/me": () => jsonRes(200, ME),
       "GET /sessions": () => jsonRes(200, list(rows(), 3)),
-      "DELETE /users/u1/sessions": () => noContent(),
+      "DELETE /users/1/sessions": () => noContent(),
     });
     render(<SessionsPage />);
     await screen.findByText("Chrome 130 / macOS");
@@ -132,14 +134,14 @@ describe("SessionsPage", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/张三/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "确认下线" }));
-    await waitFor(() => expect(api.callsTo("DELETE /users/u1/sessions")).toHaveLength(1));
+    await waitFor(() => expect(api.callsTo("DELETE /users/1/sessions")).toHaveLength(1));
     expect(await screen.findByText("已下线该用户的全部会话")).toBeInTheDocument();
   });
 
   it.each([
     ["DELETE /sessions/s1", "CANNOT_REVOKE_CURRENT_SESSION", "不能下线当前会话", "强制下线"],
     [
-      "DELETE /users/u1/sessions",
+      "DELETE /users/1/sessions",
       "CANNOT_REVOKE_OWN_SESSIONS",
       "不能下线自己的全部会话",
       "下线该用户全部会话",

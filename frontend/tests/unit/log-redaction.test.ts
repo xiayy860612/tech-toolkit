@@ -42,7 +42,6 @@ beforeEach(async () => {
         return json(200, {
           me: {
             userId: IDENTITY.userId,
-            accountId: IDENTITY.accountId,
             tenantId: 0,
             displayName: "A",
             role: "TENANT_ADMIN",
@@ -100,8 +99,8 @@ describe("log redaction (FR-006)", () => {
       ctx("users"),
     );
     await POST(
-      post("users/u1/accounts/a1/reset-password", { temporaryPassword: TEMP_PASSWORD }),
-      ctx("users/u1/accounts/a1/reset-password"),
+      post("users/1/reset-password", { temporaryPassword: TEMP_PASSWORD }),
+      ctx("users/1/reset-password"),
     );
     await GET(new NextRequest("http://app.test/api/v1/users", { headers: SAME }), ctx("users"));
     await logout(post("auth/logout", {}));

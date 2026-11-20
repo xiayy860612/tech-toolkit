@@ -55,7 +55,7 @@ class SessionsApiIT extends AbstractPostgresIT {
     return sessions.open(0, fixture.create(0, username, PW, Role.MEMBER, false), CHROME_MAC);
   }
 
-  private int audits(String action, UUID target) {
+  private int audits(String action, Long target) {
     return owner.queryForObject(
         "select count(*) from audit_log where action = ? and target_id = ?",
         Integer.class,
@@ -92,7 +92,7 @@ class SessionsApiIT extends AbstractPostgresIT {
     call(get("/sessions").param("keyword", name), admin)
         .andExpect(valid())
         .andExpect(jsonPath("$.total").value(1))
-        .andExpect(jsonPath("$.items[0].accountIdentifier").value(name))
+        .andExpect(jsonPath("$.items[0].username").value(name))
         .andExpect(jsonPath("$.items[0].device").value("Chrome 130 / macOS"))
         .andExpect(jsonPath("$.items[0].ip").value("203.0.113.5"))
         .andExpect(jsonPath("$.items[0].current").value(false));
@@ -172,7 +172,7 @@ class SessionsApiIT extends AbstractPostgresIT {
         .andExpect(status().isConflict())
         .andExpect(valid())
         .andExpect(jsonPath("$.code").value("CANNOT_REVOKE_OWN_SESSIONS"));
-    call(delete("/users/" + UUID.randomUUID() + "/sessions"), admin)
+    call(delete("/users/" + Long.MAX_VALUE + "/sessions"), admin)
         .andExpect(status().isNotFound())
         .andExpect(valid());
     call(get("/auth/me"), admin).andExpect(content().contentTypeCompatibleWith("application/json"));

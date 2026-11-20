@@ -21,7 +21,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.support.TransactionTemplate;
-import tech.toolkit.tenantcore.identity.AccountRepository;
 import tech.toolkit.tenantcore.identity.AppUserRepository;
 import tech.toolkit.tenantcore.identity.Role;
 import tech.toolkit.tenantcore.identity.Status;
@@ -38,7 +37,6 @@ class AuthApiContractIT extends AbstractPostgresIT {
 
   @Autowired MockMvc mvc;
   @Autowired TestAccounts fixture;
-  @Autowired AccountRepository accounts;
   @Autowired AppUserRepository users;
   @Autowired TransactionTemplate tx;
   @Autowired MutableClock clock;
@@ -73,7 +71,7 @@ class AuthApiContractIT extends AbstractPostgresIT {
   }
 
   /** 登录并解析出会话，返回可用于调用用户端点的 JWT。 */
-  private record Login(String token, String userJwt, String sessionId, String accountId) {}
+  private record Login(String token, String userJwt, String sessionId, long userId) {}
 
   private Login loginAndResolve(String username, String password) throws Exception {
     String body = login(username, password, 200).getResponse().getContentAsString();
@@ -87,12 +85,9 @@ class AuthApiContractIT extends AbstractPostgresIT {
             .andReturn();
     String r = resolved.getResponse().getContentAsString();
     String sid = JsonPath.read(r, "$.sessionId");
-    String account = JsonPath.read(r, "$.accountId");
-    String user = JsonPath.read(r, "$.userId");
-    String jwt =
-        TestJwt.user(UUID.fromString(user), UUID.fromString(account), UUID.fromString(sid), 0L)
-            .sign();
-    return new Login(token, jwt, sid, account);
+    long user = ((Number) JsonPath.read(r, "$.userId")).longValue();
+    String jwt = TestJwt.user(user, UUID.fromString(sid), 0L).sign();
+    return new Login(token, jwt, sid, user);
   }
 
   private MockHttpServletRequestBuilder asUser(MockHttpServletRequestBuilder b, String jwt) {
@@ -137,7 +132,6 @@ class AuthApiContractIT extends AbstractPostgresIT {
   @Test
   void everyKindOfLoginFailureReturnsTheSameBody() throws Exception {
     var wrong = fixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
-    var accountOff = fixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
     var userOff = fixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
     var locked = fixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
     TenantContext.runAs(
@@ -145,13 +139,9 @@ class AuthApiContractIT extends AbstractPostgresIT {
         () ->
             tx.executeWithoutResult(
                 s -> {
-                  accounts
-                      .findById(accountOff.account().getId())
-                      .orElseThrow()
-                      .setStatus(Status.DISABLED);
                   users.findById(userOff.user().getId()).orElseThrow().setStatus(Status.DISABLED);
-                  accounts
-                      .findById(locked.account().getId())
+                  users
+                      .findById(locked.user().getId())
                       .orElseThrow()
                       .setLockedUntil(clock.instant().plusSeconds(600));
                 }));
@@ -161,7 +151,6 @@ class AuthApiContractIT extends AbstractPostgresIT {
     for (String[] c :
         new String[][] {
           {wrong.username(), "wrong-password"},
-          {accountOff.username(), PW},
           {userOff.username(), PW},
           {locked.username(), PW}
         }) {
@@ -215,9 +204,9 @@ class AuthApiContractIT extends AbstractPostgresIT {
     mvc.perform(asUser(get("/auth/me"), l.userJwt())).andExpect(status().isUnauthorized());
     assertThat(
             owner.queryForObject(
-                "select count(*) from audit_log where action='LOGOUT' and actor_account_id=?",
+                "select count(*) from audit_log where action='LOGOUT' and actor_user_id=?",
                 Integer.class,
-                UUID.fromString(l.accountId())))
+                l.userId()))
         .isEqualTo(1);
   }
 

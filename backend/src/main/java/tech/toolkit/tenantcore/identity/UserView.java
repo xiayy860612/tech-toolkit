@@ -1,7 +1,4 @@
 package tech.toolkit.tenantcore.identity;
 
-import java.time.Instant;
-
-/** User 加上列表展示所需的派生信息（Account 数、主用户名、最近登录）。 */
-public record UserView(
-    AppUser user, int accountCount, String primaryUsername, Instant lastLoginAt) {}
+/** 对外展示的 User（凭证字段不外泄：密码哈希不出现在任何视图里）。 */
+public record UserView(AppUser user) {}

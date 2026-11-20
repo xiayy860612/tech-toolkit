@@ -28,10 +28,11 @@ public class Session {
   private byte[] tokenHash;
 
   @Column(name = "user_id", nullable = false, updatable = false)
-  private UUID userId;
+  private Long userId;
 
-  @Column(name = "account_id", nullable = false, updatable = false)
-  private UUID accountId;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "login_type", nullable = false, updatable = false, length = 30)
+  private LoginType loginType;
 
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
@@ -62,8 +63,8 @@ public class Session {
 
   Session(
       byte[] tokenHash,
-      UUID userId,
-      UUID accountId,
+      Long userId,
+      LoginType loginType,
       Instant now,
       Instant absoluteExpiresAt,
       InetAddress ip,
@@ -71,7 +72,7 @@ public class Session {
       String device) {
     this.tokenHash = tokenHash;
     this.userId = userId;
-    this.accountId = accountId;
+    this.loginType = loginType;
     this.createdAt = now;
     this.lastSeenAt = now;
     this.absoluteExpiresAt = absoluteExpiresAt;
@@ -92,12 +93,12 @@ public class Session {
     return tokenHash;
   }
 
-  public UUID getUserId() {
+  public Long getUserId() {
     return userId;
   }
 
-  public UUID getAccountId() {
-    return accountId;
+  public LoginType getLoginType() {
+    return loginType;
   }
 
   public Instant getCreatedAt() {

@@ -9,10 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { Table, TBody, Td, Th, THead, Tr } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ConfirmDialog } from "@/features/accounts/ConfirmDialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { apiRequest } from "@/lib/api/client";
 import { messageOf } from "@/lib/api/errors";
-import type { User, UserPage } from "@/lib/api/types";
+import type { Me, User, UserPage } from "@/lib/api/types";
 import { formatDateTime, roleLabel, statusLabel } from "@/lib/format";
 
 type StatusFilter = "all" | "ACTIVE" | "DISABLED";
@@ -30,6 +30,14 @@ export function UsersTable() {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<User | null>(null);
+  const [ownUserId, setOwnUserId] = useState<number | null>(null);
+
+  // 自己的行不提供「停用」（FR-021a）；取不到当前用户时退化为后端 409 兜底
+  useEffect(() => {
+    apiRequest<Me>("/auth/me")
+      .then((me) => setOwnUserId(me.userId))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -139,7 +147,7 @@ export function UsersTable() {
               <THead>
                 <Tr>
                   <Th>姓名</Th>
-                  <Th>主用户名</Th>
+                  <Th>用户名</Th>
                   <Th>角色</Th>
                   <Th>状态</Th>
                   <Th>最近登录</Th>
@@ -150,12 +158,7 @@ export function UsersTable() {
                 {state.data.items.map((u) => (
                   <Tr key={u.id}>
                     <Td className="font-medium">{u.displayName}</Td>
-                    <Td>
-                      <span>{u.primaryUsername ?? "—"}</span>
-                      {u.accountCount > 1 && (
-                        <span className="ml-2 text-xs text-text-muted">{`+${u.accountCount - 1} 个账号`}</span>
-                      )}
-                    </Td>
+                    <Td>{u.username}</Td>
                     <Td>{roleLabel(u.role)}</Td>
                     <Td>
                       <Badge tone={u.status === "ACTIVE" ? "success" : "danger"}>
@@ -171,17 +174,19 @@ export function UsersTable() {
                         <Link href={`/users/${u.id}/edit`} className="text-accent hover:underline">
                           编辑
                         </Link>
-                        <button
-                          type="button"
-                          className="text-accent hover:underline"
-                          onClick={() =>
-                            u.status === "ACTIVE"
-                              ? setConfirming(u)
-                              : void setUserStatus(u, "enable")
-                          }
-                        >
-                          {u.status === "ACTIVE" ? "停用" : "启用"}
-                        </button>
+                        {u.id !== ownUserId && (
+                          <button
+                            type="button"
+                            className="text-accent hover:underline"
+                            onClick={() =>
+                              u.status === "ACTIVE"
+                                ? setConfirming(u)
+                                : void setUserStatus(u, "enable")
+                            }
+                          >
+                            {u.status === "ACTIVE" ? "停用" : "启用"}
+                          </button>
+                        )}
                       </div>
                     </Td>
                   </Tr>
@@ -202,7 +207,7 @@ export function UsersTable() {
         open={confirming !== null}
         onOpenChange={(open) => !open && setConfirming(null)}
         title={confirming ? `停用 ${confirming.displayName}？` : "停用用户"}
-        description="停用后该用户的所有账号将无法登录，已登录状态立即失效。"
+        description="停用后该用户将无法登录，已登录状态立即失效。"
         confirmLabel="确认停用"
         onConfirm={() => (confirming ? setUserStatus(confirming, "disable") : undefined)}
       />

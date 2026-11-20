@@ -10,7 +10,7 @@ const TONES: Record<BadgeTone, string> = {
   info: "bg-info-bg text-info",
 };
 
-/** 淡底深字胶囊，用于用户 / Account 状态与锁定标记。 */
+/** 淡底深字胶囊，用于用户状态与锁定标记。 */
 export function Badge({
   tone = "info",
   className,
@@ -20,7 +20,7 @@ export function Badge({
     <span
       data-tone={tone}
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
         TONES[tone],
         className,
       )}

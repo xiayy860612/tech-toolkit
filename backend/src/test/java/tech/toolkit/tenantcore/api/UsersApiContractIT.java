@@ -50,12 +50,11 @@ class UsersApiContractIT extends AbstractPostgresIT {
   }
 
   private static String newUserBody(String username, String extra) {
-    return "{\"displayName\":\"Zed Zhang\",\"role\":\"MEMBER\",\"account\":{\"type\":\"USERNAME_PASSWORD\","
-        + "\"username\":\""
+    return "{\"displayName\":\"Zed Zhang\",\"role\":\"MEMBER\",\"username\":\""
         + username
         + "\""
         + extra
-        + "}}";
+        + "}";
   }
 
   private String createUser(String username) throws Exception {
@@ -65,7 +64,7 @@ class UsersApiContractIT extends AbstractPostgresIT {
             .andReturn()
             .getResponse()
             .getContentAsString();
-    return JsonPath.read(json, "$.user.id");
+    return String.valueOf(((Number) JsonPath.read(json, "$.user.id")).longValue());
   }
 
   @Test
@@ -75,23 +74,19 @@ class UsersApiContractIT extends AbstractPostgresIT {
         call(post("/users"), admin, newUserBody(name, ""))
             .andExpect(status().isCreated())
             .andExpect(valid())
-            .andExpect(jsonPath("$.user.accountCount").value(1))
-            .andExpect(jsonPath("$.account.mustChangePassword").value(true))
-            .andExpect(jsonPath("$.account.temporaryPassword").isNotEmpty())
+            .andExpect(jsonPath("$.user.username").value(name))
+            .andExpect(jsonPath("$.user.mustChangePassword").value(true))
+            .andExpect(jsonPath("$.user.passwordHash").doesNotExist())
+            .andExpect(jsonPath("$.temporaryPassword").isNotEmpty())
             .andReturn()
             .getResponse()
             .getContentAsString();
-    String id = JsonPath.read(json, "$.user.id");
-    String generated = JsonPath.read(json, "$.account.temporaryPassword");
+    String id = String.valueOf(((Number) JsonPath.read(json, "$.user.id")).longValue());
+    String generated = JsonPath.read(json, "$.temporaryPassword");
 
     call(get("/users/" + id), admin, null)
         .andExpect(status().isOk())
         .andExpect(valid())
-        .andExpect(
-            content()
-                .string(
-                    org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(generated))));
-    call(get("/users/" + id + "/accounts"), admin, null)
         .andExpect(
             content()
                 .string(
@@ -106,7 +101,7 @@ class UsersApiContractIT extends AbstractPostgresIT {
             newUserBody(TestAccounts.uniqueName(), ",\"temporaryPassword\":\"Giv3n-Passw0rd!\""))
         .andExpect(status().isCreated())
         .andExpect(valid())
-        .andExpect(jsonPath("$.account.temporaryPassword").doesNotExist());
+        .andExpect(jsonPath("$.temporaryPassword").doesNotExist());
   }
 
   @Test
@@ -123,7 +118,7 @@ class UsersApiContractIT extends AbstractPostgresIT {
     call(
             post("/users"),
             admin,
-            "{\"displayName\":\"\",\"role\":\"MEMBER\",\"account\":{\"type\":\"USERNAME_PASSWORD\",\"username\":\"validname\"}}")
+            "{\"displayName\":\"\",\"role\":\"MEMBER\",\"username\":\"validname\"}")
         .andExpect(status().isBadRequest());
   }
 
@@ -135,7 +130,7 @@ class UsersApiContractIT extends AbstractPostgresIT {
         .andExpect(status().isOk())
         .andExpect(valid())
         .andExpect(jsonPath("$.total").value(1))
-        .andExpect(jsonPath("$.items[0].primaryUsername").value(name))
+        .andExpect(jsonPath("$.items[0].username").value(name))
         .andExpect(jsonPath("$.size").value(20));
     call(get("/users").param("status", "DISABLED").param("keyword", name), admin, null)
         .andExpect(jsonPath("$.total").value(0));
@@ -148,6 +143,80 @@ class UsersApiContractIT extends AbstractPostgresIT {
     }
     call(get("/users").param("keyword", "x".repeat(51)), admin, null)
         .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void patchingYourOwnRoleIsRejectedButOtherFieldsAreAccepted() throws Exception {
+    String me = "/users/" + admin.userId();
+    long version =
+        ((Number)
+                JsonPath.read(
+                    call(get(me), admin, null).andReturn().getResponse().getContentAsString(),
+                    "$.version"))
+            .longValue();
+    call(
+            patch(me),
+            admin,
+            "{\"displayName\":\"Me\",\"role\":\"MEMBER\",\"version\":" + version + "}")
+        .andExpect(status().isConflict())
+        .andExpect(valid())
+        .andExpect(jsonPath("$.code").value("CANNOT_CHANGE_OWN_ROLE"));
+    call(
+            patch(me),
+            admin,
+            "{\"displayName\":\"Renamed Me\",\"role\":\"TENANT_ADMIN\",\"version\":"
+                + version
+                + "}")
+        .andExpect(status().isOk())
+        .andExpect(valid())
+        .andExpect(jsonPath("$.displayName").value("Renamed Me"));
+  }
+
+  @Test
+  void unlockAndResetPasswordMatchTheContract() throws Exception {
+    String id = createUser(TestAccounts.uniqueName());
+    call(post("/users/" + id + "/unlock"), admin, null)
+        .andExpect(status().isOk())
+        .andExpect(valid())
+        .andExpect(jsonPath("$.locked").value(false));
+    call(post("/users/" + id + "/reset-password"), admin, null)
+        .andExpect(status().isOk())
+        .andExpect(valid())
+        .andExpect(jsonPath("$.temporaryPassword").isNotEmpty())
+        .andExpect(jsonPath("$.user.mustChangePassword").value(true));
+    call(
+            post("/users/" + id + "/reset-password"),
+            admin,
+            "{\"temporaryPassword\":\"Giv3n-Passw0rd!\"}")
+        .andExpect(status().isOk())
+        .andExpect(valid())
+        .andExpect(jsonPath("$.temporaryPassword").doesNotExist());
+    call(post("/users/" + id + "/reset-password"), admin, "{\"temporaryPassword\":\"weak\"}")
+        .andExpect(status().isBadRequest());
+    call(post("/users/" + Long.MAX_VALUE + "/unlock"), admin, null)
+        .andExpect(status().isNotFound())
+        .andExpect(valid());
+    call(post("/users/" + admin.userId() + "/reset-password"), admin, null)
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void aLockedUserIsReportedAsLockedUntilUnlocked() throws Exception {
+    String id = createUser(TestAccounts.uniqueName());
+    jdbcOwner()
+        .update(
+            "update app_user set locked_until = now() + interval '10 minutes' where id = ?",
+            Long.valueOf(id));
+    call(get("/users/" + id), admin, null)
+        .andExpect(jsonPath("$.locked").value(true))
+        .andExpect(jsonPath("$.lockedUntil").isNotEmpty());
+    call(post("/users/" + id + "/unlock"), admin, null)
+        .andExpect(jsonPath("$.locked").value(false))
+        .andExpect(jsonPath("$.lockedUntil").doesNotExist());
+  }
+
+  private org.springframework.jdbc.core.JdbcTemplate jdbcOwner() {
+    return new org.springframework.jdbc.core.JdbcTemplate(ownerDataSource());
   }
 
   @Test
@@ -166,9 +235,7 @@ class UsersApiContractIT extends AbstractPostgresIT {
     call(
             patch("/users/" + id),
             admin,
-            "{\"displayName\":\"New Name\",\"role\":\"MEMBER\",\"phone\":\"13800138000\",\"version\":"
-                + version
-                + "}")
+            "{\"displayName\":\"New Name\",\"role\":\"MEMBER\",\"version\":" + version + "}")
         .andExpect(status().isOk())
         .andExpect(valid())
         .andExpect(jsonPath("$.displayName").value("New Name"));
@@ -191,7 +258,7 @@ class UsersApiContractIT extends AbstractPostgresIT {
         .andExpect(status().isConflict())
         .andExpect(valid())
         .andExpect(jsonPath("$.code").value("CANNOT_DISABLE_SELF"));
-    call(get("/users/" + java.util.UUID.randomUUID()), admin, null)
+    call(get("/users/" + Long.MAX_VALUE), admin, null)
         .andExpect(status().isNotFound())
         .andExpect(valid());
   }

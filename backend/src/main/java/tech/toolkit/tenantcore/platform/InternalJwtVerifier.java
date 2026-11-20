@@ -105,8 +105,7 @@ public class InternalJwtVerifier {
     String typ = c.getStringClaim("typ");
     String cip = c.getStringClaim("cip");
     if ("service".equals(typ)) {
-      return new InternalJwtClaims(
-          InternalJwtClaims.Type.SERVICE, jti, tenant, null, null, null, cip);
+      return new InternalJwtClaims(InternalJwtClaims.Type.SERVICE, jti, tenant, null, null, cip);
     }
     if (!"user".equals(typ)) {
       throw new InvalidInternalJwtException("unknown typ");
@@ -115,10 +114,20 @@ public class InternalJwtVerifier {
         InternalJwtClaims.Type.USER,
         jti,
         tenant,
-        uuid(c.getSubject(), "sub"),
-        uuid(c.getStringClaim("account_id"), "account_id"),
+        userId(c.getSubject()),
         uuid(c.getStringClaim("sid"), "sid"),
         cip);
+  }
+
+  private static Long userId(String value) {
+    if (value == null) {
+      throw new InvalidInternalJwtException("missing sub");
+    }
+    try {
+      return Long.valueOf(value);
+    } catch (NumberFormatException e) {
+      throw new InvalidInternalJwtException("bad sub", e);
+    }
   }
 
   private static UUID uuid(String value, String name) {

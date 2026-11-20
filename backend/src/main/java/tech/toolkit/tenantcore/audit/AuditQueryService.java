@@ -5,7 +5,6 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tech.toolkit.tenantcore.platform.PageResult;
@@ -19,7 +18,7 @@ public class AuditQueryService {
   /** {@code action} 不是已知动作时返回空页（而不是报错）。 */
   @Transactional(readOnly = true)
   public PageResult<AuditLog> search(
-      String action, UUID actorUserId, Instant from, Instant to, int page, int size) {
+      String action, Long actorUserId, Instant from, Instant to, int page, int size) {
     AuditAction parsed = null;
     if (action != null && !action.isBlank()) {
       try {

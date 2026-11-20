@@ -65,10 +65,8 @@ export interface components {
             password: string;
         };
         BrowserMe: {
-            /** Format: uuid */
-            userId: string;
-            /** Format: uuid */
-            accountId: string;
+            /** Format: int64 */
+            userId: number;
             displayName: string;
             mustChangePassword: boolean;
         };

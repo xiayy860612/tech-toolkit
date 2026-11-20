@@ -13,8 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionTemplate;
-import tech.toolkit.tenantcore.identity.Account;
-import tech.toolkit.tenantcore.identity.AccountRepository;
+import tech.toolkit.tenantcore.identity.AppUser;
 import tech.toolkit.tenantcore.identity.AppUserRepository;
 import tech.toolkit.tenantcore.identity.Role;
 import tech.toolkit.tenantcore.identity.Status;
@@ -32,7 +31,6 @@ class LoginServiceTest extends AbstractPostgresIT {
 
   @Autowired LoginService login;
   @Autowired TestAccounts accountsFixture;
-  @Autowired AccountRepository accounts;
   @Autowired AppUserRepository users;
   @Autowired TransactionTemplate tx;
   @Autowired MutableClock clock;
@@ -55,9 +53,8 @@ class LoginServiceTest extends AbstractPostgresIT {
             ApiException.class, e -> assertThat(e.code()).isEqualTo(ErrorCode.INVALID_CREDENTIALS));
   }
 
-  private Account reload(Account a) {
-    return TenantContext.callAs(
-        0L, () -> tx.execute(s -> accounts.findById(a.getId()).orElseThrow()));
+  private AppUser reload(AppUser u) {
+    return TenantContext.callAs(0L, () -> tx.execute(s -> users.findById(u.getId()).orElseThrow()));
   }
 
   @Test
@@ -68,21 +65,20 @@ class LoginServiceTest extends AbstractPostgresIT {
     assertThat(in.token()).isNotBlank();
     assertThat(in.mustChangePassword()).isTrue();
     assertThat(in.session().getUserId()).isEqualTo(acc.user().getId());
-    Account after = reload(acc.account());
+    AppUser after = reload(acc.user());
     assertThat(after.getFailedAttempts()).isZero();
     assertThat(after.getLastLoginAt()).isNotNull();
     assertThat(
             owner.queryForObject(
-                "select count(*) from audit_log where action='LOGIN_SUCCESS' and actor_account_id=?",
+                "select count(*) from audit_log where action='LOGIN_SUCCESS' and actor_user_id=?",
                 Integer.class,
-                acc.account().getId()))
+                acc.user().getId()))
         .isEqualTo(1);
   }
 
   @Test
   void allFailureKindsLookTheSameToTheCaller() {
     var wrongPw = accountsFixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
-    var accountOff = accountsFixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
     var userOff = accountsFixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
     var locked = accountsFixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
     TenantContext.runAs(
@@ -90,41 +86,36 @@ class LoginServiceTest extends AbstractPostgresIT {
         () ->
             tx.executeWithoutResult(
                 s -> {
-                  accounts
-                      .findById(accountOff.account().getId())
-                      .orElseThrow()
-                      .setStatus(Status.DISABLED);
                   users.findById(userOff.user().getId()).orElseThrow().setStatus(Status.DISABLED);
-                  accounts
-                      .findById(locked.account().getId())
+                  users
+                      .findById(locked.user().getId())
                       .orElseThrow()
                       .setLockedUntil(clock.instant().plus(Duration.ofMinutes(5)));
                 }));
 
     expectInvalid("nobody-" + TestAccounts.uniqueName(), PW);
     expectInvalid(wrongPw.username(), "wrong-password");
-    expectInvalid(accountOff.username(), PW);
     expectInvalid(userOff.username(), PW);
     expectInvalid(locked.username(), PW); // 锁定期间即使密码正确也拒绝
   }
 
   @Test
-  void locksTheAccountAfterFiveFailuresForFifteenMinutes() {
+  void locksTheUserAfterFiveFailuresForFifteenMinutes() {
     var acc = accountsFixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
     for (int i = 0; i < 4; i++) {
       expectInvalid(acc.username(), "bad-" + i);
     }
-    assertThat(reload(acc.account()).getFailedAttempts()).isEqualTo(4);
+    assertThat(reload(acc.user()).getFailedAttempts()).isEqualTo(4);
 
     expectInvalid(acc.username(), "bad-5"); // 第 5 次 → 锁定
-    Account locked = reload(acc.account());
+    AppUser locked = reload(acc.user());
     assertThat(locked.getLockedUntil()).isAfter(clock.instant().plus(Duration.ofMinutes(14)));
     assertThat(locked.getLockedUntil()).isBefore(clock.instant().plus(Duration.ofMinutes(16)));
     assertThat(
             owner.queryForObject(
-                "select count(*) from audit_log where action='ACCOUNT_LOCKED' and actor_account_id=?",
+                "select count(*) from audit_log where action='USER_LOCKED' and actor_user_id=?",
                 Integer.class,
-                acc.account().getId()))
+                acc.user().getId()))
         .isEqualTo(1);
 
     expectInvalid(acc.username(), PW); // 仍在锁定期
@@ -138,7 +129,7 @@ class LoginServiceTest extends AbstractPostgresIT {
     expectInvalid(acc.username(), "bad");
     expectInvalid(acc.username(), "bad");
     loginAs0(acc.username(), PW);
-    assertThat(reload(acc.account()).getFailedAttempts()).isZero();
+    assertThat(reload(acc.user()).getFailedAttempts()).isZero();
   }
 
   @Test
@@ -163,9 +154,9 @@ class LoginServiceTest extends AbstractPostgresIT {
     expectInvalid(acc.username(), "definitely-wrong-Passw0rd");
     List<String> reasons =
         owner.queryForList(
-            "select reason from audit_log where action='LOGIN_FAILURE' and actor_account_id=?",
+            "select reason from audit_log where action='LOGIN_FAILURE' and target_id=?",
             String.class,
-            acc.account().getId());
+            acc.user().getId());
     assertThat(reasons).containsExactly("BAD_PASSWORD");
     assertThat(
             owner.queryForObject(

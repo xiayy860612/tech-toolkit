@@ -50,8 +50,7 @@ export async function setupBffEnv(overrides: Record<string, string> = {}) {
 
 export const IDENTITY = {
   sessionId: "11111111-1111-4111-8111-111111111111",
-  userId: "22222222-2222-4222-8222-222222222222",
-  accountId: "33333333-3333-4333-8333-333333333333",
+  userId: 42,
   tenantId: 0,
   displayName: "管理员",
   mustChangePassword: false,

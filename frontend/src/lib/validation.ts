@@ -8,10 +8,6 @@ export const usernameSchema = z
     "用户名需 3–32 位，以字母或数字开头，仅含字母、数字、. _ -",
   );
 
-export const phoneSchema = z.string().regex(/^1[3-9]\d{9}$/, "请输入 11 位大陆手机号");
-
-export const emailSchema = z.email("邮箱格式不正确");
-
 export const displayNameSchema = z
   .string()
   .trim()

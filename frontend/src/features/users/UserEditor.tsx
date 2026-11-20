@@ -15,7 +15,7 @@ type State =
   | { kind: "ok"; user: User; revision: number };
 
 /** 编辑页：先取最新用户（含 version），保存冲突时可重新加载。 */
-export function UserEditor({ id }: { id: string }) {
+export function UserEditor({ id, currentUserId }: { id: string; currentUserId?: number }) {
   const [state, setState] = useState<State>({ kind: "loading" });
 
   const load = useCallback(() => {
@@ -56,5 +56,13 @@ export function UserEditor({ id }: { id: string }) {
       </Card>
     );
   }
-  return <UserForm key={state.revision} mode="edit" user={state.user} onReload={load} />;
+  return (
+    <UserForm
+      key={state.revision}
+      mode="edit"
+      user={state.user}
+      onReload={load}
+      currentUserId={currentUserId}
+    />
+  );
 }

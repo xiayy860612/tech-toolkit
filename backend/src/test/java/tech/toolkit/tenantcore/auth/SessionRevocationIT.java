@@ -17,7 +17,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tech.toolkit.tenantcore.audit.AuditEvent;
 import tech.toolkit.tenantcore.audit.AuditService;
-import tech.toolkit.tenantcore.identity.AccountService;
 import tech.toolkit.tenantcore.identity.Role;
 import tech.toolkit.tenantcore.identity.UserService;
 import tech.toolkit.tenantcore.platform.Actor;
@@ -36,14 +35,13 @@ class SessionRevocationIT extends AbstractPostgresIT {
   @Autowired TestAccounts fixture;
   @Autowired TestSessions sessions;
   @Autowired UserService users;
-  @Autowired AccountService accounts;
   @MockitoSpyBean AuditService audit;
 
   private final JdbcTemplate owner = new JdbcTemplate(ownerDataSource());
 
   private Actor adminActor() {
     var admin = fixture.create(0, TestAccounts.uniqueName(), PW, Role.TENANT_ADMIN, false);
-    return new Actor(admin.user().getId(), admin.account().getId(), null);
+    return new Actor(admin.user().getId(), null);
   }
 
   private String reason(TestSessions.Open s) {
@@ -57,8 +55,7 @@ class SessionRevocationIT extends AbstractPostgresIT {
   }
 
   @Test
-  void userDisabledAccountDisabledAccountDeletedAndPasswordResetEachRevokeWithTheirReason()
-      throws Exception {
+  void userDisabledAndPasswordResetEachRevokeWithTheirReason() throws Exception {
     Actor actor = adminActor();
 
     var u = fixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
@@ -67,24 +64,9 @@ class SessionRevocationIT extends AbstractPostgresIT {
     assertThat(reason(su)).isEqualTo("USER_DISABLED");
     assertRejected(su);
 
-    var a = fixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
-    var sa = sessions.open(0, a);
-    TenantContext.runAs(
-        0L, () -> accounts.disable(actor, a.user().getId(), a.account().getId(), true));
-    assertThat(reason(sa)).isEqualTo("ACCOUNT_DISABLED");
-    assertRejected(sa);
-
-    var d = fixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
-    var sd = sessions.open(0, d);
-    TenantContext.runAs(
-        0L, () -> accounts.delete(actor, d.user().getId(), d.account().getId(), true));
-    assertThat(reason(sd)).isEqualTo("ACCOUNT_DELETED");
-    assertRejected(sd);
-
     var r = fixture.create(0, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
     var sr = sessions.open(0, r);
-    TenantContext.runAs(
-        0L, () -> accounts.resetPassword(actor, r.user().getId(), r.account().getId(), null));
+    TenantContext.runAs(0L, () -> users.resetPassword(actor, r.user().getId(), null));
     assertThat(reason(sr)).isEqualTo("PASSWORD_RESET");
     assertRejected(sr);
   }

@@ -5,8 +5,7 @@ import { getConfig } from "../config";
 /** 后端 resolve 返回的会话身份（契约 SessionResolveResult）。BFF 不持久化它。 */
 export interface SessionIdentity {
   sessionId: string;
-  userId: string;
-  accountId: string;
+  userId: number;
   tenantId: number;
   displayName: string;
   mustChangePassword: boolean;

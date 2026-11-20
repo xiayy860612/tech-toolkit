@@ -7,13 +7,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tech.toolkit.tenantcore.audit.AuditAction;
 import tech.toolkit.tenantcore.audit.AuditEvent;
 import tech.toolkit.tenantcore.audit.AuditService;
-import tech.toolkit.tenantcore.identity.Account;
-import tech.toolkit.tenantcore.identity.AccountRepository;
-import tech.toolkit.tenantcore.identity.AccountType;
 import tech.toolkit.tenantcore.identity.AppUser;
 import tech.toolkit.tenantcore.identity.AppUserRepository;
-import tech.toolkit.tenantcore.identity.PasswordCredential;
-import tech.toolkit.tenantcore.identity.PasswordCredentialRepository;
+import tech.toolkit.tenantcore.identity.IdentityRules;
 import tech.toolkit.tenantcore.identity.Role;
 import tech.toolkit.tenantcore.platform.ApiException;
 import tech.toolkit.tenantcore.platform.ErrorCode;
@@ -35,8 +31,6 @@ public class BootstrapService {
   private final long tenantId;
   private final TransactionTemplate tx;
   private final AppUserRepository users;
-  private final AccountRepository accounts;
-  private final PasswordCredentialRepository credentials;
   private final PasswordHasher hasher;
   private final TemporaryPasswordGenerator generator;
   private final AuditService audit;
@@ -45,16 +39,12 @@ public class BootstrapService {
       @Value("${admin-center.bootstrap.tenant-id:0}") long tenantId,
       TransactionTemplate tx,
       AppUserRepository users,
-      AccountRepository accounts,
-      PasswordCredentialRepository credentials,
       PasswordHasher hasher,
       TemporaryPasswordGenerator generator,
       AuditService audit) {
     this.tenantId = tenantId;
     this.tx = tx;
     this.users = users;
-    this.accounts = accounts;
-    this.credentials = credentials;
     this.hasher = hasher;
     this.generator = generator;
     this.audit = audit;
@@ -69,22 +59,18 @@ public class BootstrapService {
         () ->
             tx.executeWithoutResult(
                 s -> {
-                  if (accounts
-                      .findByTypeAndIdentifierNormalized(
-                          AccountType.USERNAME_PASSWORD, Account.normalize(username))
+                  if (users
+                      .findByUsernameNormalized(IdentityRules.normalizeUsername(username))
                       .isPresent()) {
                     throw new ApiException(ErrorCode.USERNAME_TAKEN);
                   }
-                  AppUser user = users.save(new AppUser(name, null, null, Role.TENANT_ADMIN));
-                  Account account =
-                      accounts.save(
-                          new Account(user.getId(), AccountType.USERNAME_PASSWORD, username));
-                  credentials.save(
-                      new PasswordCredential(account.getId(), hasher.hash(temporary), true));
+                  AppUser user =
+                      users.save(
+                          new AppUser(
+                              name, Role.TENANT_ADMIN, username, hasher.hash(temporary), true));
                   audit.record(
                       AuditEvent.success(
                           AuditAction.USER_CREATED,
-                          null,
                           null,
                           AuditEvent.TargetType.USER,
                           user.getId(),

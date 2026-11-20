@@ -84,22 +84,18 @@ class LogRedactionIT extends AbstractPostgresIT {
         mvc.perform(
                 withJwt(post("/users"), open.jwt())
                     .content(
-                        "{\"displayName\":\"Redact\",\"role\":\"MEMBER\",\"account\":{\"type\":\"USERNAME_PASSWORD\",\"username\":\""
+                        "{\"displayName\":\"Redact\",\"role\":\"MEMBER\",\"username\":\""
                             + name
                             + "\",\"temporaryPassword\":\""
                             + SUPPLIED
-                            + "\"}}"))
+                            + "\"}"))
             .andExpect(status().isCreated())
             .andReturn()
             .getResponse()
             .getContentAsString();
-    String userId = JsonPath.read(created, "$.user.id");
-    String accountId = JsonPath.read(created, "$.account.id");
+    long userId = ((Number) JsonPath.read(created, "$.user.id")).longValue();
     String reset =
-        mvc.perform(
-                withJwt(
-                    post("/users/" + userId + "/accounts/" + accountId + "/reset-password"),
-                    open.jwt()))
+        mvc.perform(withJwt(post("/users/" + userId + "/reset-password"), open.jwt()))
             .andExpect(status().isOk())
             .andReturn()
             .getResponse()
