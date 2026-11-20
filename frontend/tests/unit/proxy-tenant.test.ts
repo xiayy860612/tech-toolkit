@@ -29,7 +29,10 @@ const backendCall = () =>
     RequestInit,
   ];
 
-function req(path: string, init: RequestInit & { headers?: Record<string, string> } = {}) {
+function req(
+  path: string,
+  init: { method?: string; headers?: Record<string, string>; body?: string } = {},
+) {
   const r = new NextRequest(`http://app.test/api/v1/${path}`, {
     ...init,
     headers: { cookie: "SESSION_ID=session-token-abcdef-123456", ...init.headers },
@@ -67,7 +70,11 @@ describe("tenant is taken only from the resolved session", () => {
         "sec-fetch-site": "same-origin",
         "content-type": "application/json",
       },
-      body: JSON.stringify({ displayName: "A", tenantId: 9, account: { username: "abc", tenant_id: 4 } }),
+      body: JSON.stringify({
+        displayName: "A",
+        tenantId: 9,
+        account: { username: "abc", tenant_id: 4 },
+      }),
     });
     await POST(r, ctx);
     const forwarded = JSON.parse(String(backendCall()[1].body));

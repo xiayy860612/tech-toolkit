@@ -21,18 +21,18 @@ Tenant Admin Center 的前端，同时是平台分层中的 **Tenant Admin BFF**
 
 ## 命令
 
-| 目的 | 命令 |
-|---|---|
-| 安装依赖 | `pnpm install` |
-| 生成开发用 JWT 密钥（到被忽略的 `.keys/`） | `pnpm keys` |
-| 由契约生成 API 类型 | `pnpm generate:api` |
-| 开发 | `pnpm dev`（需要 `.env.local`，见下） |
-| lint（ESLint + Prettier） | `pnpm lint` |
-| 类型检查 | `pnpm typecheck` |
-| 单元/组件测试 | `pnpm test` |
-| 覆盖率门禁（行覆盖率 ≥ 90%） | `pnpm test:coverage` |
-| 构建 | `pnpm build` |
-| E2E | `pnpm test:e2e`（需要后端、PostgreSQL、Redis 与已启动的前端，见下） |
+| 目的                                       | 命令                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| 安装依赖                                   | `pnpm install`                                                      |
+| 生成开发用 JWT 密钥（到被忽略的 `.keys/`） | `pnpm keys`                                                         |
+| 由契约生成 API 类型                        | `pnpm generate:api`                                                 |
+| 开发                                       | `pnpm dev`（需要 `.env.local`，见下）                               |
+| lint（ESLint + Prettier）                  | `pnpm lint`                                                         |
+| 类型检查                                   | `pnpm typecheck`                                                    |
+| 单元/组件测试                              | `pnpm test`                                                         |
+| 覆盖率门禁（行覆盖率 ≥ 90%）               | `pnpm test:coverage`                                                |
+| 构建                                       | `pnpm build`                                                        |
+| E2E                                        | `pnpm test:e2e`（需要后端、PostgreSQL、Redis 与已启动的前端，见下） |
 
 ## 质量门禁
 

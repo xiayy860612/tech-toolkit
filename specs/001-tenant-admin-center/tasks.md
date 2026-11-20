@@ -71,12 +71,12 @@ description: "Task list for Tenant Admin Center"
 
 ### 前端：UI 与客户端基础（先写测试）
 
-- [ ] T032 [P] 创建 `FT/unit/ui.test.tsx`（先失败）：`Button`、`Input`、`Field`（label + 错误文案，`aria-invalid` + `aria-describedby`）、`Badge`（四种状态色）、`Card` 的渲染与可访问性
-- [ ] T033 创建 `F/app/globals.css`（Tailwind 4 `@import` + `@theme`：ui-design.md「设计 Token」全部取值）、`F/lib/utils.ts`（`cn`）、`F/components/ui/{button,input,field,badge,card}.tsx`（使 T032 通过）
-- [ ] T034 [P] 创建 `FT/unit/validation.test.ts`（先失败）：用户名 `^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$`；手机号 `^1[3-9]\d{9}$`；邮箱；显示名非空 ≤ 50；密码复杂度（长度 ≥ 10，含大小写/数字/符号至少 3 类）
-- [ ] T035 创建 `F/lib/validation.ts`（zod schema，规则与后端一致）（使 T034 通过）
-- [ ] T036 [P] 创建 `FT/unit/api-client.test.ts`（先失败）：浏览器端 fetch 封装把 problem+json 映射为带 `code` 的 `ApiError`；401 触发会话过期回调（跳转 `/login?next=<原目标页>`）；请求只发往同源 `/api/v1`
-- [ ] T037 创建 `F/lib/api/client.ts`、`F/lib/api/errors.ts`（使 T036 通过；类型来自 T008 的 `schema.d.ts`）
+- [X] T032 [P] 创建 `FT/unit/ui.test.tsx`（先失败）：`Button`、`Input`、`Field`（label + 错误文案，`aria-invalid` + `aria-describedby`）、`Badge`（四种状态色）、`Card` 的渲染与可访问性
+- [X] T033 创建 `F/app/globals.css`（Tailwind 4 `@import` + `@theme`：ui-design.md「设计 Token」全部取值）、`F/lib/utils.ts`（`cn`）、`F/components/ui/{button,input,field,badge,card}.tsx`（使 T032 通过）
+- [X] T034 [P] 创建 `FT/unit/validation.test.ts`（先失败）：用户名 `^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$`；手机号 `^1[3-9]\d{9}$`；邮箱；显示名非空 ≤ 50；密码复杂度（长度 ≥ 10，含大小写/数字/符号至少 3 类）
+- [X] T035 创建 `F/lib/validation.ts`（zod schema，规则与后端一致）（使 T034 通过）
+- [X] T036 [P] 创建 `FT/unit/api-client.test.ts`（先失败）：浏览器端 fetch 封装把 problem+json 映射为带 `code` 的 `ApiError`；401 触发会话过期回调（跳转 `/login?next=<原目标页>`）；请求只发往同源 `/api/v1`
+- [X] T037 创建 `F/lib/api/client.ts`、`F/lib/api/errors.ts`（使 T036 通过；类型来自 T008 的 `schema.d.ts`）
 
 ### 前端：BFF 基础设施（先写测试）
 
@@ -120,13 +120,13 @@ description: "Task list for Tenant Admin Center"
 
 ### Tests for User Story 1（BFF 专用路由）⚠️
 
-- [ ] T059 [P] [US1] 创建 `FT/unit/login-route.test.ts`：先按 IP 限流（超限 429 + `Retry-After`）；以 `typ=service` JWT（`tenant_id` 取自环境变量 `DEFAULT_TENANT_ID`，默认 0）调用后端登录，并传入浏览器 User-Agent；后端 401 原样返回统一错误且不设置 Cookie；成功则设置会话 Cookie（令牌取自后端响应），响应体只含用户信息，**不含** `sessionToken`/`tenantId` 等内部字段
-- [ ] T060 [P] [US1] 创建 `FT/unit/logout-route.test.ts`：携带有效会话时以用户 JWT 调后端登出（后端撤销会话并记审计）后清除 Cookie；后端已判定会话无效时仍清除 Cookie；无会话 Cookie 时幂等成功
+- [X] T059 [P] [US1] 创建 `FT/unit/login-route.test.ts`：先按 IP 限流（超限 429 + `Retry-After`）；以 `typ=service` JWT（`tenant_id` 取自环境变量 `DEFAULT_TENANT_ID`，默认 0）调用后端登录，并传入浏览器 User-Agent；后端 401 原样返回统一错误且不设置 Cookie；成功则设置会话 Cookie（令牌取自后端响应），响应体只含用户信息，**不含** `sessionToken`/`tenantId` 等内部字段
+- [X] T060 [P] [US1] 创建 `FT/unit/logout-route.test.ts`：携带有效会话时以用户 JWT 调后端登出（后端撤销会话并记审计）后清除 Cookie；后端已判定会话无效时仍清除 Cookie；无会话 Cookie 时幂等成功
 
 ### Implementation for User Story 1（BFF 专用路由）
 
-- [ ] T061 [US1] 创建 `F/app/api/v1/auth/login/route.ts`（使 T059 通过）
-- [ ] T062 [P] [US1] 创建 `F/app/api/v1/auth/logout/route.ts`（使 T060 通过）
+- [X] T061 [US1] 创建 `F/app/api/v1/auth/login/route.ts`（使 T059 通过）
+- [X] T062 [P] [US1] 创建 `F/app/api/v1/auth/logout/route.ts`（使 T060 通过）
 
 ### Tests for User Story 1（前端页面）⚠️
 

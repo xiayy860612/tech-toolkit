@@ -1,0 +1,47 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* 设计 token：取自设计稿，见 specs/001-tenant-admin-center/contracts/ui-design.md */
+@theme {
+  --color-accent: #2f54eb;
+  --color-accent-hover: #2441c9;
+  --color-sidebar: #0f1629;
+  --color-sidebar-text: #a9b4cb;
+  --color-sidebar-muted: #8793ad;
+  --color-canvas: #f4f6fa;
+  --color-surface: #ffffff;
+  --color-border: #e2e6ef;
+  --color-text: #1b2233;
+  --color-text-muted: #5b6475;
+  --color-input-border: #c5ccdb;
+  --color-table-head: #f8f9fc;
+
+  --color-success: #0b6b43;
+  --color-success-bg: #dff4e8;
+  --color-warning: #8a4b00;
+  --color-warning-bg: #ffefd0;
+  --color-danger: #b42318;
+  --color-danger-bg: #fde7e5;
+  --color-info: #2441c9;
+  --color-info-bg: #e8edff;
+
+  --font-sans: Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --spacing-sidebar: 232px;
+}
+
+html,
+body {
+  background: var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

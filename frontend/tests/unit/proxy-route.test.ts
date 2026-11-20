@@ -32,12 +32,17 @@ const SAME_ORIGIN = { origin: "http://app.test", "sec-fetch-site": "same-origin"
 function call(
   handler: Handler,
   path: string,
-  init: { method?: string; headers?: Record<string, string>; body?: string; cookie?: string | null } = {},
+  init: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+    cookie?: string | null;
+  } = {},
 ) {
   const headers: Record<string, string> = { ...init.headers };
   const cookie = init.cookie === undefined ? "SESSION_ID=session-token-abcdef-123456" : init.cookie;
   if (cookie) headers.cookie = cookie;
-  const [pathname, qs] = path.split("?");
+  const pathname = path.split("?")[0];
   const req = new NextRequest(`http://app.test/api/v1/${path}`, {
     method: init.method ?? "GET",
     headers,
@@ -180,7 +185,9 @@ describe("proxy route", () => {
   it("keeps no session state: the second request resolves again when the cache is off", async () => {
     await call(GET, "users");
     await call(GET, "users");
-    const resolves = fetchMock.mock.calls.filter(([u]) => String(u).endsWith("/auth/sessions/resolve"));
+    const resolves = fetchMock.mock.calls.filter(([u]) =>
+      String(u).endsWith("/auth/sessions/resolve"),
+    );
     expect(resolves).toHaveLength(2);
   });
 });
