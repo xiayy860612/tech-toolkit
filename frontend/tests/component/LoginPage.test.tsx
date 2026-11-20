@@ -3,10 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const replace = vi.fn();
+const hardNavigate = vi.fn();
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, refresh, push: vi.fn() }),
   usePathname: () => "/login",
+}));
+vi.mock("@/lib/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/navigation")>()),
+  hardNavigate: (url: string) => hardNavigate(url),
 }));
 
 import LoginPage from "@/app/(public)/login/page";
@@ -14,6 +19,7 @@ import LoginPage from "@/app/(public)/login/page";
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   replace.mockReset();
+  hardNavigate.mockReset();
   refresh.mockReset();
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
@@ -77,7 +83,7 @@ describe("LoginPage", () => {
     await renderLogin();
     await submit();
     expect(await screen.findByRole("alert")).toHaveTextContent("用户名或密码错误");
-    expect(replace).not.toHaveBeenCalled();
+    expect(hardNavigate).not.toHaveBeenCalled();
   });
 
   it("shows the rate-limit message on 429", async () => {
@@ -93,7 +99,7 @@ describe("LoginPage", () => {
     );
     await renderLogin();
     await submit("admin", "Passw0rd!x");
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/users"));
+    await waitFor(() => expect(hardNavigate).toHaveBeenCalledWith("/users"));
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/v1/auth/login");
     expect(JSON.parse(init.body)).toEqual({ username: "admin", password: "Passw0rd!x" });
@@ -105,7 +111,7 @@ describe("LoginPage", () => {
     );
     await renderLogin("/sessions");
     await submit();
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/change-password"));
+    await waitFor(() => expect(hardNavigate).toHaveBeenCalledWith("/change-password"));
   });
 
   it("returns to the original page from ?next=", async () => {
@@ -114,7 +120,7 @@ describe("LoginPage", () => {
     );
     await renderLogin("/sessions?page=1");
     await submit();
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/sessions?page=1"));
+    await waitFor(() => expect(hardNavigate).toHaveBeenCalledWith("/sessions?page=1"));
   });
 
   it.each(["//evil.example", "https://evil.example", "javascript:alert(1)", "/\\evil.example"])(
@@ -125,7 +131,7 @@ describe("LoginPage", () => {
       );
       await renderLogin(next);
       await submit();
-      await waitFor(() => expect(replace).toHaveBeenCalledWith("/users"));
+      await waitFor(() => expect(hardNavigate).toHaveBeenCalledWith("/users"));
     },
   );
 

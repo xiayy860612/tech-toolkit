@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -8,11 +7,10 @@ import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 import type { BrowserMe } from "@/lib/api/types";
-import { safeNext } from "@/lib/navigation";
+import { hardNavigate, safeNext } from "@/lib/navigation";
 import { loginSchema, validate } from "@/lib/validation";
 
 export function LoginForm({ next }: { next?: string }) {
-  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -34,8 +32,7 @@ export function LoginForm({ next }: { next?: string }) {
         method: "POST",
         body: result.data,
       });
-      router.replace(me.mustChangePassword ? "/change-password" : safeNext(next));
-      router.refresh();
+      hardNavigate(me.mustChangePassword ? "/change-password" : safeNext(next));
     } catch (error) {
       setSubmitError(errorMessage(error instanceof ApiError ? error.code : undefined));
       setLoading(false);

@@ -142,7 +142,7 @@ description: "Task list for Tenant Admin Center"
 - [X] T069 [US1] 创建 `F/app/(console)/layout.tsx`、`F/components/AppShell.tsx`（Sidebar 232px 含「用户管理」「会话管理」、TopBar 面包屑 + 用户菜单）与服务端会话守卫（经会话解析器（resolver）解析会话 Cookie → 以用户 JWT 取 `/auth/me`；`mustChangePassword` 时重定向；角色非 `TENANT_ADMIN` 时重定向到 `/forbidden`，使 ForbiddenGuard 测试通过），`F/app/page.tsx` 重定向到 `/users`
 - [X] T070 [US1] 创建 `F/app/(console)/change-password/page.tsx` 与 `F/features/auth/ChangePasswordForm.tsx`
 - [X] T071 [US1] 创建 `F/app/(console)/forbidden/page.tsx` 与 `F/middleware.ts`（缺会话 Cookie 跳转 `/login` 并保留 `next`；鉴权以后端校验 JWT 为准）
-- [ ] T072 [US1] 创建 E2E `FT/e2e/login-journey.spec.ts`：登录 → 强制改密 → 用户列表；会话 Cookie 为 HttpOnly 且浏览器端拿不到 JWT；从打开登录页到进入用户列表 ≤ 10 秒（SC-001）；`MEMBER` 登录被导向 `/forbidden`（quickstart 场景 1、2、13）
+- [X] T072 [US1] 创建 E2E `FT/e2e/login-journey.spec.ts`：登录 → 强制改密 → 用户列表；会话 Cookie 为 HttpOnly 且浏览器端拿不到 JWT；从打开登录页到进入用户列表 ≤ 10 秒（SC-001）；`MEMBER` 登录被导向 `/forbidden`（quickstart 场景 1、2、13）
 
 **Checkpoint**: User Story 1 可独立运行与验证（MVP）
 
@@ -193,7 +193,7 @@ description: "Task list for Tenant Admin Center"
 - [X] T088 [US2] 创建 `F/app/(console)/users/page.tsx` 与 `F/features/users/UsersTable.tsx`（使 T081 通过）
 - [X] T089 [US2] 创建 `F/app/(console)/users/new/page.tsx`、`F/app/(console)/users/[id]/edit/page.tsx`、`F/features/users/UserForm.tsx`、`F/features/users/TempPasswordDialog.tsx`（使 T082 通过）
 - [X] T090 [US2] 创建 `F/app/(console)/users/[id]/page.tsx`（用户信息 + 启用/停用；Account 区在 US3 补全；**用户详情页不含会话区**——会话管理是独立页面 `/sessions`，见 US5）（使 T083 通过）
-- [ ] T091 [US2] 创建 E2E `FT/e2e/users-journey.spec.ts`：创建用户 → 新用户登录并强制改密；用户名冲突提示；同名用户名在另一租户可创建（quickstart 场景 5、6）
+- [X] T091 [US2] 创建 E2E `FT/e2e/users-journey.spec.ts`：创建用户 → 新用户登录并强制改密；用户名冲突提示；同名用户名在另一租户可创建（quickstart 场景 5、6）
 
 **Checkpoint**: US1 + US2 可独立工作
 
@@ -218,7 +218,7 @@ description: "Task list for Tenant Admin Center"
 - [ ] T097 [US3] 创建 `B/identity/AccountService.java`（依赖 T019、T025、T027；使 T092 通过）
 - [ ] T098 [US3] 创建 `B/api/AccountController.java` 与 DTO（`Account`、`AccountWithTemporaryPassword`、`CreateAccountRequest`、`ResetPasswordRequest`）（使 T093、T094、T095 通过）
 - [X] T099 [US3] 创建 `F/features/accounts/AccountsSection.tsx`、`ConfirmDialog.tsx`，并接入 `F/app/(console)/users/[id]/page.tsx`（使 T096 通过）
-- [ ] T100 [US3] 创建 E2E `FT/e2e/accounts-journey.spec.ts`：为同一用户新增第二个 Account、分别登录、停用其一、最后一个 Account 的确认流程、重置密码后原会话失效并强制改密（quickstart 场景 7、8、9、14）
+- [X] T100 [US3] 创建 E2E `FT/e2e/accounts-journey.spec.ts`：为同一用户新增第二个 Account、分别登录、停用其一、最后一个 Account 的确认流程、重置密码后原会话失效并强制改密（quickstart 场景 7、8、9、14）
 
 **Checkpoint**: 全部 User Story 可独立工作
 
@@ -249,7 +249,7 @@ description: "Task list for Tenant Admin Center"
 ### Implementation for User Story 5（前端页面）
 
 - [X] T108 [US5] 创建 `F/app/(console)/sessions/page.tsx` 与 `F/features/sessions/SessionsTable.tsx`（复用 `ConfirmDialog`、table、pagination），并在 `F/components/AppShell.tsx` 侧边栏加入「会话管理」入口（使 T107 通过）；**不在用户详情页中放会话区**
-- [ ] T109 [US5] 创建 E2E `FT/e2e/sessions-journey.spec.ts`：同一用户在两个浏览器上下文登录；管理员在会话管理页看到会话；强制下线其一后该上下文下一次请求回到登录页、另一个仍可用；「下线该用户全部会话」后均失效；自己的当前会话不可下线（quickstart 场景 19）
+- [X] T109 [US5] 创建 E2E `FT/e2e/sessions-journey.spec.ts`：同一用户在两个浏览器上下文登录；管理员在会话管理页看到会话；强制下线其一后该上下文下一次请求回到登录页、另一个仍可用；「下线该用户全部会话」后均失效；自己的当前会话不可下线（quickstart 场景 19）
 
 **Checkpoint**: 会话管理可独立工作
 
@@ -263,11 +263,11 @@ description: "Task list for Tenant Admin Center"
 - [ ] T111 实现 `B/audit/AuditQueryService.java` 与 `B/api/AuditLogController.java`（使 T110 通过）
 - [ ] T112 [P] 创建 `BT/identity/ConcurrencyIT.java`：两个管理员同时编辑同一用户，后提交者 409 `VERSION_CONFLICT`；并发停用最后两名管理员不会使租户失去全部管理员（quickstart 场景 11、15）
 - [X] T113 [P] 创建 `FT/unit/session-expiry.test.ts`：resolve 缓存 TTL 到期后重新向后端确认（TTL 为 0 时每次都确认）；缓存期内会话已被后端撤销或过期时，下一次 API 调用被后端 401 拒绝，BFF 清除 Cookie 并让页面跳回 `/login?next=<原目标页>`（quickstart 场景 14；401 后清除 Cookie 的基础行为见 T048）
-- [ ] T114 [P] 创建 `BT/security/LogRedactionIT.java` 与 `FT/unit/log-redaction.test.ts`：登录、改密、创建用户、重置密码流程后，捕获的全部日志与审计 `detail` 不含任何密码、会话令牌或 JWT（FR-006）
+- [X] T114 [P] 创建 `BT/security/LogRedactionIT.java` 与 `FT/unit/log-redaction.test.ts`：登录、改密、创建用户、重置密码流程后，捕获的全部日志与审计 `detail` 不含任何密码、会话令牌或 JWT（FR-006）
 - [ ] T115 [P] 创建 `BT/performance/ListPerformanceIT.java`（带 `@Tag("performance")`，默认不在 CI 主流程运行）：租户内 1,000 用户，100 并发会话下列表与搜索 p95 ≤ 2 秒（SC-005、quickstart 场景 17）
 - [ ] T116 后端门禁：运行 `verify`，确保 Spotless 与 JaCoCo 行覆盖率 ≥ 90% 通过；补齐缺口测试（排除路径仅 `*Application`）
-- [ ] T117 前端门禁：运行 lint、typecheck、`test:coverage`（行覆盖率 ≥ 90%）、build；补齐缺口测试
-- [ ] T118 更新 `backend/AGENTS.md`、`frontend/AGENTS.md` 为最终命令、环境变量、覆盖率与 CI 说明
+- [X] T117 前端门禁：运行 lint、typecheck、`test:coverage`（行覆盖率 ≥ 90%）、build；补齐缺口测试
+- [X] T118 更新 `backend/AGENTS.md`、`frontend/AGENTS.md` 为最终命令、环境变量、覆盖率与 CI 说明
 - [ ] T119 按 `quickstart.md` 逐条验证场景 1–19，记录结果；场景 12（跨租户隔离）、18（内部凭证校验）与 19（会话管理）必须 100% 通过
 - [ ] T120 安全复核：Cookie 属性、BFF 来源校验、限流、枚举防护、JWT 校验（算法白名单、过期、受众）、会话撤销与失效（`session` 表）、日志脱敏、RLS 角色权限、后端仅内网可达；结论记入 PR 说明
 - [ ] T121 归档（根 AGENTS.md「Project Context」）：把已落地的需求、设计沉淀到 `docs/achieve-specs/tenant-admin-center.md`，架构沉淀到 `docs/system-design/tenant-admin-center.md`

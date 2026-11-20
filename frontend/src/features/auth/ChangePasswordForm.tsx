@@ -1,17 +1,16 @@
 "use client";
 
 import { Check, Circle } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/client";
 import { ApiError, errorMessage } from "@/lib/api/errors";
+import { hardNavigate } from "@/lib/navigation";
 import { changePasswordSchema, checkPassword, validate } from "@/lib/validation";
 
 export function ChangePasswordForm() {
-  const router = useRouter();
   const [currentPassword, setCurrent] = useState("");
   const [newPassword, setNew] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -35,8 +34,7 @@ export function ChangePasswordForm() {
         method: "POST",
         body: { currentPassword, newPassword },
       });
-      router.replace("/users");
-      router.refresh();
+      hardNavigate("/users"); // 整页跳转，让服务端守卫按最新状态（角色等）决定去向
     } catch (error) {
       if (error instanceof ApiError && error.status === 422) {
         setErrors({ currentPassword: "当前密码不正确" });

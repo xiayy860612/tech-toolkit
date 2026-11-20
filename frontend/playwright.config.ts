@@ -9,5 +9,6 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   reporter: [["list"]],
-  use: { baseURL, trace: "retain-on-failure" },
+  // E2E_CHANNEL=chrome 可改用本机已安装的 Google Chrome，免下载 Playwright 自带浏览器
+  use: { baseURL, trace: "retain-on-failure", channel: process.env.E2E_CHANNEL || undefined },
 });

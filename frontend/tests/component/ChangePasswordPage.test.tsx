@@ -3,10 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const replace = vi.fn();
+const hardNavigate = vi.fn();
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, refresh, push: vi.fn() }),
   usePathname: () => "/change-password",
+}));
+vi.mock("@/lib/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/navigation")>()),
+  hardNavigate: (url: string) => hardNavigate(url),
 }));
 
 import ChangePasswordPage from "@/app/(console)/change-password/page";
@@ -14,6 +19,7 @@ import ChangePasswordPage from "@/app/(console)/change-password/page";
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   replace.mockReset();
+  hardNavigate.mockReset();
   refresh.mockReset();
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
@@ -66,7 +72,7 @@ describe("ChangePasswordPage", () => {
     const msg = await screen.findByText("当前密码不正确");
     expect(screen.getByLabelText("当前密码")).toHaveAttribute("aria-invalid", "true");
     expect(msg).toBeInTheDocument();
-    expect(replace).not.toHaveBeenCalled();
+    expect(hardNavigate).not.toHaveBeenCalled();
   });
 
   it("shows server validation errors generically", async () => {
@@ -82,13 +88,15 @@ describe("ChangePasswordPage", () => {
     render(<ChangePasswordPage />);
     await fill("Old-Passw0rd!", "New-Passw0rd!x", "New-Passw0rd!x");
     await userEvent.click(screen.getByRole("button", { name: "修改密码" }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/users"));
+    await waitFor(() => expect(hardNavigate).toHaveBeenCalledWith("/users"));
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/v1/auth/change-password");
     expect(JSON.parse(init.body)).toEqual({
       currentPassword: "Old-Passw0rd!",
       newPassword: "New-Passw0rd!x",
     });
-    expect(refresh).toHaveBeenCalled();
+    // 回归（E2E 发现）：认证状态变化后必须整页跳转，软导航不会重新执行布局里的服务端守卫
+    expect(replace).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

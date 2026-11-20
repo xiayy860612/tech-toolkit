@@ -11,3 +11,12 @@ export function safeNext(next: unknown, fallback = "/users"): string {
   if (next.startsWith("/login")) return fallback;
   return next;
 }
+
+/**
+ * 整页跳转。认证状态变化（登录、改密）后必须用它，而不是 router.replace：
+ * 同一 (console) 布局下的软导航不会重新执行布局里的服务端守卫（须改密 / 角色 / 会话），
+ * 整页跳转才能让守卫按最新状态决定去向。
+ */
+export function hardNavigate(url: string): void {
+  window.location.assign(url);
+}
