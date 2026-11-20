@@ -207,16 +207,16 @@ description: "Task list for Tenant Admin Center"
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T092 [P] [US3] 创建 `BT/identity/AccountServiceTest.java`：新增 Account（用户名规则同上，规范化 NFKC + 小写，冲突 → `USERNAME_TAKEN`）；删除/停用最后一个可用 Account 无 `confirm=true` → `LAST_ACTIVE_ACCOUNT_CONFIRM_REQUIRED`；停用/删除 Account 时撤销其全部会话；重置密码：写新哈希、`must_change_password=true`、撤销该 Account 全部会话、系统生成临时密码仅返回一次；解锁清零 `failed_attempts` 与 `locked_until`；全部操作写审计（`ACCOUNT_CREATED/DISABLED/ENABLED/DELETED`、`PASSWORD_RESET`、`ACCOUNT_UNLOCKED`）
-- [ ] T093 [P] [US3] 创建 `BT/api/AccountsApiContractIT.java`：`/users/{userId}/accounts` 及其 `disable|enable|unlock|reset-password`、`DELETE` 响应通过契约校验；`confirm` 参数行为；`MEMBER` → 403
-- [ ] T094 [P] [US3] 创建 `BT/auth/MultiAccountLoginIT.java`：同一 User 两个 Account 分别登录均解析为同一 `userId`；停用其一仅该 Account 无法登录且其会话已被撤销、下一次请求 401，另一个与 User 不受影响（SC-004）；新增一个测试用 `Authenticator` 实现无需改动 `app_user` 即可注册（验证 SC-007 的扩展点）
-- [ ] T095 [P] [US4] 在 `BT/isolation/TenantIsolationIT.java` 增加 Account 端点用例：A 的 JWT 对 B 的 Account 执行读取、新增、停用、启用、解锁、重置密码、删除全部 404
+- [X] T092 [P] [US3] 创建 `BT/identity/AccountServiceTest.java`：新增 Account（用户名规则同上，规范化 NFKC + 小写，冲突 → `USERNAME_TAKEN`）；删除/停用最后一个可用 Account 无 `confirm=true` → `LAST_ACTIVE_ACCOUNT_CONFIRM_REQUIRED`；停用/删除 Account 时撤销其全部会话；重置密码：写新哈希、`must_change_password=true`、撤销该 Account 全部会话、系统生成临时密码仅返回一次；解锁清零 `failed_attempts` 与 `locked_until`；全部操作写审计（`ACCOUNT_CREATED/DISABLED/ENABLED/DELETED`、`PASSWORD_RESET`、`ACCOUNT_UNLOCKED`）
+- [X] T093 [P] [US3] 创建 `BT/api/AccountsApiContractIT.java`：`/users/{userId}/accounts` 及其 `disable|enable|unlock|reset-password`、`DELETE` 响应通过契约校验；`confirm` 参数行为；`MEMBER` → 403
+- [X] T094 [P] [US3] 创建 `BT/auth/MultiAccountLoginIT.java`：同一 User 两个 Account 分别登录均解析为同一 `userId`；停用其一仅该 Account 无法登录且其会话已被撤销、下一次请求 401，另一个与 User 不受影响（SC-004）；新增一个测试用 `Authenticator` 实现无需改动 `app_user` 即可注册（验证 SC-007 的扩展点）
+- [X] T095 [P] [US4] 在 `BT/isolation/TenantIsolationIT.java` 增加 Account 端点用例：A 的 JWT 对 B 的 Account 执行读取、新增、停用、启用、解锁、重置密码、删除全部 404
 - [ ] T096 [P] [US3] 创建 `FT/component/AccountsSection.test.tsx`：表格列「类型、登录标识、状态、最近登录、操作」；被锁定显示「已锁定至 HH:mm」胶囊；操作含停用·启用、解锁、重置密码、删除；删除/停用最后一个可用 Account 弹确认框（提交带 `confirm=true`）；新增 Account 与重置密码成功后展示一次性临时密码框
 
 ### Implementation for User Story 3
 
-- [ ] T097 [US3] 创建 `B/identity/AccountService.java`（依赖 T019、T025、T027；使 T092 通过）
-- [ ] T098 [US3] 创建 `B/api/AccountController.java` 与 DTO（`Account`、`AccountWithTemporaryPassword`、`CreateAccountRequest`、`ResetPasswordRequest`）（使 T093、T094、T095 通过）
+- [X] T097 [US3] 创建 `B/identity/AccountService.java`（依赖 T019、T025、T027；使 T092 通过）
+- [X] T098 [US3] 创建 `B/api/AccountController.java` 与 DTO（`Account`、`AccountWithTemporaryPassword`、`CreateAccountRequest`、`ResetPasswordRequest`）（使 T093、T094、T095 通过）
 - [ ] T099 [US3] 创建 `F/features/accounts/AccountsSection.tsx`、`ConfirmDialog.tsx`，并接入 `F/app/(console)/users/[id]/page.tsx`（使 T096 通过）
 - [ ] T100 [US3] 创建 E2E `FT/e2e/accounts-journey.spec.ts`：为同一用户新增第二个 Account、分别登录、停用其一、最后一个 Account 的确认流程、重置密码后原会话失效并强制改密（quickstart 场景 7、8、9、14）
 

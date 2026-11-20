@@ -196,4 +196,47 @@ class TenantIsolationIT extends AbstractPostgresIT {
             .getContentAsString();
     assertThat(listed).doesNotContain(id).doesNotContain(marker);
   }
+
+  // ---- T095：Account 端点 ----
+  @Test
+  void accountEndpointsTreatForeignAccountsAsNotFound() throws Exception {
+    var adminA =
+        sessions.open(
+            A, fixture.create(A, TestAccounts.uniqueName(), PW, Role.TENANT_ADMIN, false));
+    var inB = fixture.create(B, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
+    String base = "/users/" + inB.user().getId() + "/accounts";
+    String acc = base + "/" + inB.account().getId();
+
+    as(get(base), adminA, null).andExpect(status().isNotFound());
+    as(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(base),
+            adminA,
+            "{\"type\":\"USERNAME_PASSWORD\",\"username\":\"intruder1\"}")
+        .andExpect(status().isNotFound());
+    for (String action : new String[] {"/disable", "/enable", "/unlock", "/reset-password"}) {
+      as(
+              org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                  acc + action),
+              adminA,
+              null)
+          .andExpect(status().isNotFound());
+    }
+    as(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(acc)
+                .param("confirm", "true"),
+            adminA,
+            null)
+        .andExpect(status().isNotFound());
+    // 目标账号未被改动
+    var owner = new JdbcTemplate(ownerDataSource());
+    assertThat(
+            owner.queryForObject(
+                "select status from account where id = ?", String.class, inB.account().getId()))
+        .isEqualTo("ACTIVE");
+    assertThat(
+            owner.queryForObject(
+                "select count(*) from account where tenant_id = 0 and identifier = 'intruder1'",
+                Integer.class))
+        .isZero();
+  }
 }
