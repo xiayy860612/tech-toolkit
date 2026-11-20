@@ -211,13 +211,13 @@ description: "Task list for Tenant Admin Center"
 - [ ] T093 [P] [US3] 创建 `BT/api/AccountsApiContractIT.java`：`/users/{userId}/accounts` 及其 `disable|enable|unlock|reset-password`、`DELETE` 响应通过契约校验；`confirm` 参数行为；`MEMBER` → 403
 - [ ] T094 [P] [US3] 创建 `BT/auth/MultiAccountLoginIT.java`：同一 User 两个 Account 分别登录均解析为同一 `userId`；停用其一仅该 Account 无法登录且其会话已被撤销、下一次请求 401，另一个与 User 不受影响（SC-004）；新增一个测试用 `Authenticator` 实现无需改动 `app_user` 即可注册（验证 SC-007 的扩展点）
 - [ ] T095 [P] [US4] 在 `BT/isolation/TenantIsolationIT.java` 增加 Account 端点用例：A 的 JWT 对 B 的 Account 执行读取、新增、停用、启用、解锁、重置密码、删除全部 404
-- [ ] T096 [P] [US3] 创建 `FT/component/AccountsSection.test.tsx`：表格列「类型、登录标识、状态、最近登录、操作」；被锁定显示「已锁定至 HH:mm」胶囊；操作含停用·启用、解锁、重置密码、删除；删除/停用最后一个可用 Account 弹确认框（提交带 `confirm=true`）；新增 Account 与重置密码成功后展示一次性临时密码框
+- [X] T096 [P] [US3] 创建 `FT/component/AccountsSection.test.tsx`：表格列「类型、登录标识、状态、最近登录、操作」；被锁定显示「已锁定至 HH:mm」胶囊；操作含停用·启用、解锁、重置密码、删除；删除/停用最后一个可用 Account 弹确认框（提交带 `confirm=true`）；新增 Account 与重置密码成功后展示一次性临时密码框
 
 ### Implementation for User Story 3
 
 - [ ] T097 [US3] 创建 `B/identity/AccountService.java`（依赖 T019、T025、T027；使 T092 通过）
 - [ ] T098 [US3] 创建 `B/api/AccountController.java` 与 DTO（`Account`、`AccountWithTemporaryPassword`、`CreateAccountRequest`、`ResetPasswordRequest`）（使 T093、T094、T095 通过）
-- [ ] T099 [US3] 创建 `F/features/accounts/AccountsSection.tsx`、`ConfirmDialog.tsx`，并接入 `F/app/(console)/users/[id]/page.tsx`（使 T096 通过）
+- [X] T099 [US3] 创建 `F/features/accounts/AccountsSection.tsx`、`ConfirmDialog.tsx`，并接入 `F/app/(console)/users/[id]/page.tsx`（使 T096 通过）
 - [ ] T100 [US3] 创建 E2E `FT/e2e/accounts-journey.spec.ts`：为同一用户新增第二个 Account、分别登录、停用其一、最后一个 Account 的确认流程、重置密码后原会话失效并强制改密（quickstart 场景 7、8、9、14）
 
 **Checkpoint**: 全部 User Story 可独立工作
@@ -244,11 +244,11 @@ description: "Task list for Tenant Admin Center"
 
 ### Tests for User Story 5（前端页面）⚠️
 
-- [ ] T107 [P] [US5] 创建 `FT/component/SessionsPage.test.tsx`：筛选栏（用户关键字）；表格列「用户、账号、设备、IP、登录时间、最近活跃、到期时间、操作」；分页；当前会话行显示「当前」且无操作；「强制下线」与「下线该用户全部会话」均弹确认对话框，管理员自己的用户行不显示后者；空态「当前没有有效的登录会话」；`CANNOT_REVOKE_*` 错误按 `code` 提示
+- [X] T107 [P] [US5] 创建 `FT/component/SessionsPage.test.tsx`：筛选栏（用户关键字）；表格列「用户、账号、设备、IP、登录时间、最近活跃、到期时间、操作」；分页；当前会话行显示「当前」且无操作；「强制下线」与「下线该用户全部会话」均弹确认对话框，管理员自己的用户行不显示后者；空态「当前没有有效的登录会话」；`CANNOT_REVOKE_*` 错误按 `code` 提示
 
 ### Implementation for User Story 5（前端页面）
 
-- [ ] T108 [US5] 创建 `F/app/(console)/sessions/page.tsx` 与 `F/features/sessions/SessionsTable.tsx`（复用 `ConfirmDialog`、table、pagination），并在 `F/components/AppShell.tsx` 侧边栏加入「会话管理」入口（使 T107 通过）；**不在用户详情页中放会话区**
+- [X] T108 [US5] 创建 `F/app/(console)/sessions/page.tsx` 与 `F/features/sessions/SessionsTable.tsx`（复用 `ConfirmDialog`、table、pagination），并在 `F/components/AppShell.tsx` 侧边栏加入「会话管理」入口（使 T107 通过）；**不在用户详情页中放会话区**
 - [ ] T109 [US5] 创建 E2E `FT/e2e/sessions-journey.spec.ts`：同一用户在两个浏览器上下文登录；管理员在会话管理页看到会话；强制下线其一后该上下文下一次请求回到登录页、另一个仍可用；「下线该用户全部会话」后均失效；自己的当前会话不可下线（quickstart 场景 19）
 
 **Checkpoint**: 会话管理可独立工作
@@ -262,7 +262,7 @@ description: "Task list for Tenant Admin Center"
 - [ ] T110 [P] 创建 `BT/api/AuditLogsApiIT.java`：`GET /audit-logs`（`action`、`actorUserId`、`from`、`to`、`page`、`size`）仅返回本租户记录；`MEMBER` → 403；响应通过契约校验；quickstart 场景 16 的各事件均可查到，字段含操作者、对象、时间、结果、IP（来自 JWT `cip`）
 - [ ] T111 实现 `B/audit/AuditQueryService.java` 与 `B/api/AuditLogController.java`（使 T110 通过）
 - [ ] T112 [P] 创建 `BT/identity/ConcurrencyIT.java`：两个管理员同时编辑同一用户，后提交者 409 `VERSION_CONFLICT`；并发停用最后两名管理员不会使租户失去全部管理员（quickstart 场景 11、15）
-- [ ] T113 [P] 创建 `FT/unit/session-expiry.test.ts`：resolve 缓存 TTL 到期后重新向后端确认（TTL 为 0 时每次都确认）；缓存期内会话已被后端撤销或过期时，下一次 API 调用被后端 401 拒绝，BFF 清除 Cookie 并让页面跳回 `/login?next=<原目标页>`（quickstart 场景 14；401 后清除 Cookie 的基础行为见 T048）
+- [X] T113 [P] 创建 `FT/unit/session-expiry.test.ts`：resolve 缓存 TTL 到期后重新向后端确认（TTL 为 0 时每次都确认）；缓存期内会话已被后端撤销或过期时，下一次 API 调用被后端 401 拒绝，BFF 清除 Cookie 并让页面跳回 `/login?next=<原目标页>`（quickstart 场景 14；401 后清除 Cookie 的基础行为见 T048）
 - [ ] T114 [P] 创建 `BT/security/LogRedactionIT.java` 与 `FT/unit/log-redaction.test.ts`：登录、改密、创建用户、重置密码流程后，捕获的全部日志与审计 `detail` 不含任何密码、会话令牌或 JWT（FR-006）
 - [ ] T115 [P] 创建 `BT/performance/ListPerformanceIT.java`（带 `@Tag("performance")`，默认不在 CI 主流程运行）：租户内 1,000 用户，100 并发会话下列表与搜索 p95 ≤ 2 秒（SC-005、quickstart 场景 17）
 - [ ] T116 后端门禁：运行 `verify`，确保 Spotless 与 JaCoCo 行覆盖率 ≥ 90% 通过；补齐缺口测试（排除路径仅 `*Application`）
