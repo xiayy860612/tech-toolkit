@@ -156,14 +156,14 @@ description: "Task list for Tenant Admin Center"
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T073 [P] [US4] 创建 `BT/isolation/TenantIsolationIT.java`（跨租户隔离测试集的基础，使用租户 0 与测试夹具租户 1）：RLS 下无上下文返回 0 行；上下文为租户 0 时读不到租户 1 的行、也无法写入租户 1 的行；请求头/参数/请求体里携带的任何租户标识都不影响授权；篡改 `tenant_id` 后签名失效的 JWT → 401；`/auth/me` 只返回调用者本人
-- [ ] T074 [P] [US4] 创建 `BT/isolation/SameUsernameAcrossTenantsIT.java`：租户 0 与夹具租户 1 存在同名用户名，各自登录（service JWT 的 `tenant_id` 不同）进入各自租户，互不冲突（US4-3、FR-014）
+- [X] T073 [P] [US4] 创建 `BT/isolation/TenantIsolationIT.java`（跨租户隔离测试集的基础，使用租户 0 与测试夹具租户 1）：RLS 下无上下文返回 0 行；上下文为租户 0 时读不到租户 1 的行、也无法写入租户 1 的行；请求头/参数/请求体里携带的任何租户标识都不影响授权；篡改 `tenant_id` 后签名失效的 JWT → 401；`/auth/me` 只返回调用者本人
+- [X] T074 [P] [US4] 创建 `BT/isolation/SameUsernameAcrossTenantsIT.java`：租户 0 与夹具租户 1 存在同名用户名，各自登录（service JWT 的 `tenant_id` 不同）进入各自租户，互不冲突（US4-3、FR-014）
 - [ ] T075 [P] [US4] 创建 `FT/unit/proxy-tenant.test.ts`：BFF 签发的 JWT 租户只取自后端 resolve 返回的会话身份；浏览器请求里的 `X-Tenant-*`、`tenantId`（查询串、请求体）既不改变 JWT 也不被转发
 
 ### Implementation for User Story 4
 
 - [ ] T076 [US4] 配置 Hibernate 多租户判别（`@TenantId` 加在租户范围实体上，`CurrentTenantIdentifierResolver` 取自 `TenantContext`），并保证所有仓储查询带租户条件；跨租户 id 统一映射为 404 `NOT_FOUND`（使 T073、T074 通过）
-- [ ] T077 [P] [US4] 在 `BT/ArchitectureTest.java` 增加规则：`api` 包控制器的方法参数与请求体不得出现名为 `tenantId` 的授权依据字段
+- [X] T077 [P] [US4] 在 `BT/ArchitectureTest.java` 增加规则：`api` 包控制器的方法参数与请求体不得出现名为 `tenantId` 的授权依据字段
 
 **Checkpoint**: 隔离基线完成；US2/US3 阶段各含一条「扩展隔离套件」任务
 
