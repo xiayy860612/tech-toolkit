@@ -21,7 +21,12 @@ import tech.toolkit.tenantcore.platform.AdminCenterProperties;
 @Service
 public class SessionService {
 
-  public record Created(Session session, String token) {}
+  public record Created(Session session, String token) {
+    @Override
+    public String toString() {
+      return "Created[redacted]";
+    }
+  }
 
   private final SessionRepository sessions;
   private final AdminCenterProperties.Session config;

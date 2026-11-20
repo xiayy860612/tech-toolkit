@@ -24,7 +24,12 @@ import tech.toolkit.tenantcore.platform.TemporaryPasswordGenerator;
 public class AccountService {
 
   /** {@code temporaryPassword} 仅在系统生成时非空，只返回一次。 */
-  public record Created(AccountView account, String temporaryPassword) {}
+  public record Created(AccountView account, String temporaryPassword) {
+    @Override
+    public String toString() {
+      return "Created[redacted]";
+    }
+  }
 
   private final AppUserRepository users;
   private final AccountRepository accounts;

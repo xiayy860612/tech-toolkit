@@ -17,14 +17,24 @@ public final class UserDtos {
   private UserDtos() {}
 
   public record NewAccountSpec(
-      @NotNull AccountType type, @NotNull String username, String temporaryPassword) {}
+      @NotNull AccountType type, @NotNull String username, String temporaryPassword) {
+    @Override
+    public String toString() {
+      return "NewAccountSpec[redacted]";
+    }
+  }
 
   public record CreateUserRequest(
       @NotNull String displayName,
       String phone,
       String email,
       @NotNull Role role,
-      @NotNull @Valid NewAccountSpec account) {}
+      @NotNull @Valid NewAccountSpec account) {
+    @Override
+    public String toString() {
+      return "CreateUserRequest[redacted]";
+    }
+  }
 
   public record UpdateUserRequest(
       @NotNull String displayName,
@@ -70,5 +80,10 @@ public final class UserDtos {
     }
   }
 
-  public record CreateUserResult(User user, AccountDtos.AccountWithTemporaryPassword account) {}
+  public record CreateUserResult(User user, AccountDtos.AccountWithTemporaryPassword account) {
+    @Override
+    public String toString() {
+      return "CreateUserResult[redacted]";
+    }
+  }
 }

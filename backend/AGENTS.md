@@ -7,6 +7,7 @@ Tenant Admin Center 后端，即平台分层中的 **UAM**（租户级业务服�
 
 - Java 21 · Spring Boot 4.1.2 · Maven **单模块** · PostgreSQL 16 · Flyway · Bouncy Castle（Argon2id）· nimbus-jose-jwt（校验内部 JWT）
 - 包根 `tech.toolkit.tenantcore`，按业务能力分包：`identity/`（User、Account、凭证）、`auth/`（登录、会话、锁定）、`audit/`、`platform/`（租户上下文、JWT 校验、密码）、`api/`（仅 Web 层）、`bootstrap/`（首位管理员预置）
+- 业务能力与职责：`identity/`（`UserService`、`AccountService`、`AccountProvisioner`、`UserQueryRepository`）、`auth/`（`LoginService`、`SessionService`、`SessionAdminService`、`PasswordChangeService`）、`audit/`（`AuditService` 写、`AuditQueryService` 读）；`api/` 的控制器不含业务规则，也不接收任何 `tenantId` 作为授权依据（ArchUnit 守护）
 - 迁移脚本：`src/main/resources/db/migration`；测试：`*Test`（单元）与 `*IT`（Testcontainers 集成），均在 `mvn test` 运行
 - **后端仅内网可达，只接受 BFF 签发的内部 JWT**；会话在本服务（`session` 表），租户由 JWT 的 `tenant_id` 决定，本期恒为 0
 
@@ -22,6 +23,13 @@ Tenant Admin Center 后端，即平台分层中的 **UAM**（租户级业务服�
 | 运行（开发） | `mvn spring-boot:run -Dspring-boot.run.profiles=dev` |
 | 预置首位管理员 | `mvn spring-boot:run -Dspring-boot.run.arguments="--bootstrap --username=<name>"` |
 | 性能类测试（默认不跑） | `mvn test -DexcludedTestGroups=none -Dgroups=performance` |
+
+## 测试约定
+
+- 集成测试继承 `support/AbstractPostgresIT`（Testcontainers PostgreSQL 16，应用以非属主角色连接，RLS 真实生效）；夹具：`TestAccounts`（建 User+Account）、`TestSessions`（开会话并签发用户 JWT）、`TestJwt`、`MutableClock`、`OpenApiContract.valid()`（对照 `specs/001-tenant-admin-center/contracts/openapi.yaml` 校验请求与响应）
+- 租户隔离测试集在 `isolation/`：本期租户 0，夹具租户 1；其余测试各用独立的夹具租户，避免管理员计数互相干扰
+- 请求或响应里带密码、令牌的 record 必须覆写 `toString()` 脱敏（Spring 在 DEBUG 会打印请求体对象），由 `security/LogRedactionIT` 守护
+- 性能类测试 `performance/ListPerformanceIT`（SC-005，1,000 用户、100 并发会话，p95 ≤ 2 秒）带 `@Tag("performance")`，默认不跑；开发机实测 p95 约 0.7 秒
 
 ## 质量门禁
 

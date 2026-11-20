@@ -29,11 +29,21 @@ public class UserService {
       String email,
       Role role,
       String username,
-      String temporaryPassword) {}
+      String temporaryPassword) {
+    @Override
+    public String toString() {
+      return "NewUser[redacted]";
+    }
+  }
 
   public record Changes(String displayName, String phone, String email, Role role, long version) {}
 
-  public record Created(UserView user, AccountView account, String temporaryPassword) {}
+  public record Created(UserView user, AccountView account, String temporaryPassword) {
+    @Override
+    public String toString() {
+      return "Created[redacted]";
+    }
+  }
 
   private final AppUserRepository users;
   private final AccountRepository accounts;

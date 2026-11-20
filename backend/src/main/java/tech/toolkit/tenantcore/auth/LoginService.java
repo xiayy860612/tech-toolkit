@@ -30,7 +30,12 @@ import tech.toolkit.tenantcore.platform.IpAddresses;
 public class LoginService {
 
   public record LoggedIn(
-      AppUser user, Account account, Session session, String token, boolean mustChangePassword) {}
+      AppUser user, Account account, Session session, String token, boolean mustChangePassword) {
+    @Override
+    public String toString() {
+      return "LoggedIn[redacted]";
+    }
+  }
 
   private sealed interface Outcome permits Success, Failure {}
 

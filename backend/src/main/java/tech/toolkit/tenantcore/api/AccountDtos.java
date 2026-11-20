@@ -56,6 +56,10 @@ public final class AccountDtos {
       long version,
       Instant createdAt,
       String temporaryPassword) {
+    @Override
+    public String toString() {
+      return "AccountWithTemporaryPassword[redacted]";
+    }
 
     static AccountWithTemporaryPassword of(AccountView v, String temporaryPassword, Instant now) {
       Account a = Account.of(v, now);
@@ -76,7 +80,17 @@ public final class AccountDtos {
   }
 
   public record CreateAccountRequest(
-      @NotNull AccountType type, @NotNull String username, String temporaryPassword) {}
+      @NotNull AccountType type, @NotNull String username, String temporaryPassword) {
+    @Override
+    public String toString() {
+      return "CreateAccountRequest[redacted]";
+    }
+  }
 
-  public record ResetPasswordRequest(String temporaryPassword) {}
+  public record ResetPasswordRequest(String temporaryPassword) {
+    @Override
+    public String toString() {
+      return "ResetPasswordRequest[redacted]";
+    }
+  }
 }

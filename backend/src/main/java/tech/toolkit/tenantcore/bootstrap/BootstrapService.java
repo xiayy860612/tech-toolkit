@@ -25,7 +25,12 @@ import tech.toolkit.tenantcore.platform.TenantContext;
 @Service
 public class BootstrapService {
 
-  public record Created(String username, String temporaryPassword) {}
+  public record Created(String username, String temporaryPassword) {
+    @Override
+    public String toString() {
+      return "Created[redacted]";
+    }
+  }
 
   private final long tenantId;
   private final TransactionTemplate tx;

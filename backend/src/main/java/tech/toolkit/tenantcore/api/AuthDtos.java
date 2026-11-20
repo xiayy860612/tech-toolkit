@@ -14,7 +14,12 @@ public final class AuthDtos {
   public record LoginRequest(
       @NotBlank @Size(max = 64) String username,
       @NotBlank @Size(max = 128) String password,
-      @Size(max = 512) String userAgent) {}
+      @Size(max = 512) String userAgent) {
+    @Override
+    public String toString() {
+      return "LoginRequest[redacted]";
+    }
+  }
 
   public record Me(
       UUID userId,
@@ -24,9 +29,19 @@ public final class AuthDtos {
       Role role,
       boolean mustChangePassword) {}
 
-  public record LoginResult(Me me, String sessionToken, Instant expiresAt) {}
+  public record LoginResult(Me me, String sessionToken, Instant expiresAt) {
+    @Override
+    public String toString() {
+      return "LoginResult[redacted]";
+    }
+  }
 
-  public record SessionResolveRequest(@NotBlank @Size(min = 16, max = 256) String sessionToken) {}
+  public record SessionResolveRequest(@NotBlank @Size(min = 16, max = 256) String sessionToken) {
+    @Override
+    public String toString() {
+      return "SessionResolveRequest[redacted]";
+    }
+  }
 
   public record SessionResolveResult(
       UUID sessionId,
@@ -39,5 +54,10 @@ public final class AuthDtos {
 
   public record ChangePasswordRequest(
       @NotBlank @Size(max = 128) String currentPassword,
-      @NotBlank @Size(max = 128) String newPassword) {}
+      @NotBlank @Size(max = 128) String newPassword) {
+    @Override
+    public String toString() {
+      return "ChangePasswordRequest[redacted]";
+    }
+  }
 }
