@@ -232,15 +232,15 @@ description: "Task list for Tenant Admin Center"
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T101 [P] [US5] 创建 `BT/api/SessionsApiIT.java`：`GET /sessions`（仅 `TENANT_ADMIN`）只返回本租户有效会话，按用户关键字（显示名/登录标识）过滤、按最近活跃倒序分页，`current` 依据 JWT 的 `sid`，响应不含令牌、令牌哈希、原始 User-Agent；`DELETE /sessions/{sessionId}`：目标是当前会话 → 409 `CANNOT_REVOKE_CURRENT_SESSION`，否则撤销（`ADMIN_REVOKED`）并写审计 `SESSION_REVOKED`，被撤销会话的下一次请求 → 401；不存在/已过期/其他租户 → 204；`DELETE /users/{userId}/sessions`：目标为调用者本人 → 409 `CANNOT_REVOKE_OWN_SESSIONS`，其他租户或不存在的用户 → 404，否则撤销全部并写审计 `SESSIONS_REVOKED_ALL`（含数量）；`MEMBER` → 403；响应通过契约校验
-- [ ] T102 [P] [US4] 在 `BT/isolation/TenantIsolationIT.java` 增加会话端点用例：租户 0 的管理员 `GET /sessions` 看不到租户 1 的会话；对租户 1 的会话 id 调用 `DELETE /sessions/{id}` 返回 204 但该会话仍然有效；对租户 1 的用户 `DELETE /users/{id}/sessions` → 404
-- [ ] T103 [P] [US5] 创建 `BT/api/MeRoleFreshnessIT.java`：`/auth/me` 的 `role` 取自数据库当前值——管理员被降级后，即使 JWT 声明仍是 `TENANT_ADMIN`，下一次调用也返回 `MEMBER`（BFF 据此拒绝会话管理操作）
-- [ ] T104 [P] [US5] 创建 `BT/auth/SessionRevocationIT.java`：User 停用、Account 停用、Account 删除、重置密码、修改密码（保留当前会话）、登出，各自在同一事务内撤销相应会话并写入正确的 `revoke_reason`；被撤销会话的 JWT 下一次请求 → 401；撤销与审计要么同时成功要么同时回滚
+- [X] T101 [P] [US5] 创建 `BT/api/SessionsApiIT.java`：`GET /sessions`（仅 `TENANT_ADMIN`）只返回本租户有效会话，按用户关键字（显示名/登录标识）过滤、按最近活跃倒序分页，`current` 依据 JWT 的 `sid`，响应不含令牌、令牌哈希、原始 User-Agent；`DELETE /sessions/{sessionId}`：目标是当前会话 → 409 `CANNOT_REVOKE_CURRENT_SESSION`，否则撤销（`ADMIN_REVOKED`）并写审计 `SESSION_REVOKED`，被撤销会话的下一次请求 → 401；不存在/已过期/其他租户 → 204；`DELETE /users/{userId}/sessions`：目标为调用者本人 → 409 `CANNOT_REVOKE_OWN_SESSIONS`，其他租户或不存在的用户 → 404，否则撤销全部并写审计 `SESSIONS_REVOKED_ALL`（含数量）；`MEMBER` → 403；响应通过契约校验
+- [X] T102 [P] [US4] 在 `BT/isolation/TenantIsolationIT.java` 增加会话端点用例：租户 0 的管理员 `GET /sessions` 看不到租户 1 的会话；对租户 1 的会话 id 调用 `DELETE /sessions/{id}` 返回 204 但该会话仍然有效；对租户 1 的用户 `DELETE /users/{id}/sessions` → 404
+- [X] T103 [P] [US5] 创建 `BT/api/MeRoleFreshnessIT.java`：`/auth/me` 的 `role` 取自数据库当前值——管理员被降级后，即使 JWT 声明仍是 `TENANT_ADMIN`，下一次调用也返回 `MEMBER`（BFF 据此拒绝会话管理操作）
+- [X] T104 [P] [US5] 创建 `BT/auth/SessionRevocationIT.java`：User 停用、Account 停用、Account 删除、重置密码、修改密码（保留当前会话）、登出，各自在同一事务内撤销相应会话并写入正确的 `revoke_reason`；被撤销会话的 JWT 下一次请求 → 401；撤销与审计要么同时成功要么同时回滚
 
 ### Implementation for User Story 5
 
-- [ ] T105 [US5] 创建 `B/auth/SessionAdminService.java` 与 `B/api/SessionController.java`：列表、强制下线单个、下线某用户全部；撤销与审计同事务；`current` 依据 `sid`；`AuditAction` 含 `SESSION_REVOKED`、`SESSIONS_REVOKED_ALL`（依赖 T027；使 T101、T102、T104 通过）
-- [ ] T106 [US5] 在 `B/api/AuthController.java` 的 `/auth/me` 中 `role` 改为读取数据库当前值（使 T103 通过）
+- [X] T105 [US5] 创建 `B/auth/SessionAdminService.java` 与 `B/api/SessionController.java`：列表、强制下线单个、下线某用户全部；撤销与审计同事务；`current` 依据 `sid`；`AuditAction` 含 `SESSION_REVOKED`、`SESSIONS_REVOKED_ALL`（依赖 T027；使 T101、T102、T104 通过）
+- [X] T106 [US5] 在 `B/api/AuthController.java` 的 `/auth/me` 中 `role` 改为读取数据库当前值（使 T103 通过）
 
 ### Tests for User Story 5（前端页面）⚠️
 

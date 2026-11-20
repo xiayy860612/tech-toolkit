@@ -239,4 +239,39 @@ class TenantIsolationIT extends AbstractPostgresIT {
                 Integer.class))
         .isZero();
   }
+
+  // ---- T102：会话端点 ----
+  @Test
+  void sessionEndpointsNeverTouchOrRevealAnotherTenantsSessions() throws Exception {
+    var adminA =
+        sessions.open(
+            A, fixture.create(A, TestAccounts.uniqueName(), PW, Role.TENANT_ADMIN, false));
+    var inB = fixture.create(B, TestAccounts.uniqueName(), PW, Role.MEMBER, false);
+    var sessionB = sessions.open(B, inB);
+
+    String listed =
+        as(get("/sessions").param("size", "100"), adminA, null)
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertThat(listed).doesNotContain(sessionB.sessionId().toString());
+
+    as(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(
+                "/sessions/" + sessionB.sessionId()),
+            adminA,
+            null)
+        .andExpect(status().isNoContent());
+    mvc.perform(get("/auth/me").header("Authorization", sessionB.bearer()))
+        .andExpect(status().isOk());
+
+    as(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(
+                "/users/" + inB.user().getId() + "/sessions"),
+            adminA,
+            null)
+        .andExpect(status().isNotFound());
+    mvc.perform(get("/auth/me").header("Authorization", sessionB.bearer()))
+        .andExpect(status().isOk());
+  }
 }
