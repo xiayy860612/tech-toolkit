@@ -23,6 +23,6 @@ export function getClientIp(headers: Headers, opts: ClientIpOptions = {}): strin
   return opts.connectionAddress ?? "unknown";
 }
 
-export function requestClientIp(request: Request): string {
+export function requestClientIp(request: { headers: Headers }): string {
   return getClientIp(request.headers, { hops: getConfig().trustedProxyHops });
 }

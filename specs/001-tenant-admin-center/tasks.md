@@ -130,18 +130,18 @@ description: "Task list for Tenant Admin Center"
 
 ### Tests for User Story 1（前端页面）⚠️
 
-- [ ] T063 [P] [US1] 创建 `FT/component/LoginPage.test.tsx`：账号框标签为「用户名」，页面**没有任何租户相关输入**；**不含**「忘记密码」「企业 SSO」「扫码登录」「7 天内免登录」；失败统一显示「用户名或密码错误」；成功后跳转（强制改密时到 `/change-password`，否则到 `next` 或 `/users`）
-- [ ] T064 [P] [US1] 创建 `FT/component/ChangePasswordPage.test.tsx`：复杂度规则实时勾选；两次输入不一致提示；当前密码错误（422）提示；成功后进入用户列表
-- [ ] T065 [P] [US1] 创建 `FT/component/AppShell.test.tsx` 与 `FT/unit/middleware.test.ts`：侧边栏仅「用户管理」「会话管理」；用户菜单含「修改密码」「退出登录」，退出调用 `/api/v1/auth/logout`；无会话 Cookie 访问受保护路径时跳转 `/login?next=<原目标页>`；`/` 重定向到 `/users`
-- [ ] T066 [P] [US1] 创建 `FT/component/ForbiddenGuard.test.tsx`：`/auth/me` 返回的角色非 `TENANT_ADMIN`（`MEMBER`）登录后被重定向到 `/forbidden`；外壳仅显示「修改密码」「退出登录」，不显示侧边栏导航；角色以 `/auth/me` 为准，不信会话中缓存的 `role`
+- [X] T063 [P] [US1] 创建 `FT/component/LoginPage.test.tsx`：账号框标签为「用户名」，页面**没有任何租户相关输入**；**不含**「忘记密码」「企业 SSO」「扫码登录」「7 天内免登录」；失败统一显示「用户名或密码错误」；成功后跳转（强制改密时到 `/change-password`，否则到 `next` 或 `/users`）
+- [X] T064 [P] [US1] 创建 `FT/component/ChangePasswordPage.test.tsx`：复杂度规则实时勾选；两次输入不一致提示；当前密码错误（422）提示；成功后进入用户列表
+- [X] T065 [P] [US1] 创建 `FT/component/AppShell.test.tsx` 与 `FT/unit/middleware.test.ts`：侧边栏仅「用户管理」「会话管理」；用户菜单含「修改密码」「退出登录」，退出调用 `/api/v1/auth/logout`；无会话 Cookie 访问受保护路径时跳转 `/login?next=<原目标页>`；`/` 重定向到 `/users`
+- [X] T066 [P] [US1] 创建 `FT/component/ForbiddenGuard.test.tsx`：`/auth/me` 返回的角色非 `TENANT_ADMIN`（`MEMBER`）登录后被重定向到 `/forbidden`；外壳仅显示「修改密码」「退出登录」，不显示侧边栏导航；角色以 `/auth/me` 为准，不信会话中缓存的 `role`
 
 ### Implementation for User Story 1（前端页面）
 
-- [ ] T067 [P] [US1] 创建 `F/components/AuthLayout.tsx`（左品牌区 `#0F1629` + 右表单区，取自设计稿 Login；供登录页与强制改密页复用）
-- [ ] T068 [P] [US1] 创建 `F/app/(public)/login/page.tsx` 与 `F/features/auth/LoginForm.tsx`（品牌文案改为多租户隔离/多登录方式 Account/操作审计，见 ui-design.md「裁剪」）
-- [ ] T069 [US1] 创建 `F/app/(console)/layout.tsx`、`F/components/AppShell.tsx`（Sidebar 232px 含「用户管理」「会话管理」、TopBar 面包屑 + 用户菜单）与服务端会话守卫（经会话解析器（resolver）解析会话 Cookie → 以用户 JWT 取 `/auth/me`；`mustChangePassword` 时重定向；角色非 `TENANT_ADMIN` 时重定向到 `/forbidden`，使 ForbiddenGuard 测试通过），`F/app/page.tsx` 重定向到 `/users`
-- [ ] T070 [US1] 创建 `F/app/(console)/change-password/page.tsx` 与 `F/features/auth/ChangePasswordForm.tsx`
-- [ ] T071 [US1] 创建 `F/app/(console)/forbidden/page.tsx` 与 `F/middleware.ts`（缺会话 Cookie 跳转 `/login` 并保留 `next`；鉴权以后端校验 JWT 为准）
+- [X] T067 [P] [US1] 创建 `F/components/AuthLayout.tsx`（左品牌区 `#0F1629` + 右表单区，取自设计稿 Login；供登录页与强制改密页复用）
+- [X] T068 [P] [US1] 创建 `F/app/(public)/login/page.tsx` 与 `F/features/auth/LoginForm.tsx`（品牌文案改为多租户隔离/多登录方式 Account/操作审计，见 ui-design.md「裁剪」）
+- [X] T069 [US1] 创建 `F/app/(console)/layout.tsx`、`F/components/AppShell.tsx`（Sidebar 232px 含「用户管理」「会话管理」、TopBar 面包屑 + 用户菜单）与服务端会话守卫（经会话解析器（resolver）解析会话 Cookie → 以用户 JWT 取 `/auth/me`；`mustChangePassword` 时重定向；角色非 `TENANT_ADMIN` 时重定向到 `/forbidden`，使 ForbiddenGuard 测试通过），`F/app/page.tsx` 重定向到 `/users`
+- [X] T070 [US1] 创建 `F/app/(console)/change-password/page.tsx` 与 `F/features/auth/ChangePasswordForm.tsx`
+- [X] T071 [US1] 创建 `F/app/(console)/forbidden/page.tsx` 与 `F/middleware.ts`（缺会话 Cookie 跳转 `/login` 并保留 `next`；鉴权以后端校验 JWT 为准）
 - [ ] T072 [US1] 创建 E2E `FT/e2e/login-journey.spec.ts`：登录 → 强制改密 → 用户列表；会话 Cookie 为 HttpOnly 且浏览器端拿不到 JWT；从打开登录页到进入用户列表 ≤ 10 秒（SC-001）；`MEMBER` 登录被导向 `/forbidden`（quickstart 场景 1、2、13）
 
 **Checkpoint**: User Story 1 可独立运行与验证（MVP）

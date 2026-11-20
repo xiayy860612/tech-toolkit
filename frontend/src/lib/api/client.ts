@@ -1,3 +1,4 @@
+import { loginUrlFor } from "../navigation";
 import { ApiError, type FieldError } from "./errors";
 
 const API_BASE = "/api/v1";
@@ -8,11 +9,7 @@ export interface ApiOptions {
   signal?: AbortSignal;
 }
 
-/** 登录页地址；保留原目标页（Edge Case：会话过期后回到原页面）。 */
-export function loginUrlFor(pathname: string, search = ""): string {
-  if (pathname === "/" || pathname.startsWith("/login")) return "/login";
-  return `/login?next=${encodeURIComponent(pathname + search)}`;
-}
+export { loginUrlFor };
 
 function redirectToLogin(): void {
   window.location.assign(loginUrlFor(window.location.pathname, window.location.search));
