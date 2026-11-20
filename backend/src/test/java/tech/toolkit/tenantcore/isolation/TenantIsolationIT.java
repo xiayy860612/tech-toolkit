@@ -143,4 +143,57 @@ class TenantIsolationIT extends AbstractPostgresIT {
         .andExpect(jsonPath("$.accountId").value(second.account().getId().toString()));
     assertThat(first.user().getId()).isNotEqualTo(second.user().getId());
   }
+
+  // ---- T080：用户端点 ----
+  private org.springframework.test.web.servlet.ResultActions as(
+      org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder b,
+      TestSessions.Open who,
+      String body)
+      throws Exception {
+    b.header("Authorization", who.bearer())
+        .contentType(org.springframework.http.MediaType.APPLICATION_JSON);
+    if (body != null) {
+      b.content(body);
+    }
+    return mvc.perform(b);
+  }
+
+  @Test
+  void userEndpointsTreatForeignUsersAsNotFoundAndListsOnlyOwnUsers() throws Exception {
+    var adminA =
+        sessions.open(
+            A, fixture.create(A, TestAccounts.uniqueName(), PW, Role.TENANT_ADMIN, false));
+    String marker = "iso" + TestAccounts.uniqueName();
+    var inB = fixture.create(B, marker, PW, Role.MEMBER, false);
+    String id = inB.user().getId().toString();
+
+    as(get("/users/" + id), adminA, null).andExpect(status().isNotFound());
+    as(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(
+                "/users/" + id),
+            adminA,
+            "{\"displayName\":\"x\",\"role\":\"MEMBER\",\"version\":0}")
+        .andExpect(status().isNotFound());
+    as(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                "/users/" + id + "/disable"),
+            adminA,
+            null)
+        .andExpect(status().isNotFound());
+    as(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                "/users/" + id + "/enable"),
+            adminA,
+            null)
+        .andExpect(status().isNotFound());
+    as(get("/users").param("keyword", marker).param("tenantId", "1"), adminA, null)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.total").value(0));
+    String listed =
+        as(get("/users").param("size", "100"), adminA, null)
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertThat(listed).doesNotContain(id).doesNotContain(marker);
+  }
 }

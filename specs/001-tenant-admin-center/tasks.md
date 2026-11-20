@@ -177,18 +177,18 @@ description: "Task list for Tenant Admin Center"
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T078 [P] [US2] 创建 `BT/identity/UserServiceTest.java`：创建用户同时创建 `USERNAME_PASSWORD` Account 且 `must_change_password=true`；`display_name` 非空 ≤ 50；`phone` 匹配 `^1[3-9]\d{9}$`；用户名匹配 `^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$` 且租户内大小写不敏感唯一（冲突 → `USERNAME_TAKEN`）；乐观锁冲突 → `VERSION_CONFLICT`；停用自己 → `CANNOT_DISABLE_SELF`；停用/降级最后一名管理员 → `LAST_ADMIN`（事务内 `FOR UPDATE` 守卫）；停用用户时撤销其全部会话（`USER_DISABLED`；既有会话下一次请求 401，重新启用后也不复活）；全部操作写审计
-- [ ] T079 [P] [US2] 创建 `BT/api/UsersApiContractIT.java`：`GET/POST /users`、`GET/PATCH /users/{id}`、`POST /users/{id}/disable|enable` 响应通过契约校验；`keyword`（≤ 50）、`status`、`page`（≥ 0）、`size`（1–100，默认 20）；系统生成的临时密码仅在创建响应返回一次；`MEMBER` → 403 `FORBIDDEN`；`must_change_password=true` 的会话访问 → 403 `PASSWORD_CHANGE_REQUIRED`
-- [ ] T080 [P] [US4] 在 `BT/isolation/TenantIsolationIT.java` 增加用户端点用例：A 的 JWT 按 B 的用户 id 调用 GET/PATCH/disable/enable 全部 404；列表与搜索只含 A 的用户
+- [X] T078 [P] [US2] 创建 `BT/identity/UserServiceTest.java`：创建用户同时创建 `USERNAME_PASSWORD` Account 且 `must_change_password=true`；`display_name` 非空 ≤ 50；`phone` 匹配 `^1[3-9]\d{9}$`；用户名匹配 `^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$` 且租户内大小写不敏感唯一（冲突 → `USERNAME_TAKEN`）；乐观锁冲突 → `VERSION_CONFLICT`；停用自己 → `CANNOT_DISABLE_SELF`；停用/降级最后一名管理员 → `LAST_ADMIN`（事务内 `FOR UPDATE` 守卫）；停用用户时撤销其全部会话（`USER_DISABLED`；既有会话下一次请求 401，重新启用后也不复活）；全部操作写审计
+- [X] T079 [P] [US2] 创建 `BT/api/UsersApiContractIT.java`：`GET/POST /users`、`GET/PATCH /users/{id}`、`POST /users/{id}/disable|enable` 响应通过契约校验；`keyword`（≤ 50）、`status`、`page`（≥ 0）、`size`（1–100，默认 20）；系统生成的临时密码仅在创建响应返回一次；`MEMBER` → 403 `FORBIDDEN`；`must_change_password=true` 的会话访问 → 403 `PASSWORD_CHANGE_REQUIRED`
+- [X] T080 [P] [US4] 在 `BT/isolation/TenantIsolationIT.java` 增加用户端点用例：A 的 JWT 按 B 的用户 id 调用 GET/PATCH/disable/enable 全部 404；列表与搜索只含 A 的用户
 - [ ] T081 [P] [US2] 创建 `FT/component/UsersListPage.test.tsx`：筛选栏（关键词 + 状态）、页签「全部/启用/停用」、表头「姓名、主用户名（含 +N 个账号）、角色、状态、最近登录、操作」、分页「共 N 条，每页 M 条」、空态与加载失败重试；**不含**批量操作条与导出
 - [ ] T082 [P] [US2] 创建 `FT/component/UserForm.test.tsx`：分组卡片「基本信息」（姓名\*、手机号、邮箱）与「账号与角色」（角色 2 选 1、登录用户名\*、临时密码输入或「系统生成」）；**不含**所属部门、数据权限范围、备注、发送激活通知；吸底栏显示「有 N 项校验未通过」；创建成功弹出一次性临时密码框（复制按钮 + 关闭后不可再次查看）；`USERNAME_TAKEN` 行内提示；编辑页不含用户名/密码，`VERSION_CONFLICT` 提示刷新
 - [ ] T083 [P] [US2] 创建 `FT/component/UserDetailPage.test.tsx`：用户信息卡、启用/停用（停用自己、最后一名管理员的错误提示按 `code` 映射）
 
 ### Implementation for User Story 2
 
-- [ ] T084 [US2] 创建 `B/identity/UserService.java`（创建、更新、停用/启用、最后管理员守卫、撤销会话、审计；依赖 T014、T025、T027）
-- [ ] T085 [P] [US2] 创建 `B/identity/UserQueryRepository.java`（关键词匹配显示名或用户名前缀、状态筛选、分页，均受租户范围约束）
-- [ ] T086 [US2] 创建 `B/api/UserController.java` 与请求/响应 DTO（`CreateUserRequest`、`UpdateUserRequest`、`User`、`UserPage`、`CreateUserResult`，字段与 openapi.yaml 一致）（使 T078、T079、T080 通过）
+- [X] T084 [US2] 创建 `B/identity/UserService.java`（创建、更新、停用/启用、最后管理员守卫、撤销会话、审计；依赖 T014、T025、T027）
+- [X] T085 [P] [US2] 创建 `B/identity/UserQueryRepository.java`（关键词匹配显示名或用户名前缀、状态筛选、分页，均受租户范围约束）
+- [X] T086 [US2] 创建 `B/api/UserController.java` 与请求/响应 DTO（`CreateUserRequest`、`UpdateUserRequest`、`User`、`UserPage`、`CreateUserResult`，字段与 openapi.yaml 一致）（使 T078、T079、T080 通过）
 - [ ] T087 [P] [US2] 创建 `F/components/ui/{table,pagination,dialog,switch,tabs,sticky-action-bar}.tsx`（Radix 原语；分页按钮 44px；取自设计稿 List/Form）
 - [ ] T088 [US2] 创建 `F/app/(console)/users/page.tsx` 与 `F/features/users/UsersTable.tsx`（使 T081 通过）
 - [ ] T089 [US2] 创建 `F/app/(console)/users/new/page.tsx`、`F/app/(console)/users/[id]/edit/page.tsx`、`F/features/users/UserForm.tsx`、`F/features/users/TempPasswordDialog.tsx`（使 T082 通过）
