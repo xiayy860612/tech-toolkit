@@ -33,8 +33,8 @@
 ## R4. 会话机制（后端统一维护会话 + BFF 持会话令牌 + 内部 JWT）
 
 - **Decision**: 会话由**后端（UAM）统一维护**——`session` 表（带 `tenant_id`，启用 RLS）。登录成功时后端生成 256 位随机不透明令牌（只存 SHA-256 哈希），**一次性**返回给 BFF；BFF 以 `HttpOnly; Secure; SameSite=Lax` Cookie 下发，**浏览器与 BFF 之间只有这个会话令牌**。空闲 30 分钟（滑动，`last_seen_at` 每分钟最多写一次）、绝对 8 小时，均在后端配置。
-- **请求流程**: BFF 收到请求 → 调后端 `POST /auth/sessions/resolve`（`typ=service` JWT，body 带令牌）取得 `sid`、`userId`、`accountId`、`tenantId`、`mustChangePassword` 等（BFF 可在内存缓存该结果 ≤ `SESSION_RESOLVE_CACHE_TTL_SECONDS`，默认 5 秒，0 关闭）→ 签发 `typ=user` JWT（`sub`、`tenant_id`、`account_id`、`sid`、`cip`）→ 调用后端。**后端每次 API 调用都按 `sid` 校验会话有效**（未撤销、未过期、与声明一致）并核对 User/Account 状态，所以撤销立即生效；缓存只作用于 resolve 层，不放大撤销延迟。
-- **撤销**: 全部在后端同一事务内完成并写审计——退出登录、User 停用、Account 停用/删除、重置密码、修改密码（保留当前会话）、管理员强制下线。因此不需要 BFF 清理钩子，也不需要 `session_version`。过期/已撤销会话由后端定时任务清理（保留期默认 7 天，可配置）。
+- **请求流程**: BFF 收到请求 → 调后端 `POST /auth/sessions/resolve`（`typ=service` JWT，body 带令牌）取得 `sid`、`userId`、`tenantId`、`mustChangePassword` 等（BFF 可在内存缓存该结果 ≤ `SESSION_RESOLVE_CACHE_TTL_SECONDS`，默认 5 秒，0 关闭）→ 签发 `typ=user` JWT（`sub`、`tenant_id`、`sid`、`cip`）→ 调用后端。**后端每次 API 调用都按 `sid` 校验会话有效**（未撤销、未过期、与声明一致）并核对 User 状态，所以撤销立即生效；缓存只作用于 resolve 层，不放大撤销延迟。
+- **撤销**: 全部在后端同一事务内完成并写审计——退出登录、User 停用、重置密码、修改密码（保留当前会话）、管理员强制下线。因此不需要 BFF 清理钩子，也不需要 `session_version`。过期/已撤销会话由后端定时任务清理（保留期默认 7 天，可配置）。
 - **多 BFF**: 将来 Biz BFF、Platform BFF 复用同一套"resolve → 签发 JWT → 调用"流程；会话统一在后端，管理员的会话视图与强制下线对所有 BFF 生效。
 - **Rationale**: 用户决定——后期会有多个 BFF，会话维护在后端服务中。会话是安全关键状态，集中在 UAM 便于租户隔离（RLS）、审计与统一撤销。
 - **Alternatives**: 会话存各 BFF 的 Redis——多 BFF 间无法统一查看/撤销（此前方案，已否决）；浏览器直接持有 JWT——吊销困难；每个请求都由后端按令牌鉴权而不要 JWT——与"BFF 与后端以携带用户与租户的内部 JWT 通信"的约束冲突。
@@ -60,15 +60,17 @@
 
 ## R8. 登录锁定（FR-008/008a）
 
-- **Decision**: 在 `account` 上记录 `failed_attempts`、`locked_until`。连续失败达阈值（默认 5）→ `locked_until = now + 15min`；成功登录清零；锁定期间即使密码正确也拒绝，对外仍返回统一的 401 `INVALID_CREDENTIALS`。阈值/时长走配置。管理员可手动解锁（清零并清除 `locked_until`），两类事件写审计。
-- **防骚扰**: 锁定为临时且自动解锁；锁定针对 Account 而非 IP，同时叠加 IP 限流以限制枚举。
+- **Decision**: 在 `app_user` 上记录 `failed_attempts`、`locked_until`（用户名密码是 User 自身的一部分）。连续失败达阈值（默认 5）→ `locked_until = now + 15min`；成功登录清零；锁定期间即使密码正确也拒绝，对外仍返回统一的 401 `INVALID_CREDENTIALS`。阈值/时长走配置。管理员可手动解锁（清零并清除 `locked_until`），两类事件写审计。
+- **防骚扰**: 锁定为临时且自动解锁；锁定针对用户而非 IP，同时叠加 IP 限流以限制枚举。
 - **对不存在的用户名**: 仍执行等价的哈希比较（恒定耗时的哑哈希），避免通过耗时区分用户名是否存在（FR-007）。
 
-## R9. Account 可扩展模型（SC-007）
+## R9. 用户名密码内置于 User，其他登录方式用 Account 扩展（SC-007）
 
-- **Decision**: `account(id, tenant_id, user_id, type, identifier, identifier_normalized, status, ...)` 承载共性；类型专属数据放子表——首期 `password_credential(account_id, password_hash, must_change_password, ...)`。登录经 `Authenticator` 策略接口（首期仅 `PasswordAuthenticator`），按 `type` 分派。新增邮箱验证码/SSO 类型 = 新枚举值 + 新凭证子表 + 新 Authenticator，**不改 `app_user`**。
-- **唯一性**: `UNIQUE (tenant_id, type, identifier_normalized)`，用户名规范化为 NFKC + 小写，租户内大小写不敏感唯一（FR-014）。
-- **Alternatives**: 单表 + 可空凭证列——类型一多就膨胀；JSON 凭证列——失去约束与类型安全。
+- **Decision**: 用户确认「每个用户必然有 username password」「用户名密码绑定在 user 身上，后续其他的 Account 用各自的表同 user 进行关联」。因此用户名密码**不是 Account**：`app_user` 直接持有 `username`、`username_normalized`、`password_hash`、`must_change_password`、`failed_attempts`、`locked_until`、`last_login_at`（均随 User 创建、`NOT NULL` 保证必然存在）。**Account 只表示其他登录方式**（手机号、微信、OAuth2.0…），每种类型一张自己的表，带 `user_id`，以 `UNIQUE (tenant_id, user_id)` 保证每个 User 对每种类型至多一个；首期没有任何此类表。登录经 `Authenticator` 策略接口（首期仅 `PasswordAuthenticator`，直接读 `app_user`），新增类型 = 新表 + 新 Authenticator，**不改 `app_user`**。
+- **唯一性**: `UNIQUE (tenant_id, username_normalized)`，用户名规范化为 NFKC + 小写，租户内大小写不敏感唯一（FR-014）。
+- **主键**: `app_user`、`audit_log` 用 `bigint GENERATED ALWAYS AS IDENTITY`（FR-004a）；会话 id 保持 UUID——它是对外公开的标识，用户确认"除会话外"，也避免被枚举。JWT 的 `sub` 为整数，`sid` 为 UUID。
+- **会话记录登录方式**: `session.login_type`（首期 `USERNAME_PASSWORD`）取代原 `account_id`，日后随 Account 类型扩展。
+- **Alternatives**: 把用户名密码仍建模为一种 Account（原方案，需要 `account` 表、"至多一个"唯一约束、最后一个 Account 确认、停用/删除自己当前 Account 的守卫等一整套规则，而"必然有"使其成为无谓的复杂度）；单表 + 所有类型的可空凭证列——类型一多就膨胀。
 
 ## R10. 审计日志（FR-023）
 
@@ -77,7 +79,7 @@
 
 ## R11. 并发与一致性
 
-- **Decision**: `app_user`、`account` 带 `version`（JPA `@Version`）。更新类接口请求体携带 `version`，冲突返回 409 `VERSION_CONFLICT`，前端提示刷新（edge case：两管理员同时编辑）。"最后一名管理员""最后一个可用 Account"的守卫在事务内以 `SELECT … FOR UPDATE` 锁定相关行后再判断，避免并发绕过（FR-021）。
+- **Decision**: `app_user` 带 `version`（JPA `@Version`）。更新类接口请求体携带 `version`，冲突返回 409 `VERSION_CONFLICT`，前端提示刷新（edge case：两管理员同时编辑）。"最后一名管理员"的守卫在事务内以 `SELECT … FOR UPDATE` 锁定相关行后再判断，避免并发绕过（FR-021）。
 
 ## R12. API 风格与错误模型
 
@@ -88,7 +90,7 @@
 
 - **Decision**:
   - 后端：领域逻辑单元测试；仓储/RLS/迁移/会话用 Testcontainers 集成测试；**跨租户隔离测试集**（覆盖 SC-003 列出的全部操作与直接构造请求）；ArchUnit 守住包级分层（业务包不依赖 `api`；`bootstrap` 与 `api` 互不依赖）；JaCoCo 行覆盖率 ≥ 90%。
-  - 前端：组件/Hook 用 Vitest + Testing Library；Vitest v8 覆盖率 ≥ 90%；E2E（Playwright）仅覆盖：登录→强制改密→创建用户→新用户登录、多 Account 登录、会话强制下线。跨租户不可见由后端隔离测试集覆盖（本期只有租户 0，租户 1 为测试夹具）。
+  - 前端：组件/Hook 用 Vitest + Testing Library；Vitest v8 覆盖率 ≥ 90%；E2E（Playwright）仅覆盖：登录→强制改密→创建用户→新用户登录、重置密码与解锁、会话强制下线。跨租户不可见由后端隔离测试集覆盖（本期只有租户 0，租户 1 为测试夹具）。
   - 排除路径（生成的 API 类型、入口/启动类、纯配置）在各自 `AGENTS.md` 明示。
 - **Rationale**: 满足根 AGENTS.md「测试先行」与 Quality gates；E2E 控制在关键旅程避免慢而脆。
 
@@ -107,8 +109,8 @@
 ## R16. BFF → 后端的内部 JWT
 
 - **Decision**: BFF 为每次后端调用现签一个短期 JWT（有效期 60 秒，`jose`）。**非对称签名 EdDSA（Ed25519）**：BFF 持私钥，后端仅持公钥并用 `nimbus-jose-jwt` 校验（支持密钥轮换：`kid` + 公钥集合）。后端只接受白名单算法，拒绝 `none` 与对称算法。
-- **声明**: `iss=admin-center-bff`、`aud=tenant-core-api`、`jti`、`iat`、`exp`；`typ=user` 时含 `sub`（userId）、`tenant_id`（数字，本期恒为 0）、`account_id`、`sid`（后端会话 id）、`cip`（可信客户端 IP）；**不携带 `role`**——授权所需角色以数据库当前值为准（FR-022）；`typ=service` 用于登录与会话解析，含 `iss/aud/jti/iat/exp/cip` 与 `tenant_id`（默认租户），**不含**用户声明。
-- **校验与授权**: 后端过滤器验签、验 `iss/aud/exp`（允许 ≤ 30 秒时钟偏差）后，从 `tenant_id` 设置租户上下文（FR-025：租户只取自已验签的 JWT，忽略请求头/参数/请求体中的任何租户标识），再校验 `sid` 对应会话有效且与 `sub/tenant_id/account_id` 一致（R4），核对 User 与 Account 均 `ACTIVE`，并在同一次查询中取出用户当前角色作为角色闸门依据（FR-022）。`typ=service` 令牌只能访问 `/auth/login` 与 `/auth/sessions/resolve`；用户端点必须是 `typ=user`。
+- **声明**: `iss=admin-center-bff`、`aud=tenant-core-api`、`jti`、`iat`、`exp`；`typ=user` 时含 `sub`（整型 userId）、`tenant_id`（数字，本期恒为 0）、`sid`（后端会话 id）、`cip`（可信客户端 IP）；**不携带 `role`**——授权所需角色以数据库当前值为准（FR-022）；`typ=service` 用于登录与会话解析，含 `iss/aud/jti/iat/exp/cip` 与 `tenant_id`（默认租户），**不含**用户声明。
+- **校验与授权**: 后端过滤器验签、验 `iss/aud/exp`（允许 ≤ 30 秒时钟偏差）后，从 `tenant_id` 设置租户上下文（FR-025：租户只取自已验签的 JWT，忽略请求头/参数/请求体中的任何租户标识），再校验 `sid` 对应会话有效且与 `sub/tenant_id` 一致（R4），核对 User 为 `ACTIVE`，并在同一次查询中取出用户当前角色作为角色闸门依据（FR-022）。`typ=service` 令牌只能访问 `/auth/login` 与 `/auth/sessions/resolve`；用户端点必须是 `typ=user`。
 - **Rationale**: 满足"后端不直接信任浏览器、租户与用户由可信的 BFF 断言"；短期 + 非对称让后端无需共享签名密钥，被窃取的令牌窗口极小；后端每次按 `sid` 校验会话与库内状态，补足 JWT 无法主动吊销的缺口。
 - **Alternatives**: 对称 HS256 共享密钥——后端泄露即可伪造；mTLS 单独认证——不携带用户/租户声明，仍需另行传递；在 Header 中明文传 `X-User-Id/X-Tenant-Id`——无完整性保护。
 
@@ -127,8 +129,8 @@
 
 - **背景**: 会话由后端统一维护（R4），管理员需要在独立页面查看本租户全部在线会话并强制下线（FR-026～030）。
 - **Decision**: 后端提供会话管理接口，**BFF 纯代理**：`GET /sessions`（本租户、用户关键字、分页）、`DELETE /sessions/{sessionId}`（强制下线单个）、`DELETE /users/{userId}/sessions`（下线该用户全部）。授权（数据库中的 `TENANT_ADMIN` 角色）、租户隔离（RLS）、撤销与审计都在后端同一事务内完成。
-- **展示字段**: `id`（会话 UUID，**不是**令牌，可安全暴露）、用户 id 与显示名、所用 Account 的登录标识、设备摘要（后端从 User-Agent 解析为「浏览器 / 系统」）、客户端 IP、登录/最近活跃/到期时间、`current`（是否调用者当前会话，依据 JWT 的 `sid`）。**绝不返回**令牌、令牌哈希或原始 User-Agent。
+- **展示字段**: `id`（会话 UUID，**不是**令牌，可安全暴露）、用户 id、显示名与用户名、登录方式、设备摘要（后端从 User-Agent 解析为「浏览器 / 系统」）、客户端 IP、登录/最近活跃/到期时间、`current`（是否调用者当前会话，依据 JWT 的 `sid`）。**绝不返回**令牌、令牌哈希或原始 User-Agent。
 - **规则**: 当前会话不可下线（409 `CANNOT_REVOKE_CURRENT_SESSION`）；对自己的用户不提供"下线该用户全部会话"（409 `CANNOT_REVOKE_OWN_SESSIONS`）；`DELETE /sessions/{id}` 对不存在/已过期/其他租户的会话一律 204（幂等且不泄露存在性）；`DELETE /users/{id}/sessions` 对不存在或其他租户的用户 404；审计 `SESSION_REVOKED` / `SESSIONS_REVOKED_ALL` 与撤销同事务提交，不会出现"已下线但无审计"。
-- **列表保持准确**: 用户/Account 停用、删除、改密、重置密码都由后端同事务撤销会话，列表只返回有效会话，天然准确；无需 BFF 清理钩子。
+- **列表保持准确**: 用户停用、改密、重置密码都由后端同事务撤销会话，列表只返回有效会话，天然准确；无需 BFF 清理钩子。
 - **Rationale**: 会话与审计、隔离同处一个服务，没有跨服务的一致性问题；多个 BFF 共用同一套管理接口。
 - **Alternatives**: 会话管理放在 BFF——与"会话在后端"的决定冲突；放进用户详情页——已被用户否决。

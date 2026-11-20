@@ -76,9 +76,8 @@ components:
 
     BrowserMe:
       type: object
-      required: [userId, accountId, displayName, mustChangePassword]
+      required: [userId, displayName, mustChangePassword]
       properties:
-        userId: { type: string, format: uuid }
-        accountId: { type: string, format: uuid }
+        userId: { type: integer, format: int64 }
         displayName: { type: string }
         mustChangePassword: { type: boolean }

@@ -199,11 +199,11 @@ description: "Task list for Tenant Admin Center"
 
 ---
 
-## Phase 6: User Story 3 - 管理 User 的多个登录 Account (Priority: P2)
+## Phase 6: User Story 3 - 管理 User 的登录凭证与其他登录方式（Account） (Priority: P2)
 
-**Goal**: 一个 User 可有多个 Account；管理员可新增、停用/启用、删除、解锁、重置密码；Account 模型对未来新类型开放。
+**Goal**: 一个 User 对每种 Account 类型至多一个 Account（首期仅用户名密码，故实际每个 User 一个）；管理员可停用/启用、删除、解锁、重置密码；仅当存在未关联类型时才能新增；Account 模型对未来新类型（手机号、微信、OAuth2.0）开放。（**本阶段 T092–T100 与 Phase 9、Phase 10 中关于 Account 的部分，按"用户名密码是 Account"的旧模型实现，已被 Phase 11 取代**：用户名密码内置于 User，Account 仅用于日后的其他登录方式。）
 
-**Independent Test**: 同一 User 两个 Account 都能独立登录并解析为同一 User；停用其一不影响另一个（quickstart 场景 7、8、9）。
+**Independent Test**: 对已有用户名密码 Account 的 User 再新增同类型 Account 被拒绝（409）；停用其 Account 后该用户无法再用它登录（quickstart 场景 7、8、9）。
 
 ### Tests for User Story 3 ⚠️
 
@@ -274,6 +274,73 @@ description: "Task list for Tenant Admin Center"
 
 ---
 
+## Phase 9: 变更 — 每种 Account 类型至多一个（已实施）
+
+**背景**: 用户确认「一个用户对每种 Account 类型至多一个 Account」，后续会新增手机号、微信及其他 OAuth2.0 类型（spec FR-002、FR-003、FR-020、US3、SC-004；data-model Account 唯一性；quickstart 场景 7）。Phase 6 中按旧规则实现的部分（允许同一 User 多个用户名密码 Account）需要调整。
+
+- [X] T122 [US3] 先写失败的测试再实现：新增迁移 `backend/src/main/resources/db/migration/V2__account_one_per_type.sql`，`ALTER TABLE account ADD CONSTRAINT account_one_per_type UNIQUE (tenant_id, user_id, type)`；在 `BT/migration/SchemaConstraintsIT.java` 增加用例：同一 User 的第二个同类型 Account 违反约束、不同 User 同类型不受影响。迁移前须清理本地开发库中违反该约束的遗留数据（E2E 曾为同一用户创建过第二个 Account），文档里写明
+- [X] T123 [US3] 先写失败的测试再实现：`ErrorCode.ACCOUNT_TYPE_ALREADY_LINKED`（409）；`AccountService` 新增 Account 时若该 User 已有同类型则抛出（不产生数据变更、不写成功审计）；`BT/identity/AccountServiceTest.java` 与 `BT/api/AccountsApiContractIT.java` 增加用例（响应对照契约）；创建 User 时随之创建的首个 Account 不受影响
+- [X] T124 [US3] 调整依赖旧规则的后端测试与夹具：`BT/auth/MultiAccountLoginIT.java` 中"同一 User 两个用户名密码 Account"的用例已不合法——改为验证同类型第二个 Account 被拒绝（409）、新增 `Authenticator` 实现仍无需改动 `app_user`（SC-007 扩展点）；`TenantIsolationIT`、`SessionRevocationIT`、`TestAccounts` 等里为同一 User 建多个 Account 的夹具改为多个 User；多类型并存的登录/会话行为待第二种类型落地后补测（SC-004）
+- [X] T125 [US3] 前端：`F/features/accounts/AccountsSection.tsx` 仅当存在该用户尚未关联的类型时显示「新增 Account」（首期隐藏）；更新 `FT/component/AccountsSection.test.tsx`；改写 `FT/e2e/accounts-journey.spec.ts`（原用例会为同一用户新增第二个 Account）：验证详情页无新增入口、同类型新增经 API 返回 409，最后一个 Account 的确认流程与重置密码后原会话失效保持
+- [X] T126 更新验证与归档：`specs/001-tenant-admin-center/verification.md` 场景 7、`docs/achieve-specs/tenant-admin-center.md`（Account 规则）、`docs/system-design/tenant-admin-center.md`（扩展点：手机号、微信、OAuth2.0 类型）；重跑 `mvn verify`、`pnpm lint`/`typecheck`/`test:coverage`/`build` 与 Playwright E2E
+
+---
+
+## Phase 10: 变更 — 避免针对自己、会导致当前用户不可用的操作（已实施）
+
+**背景**: 用户要求「避免针对自己的操作，会导致当前用户不可用的操作」（spec FR-021a）。现状：停用自己、下线自己的当前会话/全部会话后端已拦截；缺口是**修改自己的角色**、**停用/删除自己当前登录的 Account**，且界面仍展示这些入口。
+
+- [X] T127 [US2][US3] 先写失败的测试再实现：`ErrorCode.CANNOT_CHANGE_OWN_ROLE`、`CANNOT_DISABLE_OWN_ACCOUNT`（均 409）；`UserService.update` 当 `id == actor.userId()` 且角色有变化时抛出前者（其它字段照常保存，角色未变不报错）；`AccountService.disable/delete` 当目标 Account id 等于 `actor.accountId()` 时抛出后者（同一用户的其它 Account 不受限，须在最后 Account 确认之前检查）；`BT/identity/UserServiceTest.java`、`AccountServiceTest.java` 与 `BT/api/UsersApiContractIT.java`、`AccountsApiContractIT.java` 增加用例（响应对照 `openapi.yaml`，含升级与降级自己两个方向）；停用自己、下线自己会话的既有用例保留
+- [X] T128 [US2][US3] 前端：`F/features/users/UserDetail.tsx` 对当前登录用户不显示「停用」；`F/features/users/UserForm.tsx` 编辑自己时角色单选禁用并提示「不能修改自己的角色」；`F/features/accounts/AccountsSection.tsx` 对当前登录所用的 Account 行不提供「停用」「删除」；`errors.ts` 增加两条文案；更新 `FT/component/UserDetailPage.test.tsx`、`UserForm.test.tsx`、`AccountsSection.test.tsx`；E2E 增加一例（对自己看不到「停用」、角色不可改、自己的 Account 行无停用/删除）
+- [X] T129 更新 `verification.md` 场景 11、`docs/achieve-specs/tenant-admin-center.md`（角色与权限一节）；重跑 `mvn verify`、前端门禁与 E2E
+
+---
+
+## Phase 11: 变更 — 用户名密码内置于 User、整型自增 ID（已实施）
+
+**背景**: 用户要求「ID 使用递增的整形，另外每个用户都必然有 username password」，并确认「用户名密码绑定在 user 身上，后续其他的 Account 用各自的表同 user 进行关联」「整型自增范围：除会话外」（spec FR-001/002/003/004a/008/020/021a、US3；data-model 全面重写；openapi 22 → 17 个接口）。这会取代 Phase 6、9、10 中把用户名密码当作 Account 的部分。项目尚未发布，开发库可丢：把 V1/V2 合并重写为新的 `V1__init.sql`，重建本地开发库，不写数据迁移。每个任务遵循先写失败的测试、再实现。
+
+**后端**
+
+- [X] T130 迁移与表结构：重写 `backend/src/main/resources/db/migration/V1__init.sql`、删除 `V2__account_one_per_type.sql`——`app_user`（`id bigint GENERATED ALWAYS AS IDENTITY`，新增 `username`、`username_normalized`、`password_hash`、`must_change_password`、`password_changed_at`、`failed_attempts`、`locked_until`、`last_login_at`，均按 data-model 的 `NOT NULL`/默认值；`UNIQUE (tenant_id, username_normalized)`）、去掉 `account` 与 `password_credential`、`session`（`id uuid` 保持；`user_id bigint`、`login_type text NOT NULL`、去 `account_id`；`revoke_reason` 去掉 `ACCOUNT_*`）、`audit_log`（`id bigint` 自增、`actor_user_id bigint`、去 `actor_account_id`、`target_type` 仅 `USER`、`target_id bigint`），RLS 与授权覆盖 3 张表；先改 `BT/migration/SchemaConstraintsIT.java`（用户名租户内大小写不敏感唯一、同名跨租户允许、用户名与密码列非空、会话令牌哈希唯一、审计只追加、RLS）
+- [X] T131 用户模型与用户管理：`AppUser` 持有用户名密码凭证与锁定字段（`Long id`，`@TenantId` 仍为 boxed `Long`）；删除 `Account`、`PasswordCredential` 实体与仓库、`AccountService`、`AccountProvisioner`、`AccountView`、`AccountController`、`AccountDtos`；`UserService.create(username, temporaryPassword)` 创建带凭证的 User（用户名规则与规范化沿用，冲突 `USERNAME_TAKEN`）；`UserService.unlock`、`UserService.resetPassword`（写新哈希、`must_change_password=true`、撤销该 User 全部会话 `PASSWORD_RESET`、系统生成密码仅返回一次，可重置自己）；`ErrorCode` 删除 `LAST_ACTIVE_ACCOUNT_CONFIRM_REQUIRED`、`CANNOT_DISABLE_OWN_ACCOUNT`、`ACCOUNT_TYPE_ALREADY_LINKED`（保留 `CANNOT_DISABLE_SELF`、`CANNOT_CHANGE_OWN_ROLE`）；先改 `BT/identity/UserServiceTest.java`；删除 `AccountServiceTest`、`AccountsApiContractIT`，把 `MultiAccountLoginIT` 缩减为只验证扩展点（新增一个 `Authenticator` 实现无需改 `app_user`，SC-007）
+- [X] T132 认证与会话：`LoginService`/`PasswordAuthenticator`/`PasswordChangeService`/`SessionService`/`SessionAdminService` 改为基于 User（登录判定顺序：用户存在 → ACTIVE → 未锁定 → 密码匹配；失败累加、成功清零）；会话记录 `login_type`；`InternalJwtVerifier`、`JwtAuthenticationFilter` 的 `sub` 为整型、去掉 `account_id` 声明与一致性校验；`Me`、`SessionResolveResult`、`LoginResult` 去 `accountId`；`BootstrapService`、`dev` 种子适配；先改 `BT/auth/*`、`BT/api/JwtAuthenticationFilterIT`、`BT/api/AuthApiContractIT`、`BT/bootstrap/*` 与夹具 `TestAccounts`（改为创建带凭证的 User，可保留类名或重命名为 `TestUsers`）、`TestJwt`、`TestSessions`
+- [X] T133 审计：`AuditAction` 重命名 `ACCOUNT_LOCKED/UNLOCKED` → `USER_LOCKED/UNLOCKED`，删除 `ACCOUNT_CREATED/DISABLED/ENABLED/DELETED`；事件与 DTO 去掉 `actorAccountId`、`targetType=ACCOUNT`，id 为整型；先改 `BT/audit/*`、`BT/api/AuditLogsApiIT`、`BT/security/LogRedactionIT`
+- [X] T134 接口层：`UserController` 新增 `POST /users/{id}/unlock`、`POST /users/{id}/reset-password`，`User` DTO 增加 `username`、`locked`、`lockedUntil`、`mustChangePassword`，去掉 `primaryUsername`、`accountCount`；`CreateUserRequest` 改为平铺 `username`/`temporaryPassword`，响应 `UserWithTemporaryPassword`；所有路径与响应中的用户 id 为整数；先改 `BT/api/UsersApiContractIT`（对照新 `openapi.yaml`）、`SessionsApiIT`、`BT/isolation/TenantIsolationIT`（原 Account 端点用例改为 `unlock`/`reset-password` 对跨租户用户 404）、`SameUsernameAcrossTenantsIT`、`ConcurrencyIT`、`ListPerformanceIT`；`ArchitectureTest` 保持通过
+- [X] T135 后端门禁：`mvn clean verify`（Spotless、全部测试、行覆盖率 ≥ 90%）；更新 `backend/AGENTS.md`（V1 已合并重写，本地开发库须重建：删除 PostgreSQL 数据卷后重新 `docker compose up -d` 并重建 `tenantcore_app` 登录角色）
+
+**前端 / BFF**
+
+- [X] T136 契约与 BFF：`pnpm generate:api` 重新生成 `schema.d.ts`/`bff-schema.d.ts`；`src/server` 内部 JWT 签发去掉 `account_id`、`sub` 用整数；会话解析类型去 `accountId`；先改 `FT/unit` 相关测试（`internal-jwt`、`session-resolver`、`login-route` 等）
+- [X] T137 界面：删除 `AccountsSection`，新增 `F/features/credentials/CredentialSection.tsx`（用户名、状态、已锁定胶囊、最近登录；操作仅「解锁」「重置密码」，重置后展示一次性临时密码）；`UserDetail`、`UserForm`、`UsersTable`、`SessionsTable` 改用 `username`，去掉 `primaryUsername`/`accountCount`/`currentAccountId`/`CANNOT_DISABLE_OWN_ACCOUNT` 与 Account 相关文案；用户 id 为 number；先改 `FT/component/*`（删除 `AccountsSection.test.tsx`，新增 `CredentialSection.test.tsx`；`UserDetailPage`、`UserForm`、`UsersListPage`、`SessionsPage` 适配）
+- [X] T138 E2E：把 `FT/e2e/accounts-journey.spec.ts` 改为 `credentials-journey.spec.ts`（重置密码后旧密码失效、原会话失效、再次强制改密；锁定后管理员解锁；详情页没有 Account 列表与「新增 Account」；自己的「启用状态」开关禁用、角色单选禁用、绕过界面调用接口 409 `CANNOT_DISABLE_SELF`/`CANNOT_CHANGE_OWN_ROLE`、接口返回的用户 id 为整数）；`users-journey`、`sessions-journey`、`login-journey` 适配
+
+**收尾**
+
+- [X] T139 重建本地开发库并重启服务，跑完全部门禁与 E2E；更新 `verification.md`（场景 4、7、8、9、11、12、18、19 的证据）、`docs/achieve-specs/tenant-admin-center.md`、`docs/system-design/tenant-admin-center.md`（数据模型、JWT 声明、扩展点）与 `frontend/AGENTS.md`
+
+---
+
+## Phase 12: 变更 — User 不再有手机号和邮箱（已实施）
+
+**背景**: 用户确认「不需要手机号和邮箱」（spec 澄清、data-model、openapi、ui-design 已更新）。User 的基本信息只剩显示名与角色。项目未发布，直接改 V1 并重建开发库。
+
+- [X] T140 后端：先改测试再实现——`V1__init.sql` 去掉 `app_user.phone`/`email`；`AppUser`、`UserView`、`UserService.NewUser/Changes`、`IdentityRules.userFields`（只校验显示名）、`UserDtos`、`UserController` 去掉 phone/email；先改 `UserServiceTest`、`UsersApiContractIT`、`AuditLogsApiIT`、`LogRedactionIT`、`TenantIsolationIT`、`SchemaConstraintsIT`（`app_user` 无这两列）、`TestAccounts`、`JwtAuthenticationFilterIT`、`BootstrapService`；`mvn clean verify`
+- [X] T141 前端：先改测试再实现——`UserForm` 去掉手机号与邮箱输入及其校验，`validation.ts` 去掉手机号/邮箱规则，`UserDetail` 去掉两项展示；`pnpm generate:api`；更新 `UserForm`、`UserDetailPage`、`UsersListPage`、`validation` 测试与 E2E `helpers.ts`；`lint`/`typecheck`/`test:coverage`/`build`
+- [X] T142 重建本地开发库并重启服务，跑完全部 E2E；更新 `verification.md`、`docs/achieve-specs/tenant-admin-center.md`、`docs/system-design/tenant-admin-center.md`
+
+---
+
+## Phase 13: 变更 — 侧边栏可收起、界面自适应（已实施）
+
+**背景**: 用户要求「左侧菜单可以收起，并且要求界面可以自适应」（spec FR-031，推翻原"移动端不在范围"的假设；ui-design 新增「侧边栏收起与响应式」）。仅前端变更，不涉及后端与契约。
+
+- [X] T143 先写失败的测试再实现：`F/components/AppShell.tsx`——宽屏侧栏可收起/展开（收起为 64px 仅图标，按钮有 `aria-label`/`aria-expanded`，状态存 `localStorage`，读写失败退回默认展开）；窄屏（< 1024px）侧栏默认隐藏，顶栏按钮打开抽屉式侧栏（遮罩、Esc、选择菜单项后关闭、焦点可达）；`FT/component/AppShell.test.tsx` 覆盖收起/展开、持久化、读写失败兜底、抽屉开合
+- [X] T144 自适应：顶栏（面包屑、用户菜单）窄屏收紧；`UsersTable`/`SessionsTable`/`CredentialSection` 的表格容器横向可滚动、筛选栏与分页换行；`UserForm`、`UserDetail`、改密页、登录页单列堆叠；检查并去掉会引起整页横向滚动的固定宽度；组件测试断言关键容器的响应式类名（jsdom 无布局，不测像素）
+- [X] T145 E2E 与验证：Playwright 在桌面与 375px 宽度下各验证——收起/展开侧栏并刷新后保持、窄屏抽屉可开合、页面无整页横向滚动（`document.documentElement.scrollWidth <= clientWidth`）；跑 `lint`/`typecheck`/`test:coverage`/`build`；更新 `verification.md`（新增 FR-031 行）与归档文档
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -332,7 +399,7 @@ BFF  T061 → （T062 可并行）
 2. US1 → 可登录、进入用户列表（MVP）
 3. US4 → 隔离基线与验证套件（P1 安全底线，紧随 MVP）
 4. US2 → 用户管理
-5. US3 → 多 Account 管理（在用户详情页内）
+5. US3 → Account 管理（每种类型至多一个，在用户详情页内）
 6. US5 → 独立的「会话管理」页
 7. Polish → 审计查询、并发/失效/脱敏/性能验证、门禁与归档
 
