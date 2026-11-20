@@ -48,3 +48,7 @@ openspec/changes/**
 
 # Internal JWT dev keys (never commit)
 .keys/
+
+# Test coverage output
+**/coverage/
+*.tsbuildinfo
