@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: auth
+  datasource:
+    # application runtime uses the restricted app role (no DDL, audit table is insert/select only)
+    url: ${AUTH_DB_URL:jdbc:postgresql://localhost:5432/auth}
+    username: ${AUTH_DB_APP_USER:auth_app}
+    password: ${AUTH_DB_APP_PASSWORD:}
+  flyway:
+    # migrations run as the schema owner, never as the app role
+    url: ${AUTH_DB_URL:jdbc:postgresql://localhost:5432/auth}
+    user: ${AUTH_DB_OWNER_USER:auth_owner}
+    password: ${AUTH_DB_OWNER_PASSWORD:}
+  session:
+    jdbc:
+      initialize-schema: never
+      # Spring Session removes expired sessions; other tables are cleaned by auth.cleanup (data-model.md)
+      cleanup-cron: "0 */10 * * * *"
+
+server:
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+auth:
+  # fixed by configuration, never derived from the request
+  issuer: ${AUTH_ISSUER:http://localhost:9000}
+  signing:
+    # PKCS#8 PEM files, comma-separated: the first signs, the rest are verify-only (key rotation)
+    keys: ${AUTH_SIGNING_KEYS:}

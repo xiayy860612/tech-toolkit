@@ -31,13 +31,13 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 
 **Purpose**: 项目初始化与质量门禁
 
-- [ ] T001 核实 Spring Boot 4.1 BOM 下 Spring Authorization Server starter 的实际坐标与版本（官方文档对 `spring-boot-starter-oauth2-authorization-server` 与带 `security-` 前缀的名称说法不一），把结论写回 `specs/001-uam-oauth2-sas/research.md` 的 D1
-- [ ] T002 创建 `auth/pom.xml`：Spring Boot 4.1.x 父工程、Java 21、依赖（T001 的 starter、Spring Session JDBC、Flyway、PostgreSQL 驱动、BouncyCastle、Thymeleaf、Testcontainers 2、ArchUnit）、JaCoCo（行覆盖率 BUNDLE ≥ 90%，仅排除 `**/AuthApplication.class`）、Spotless（google-java-format）
-- [ ] T003 [P] 创建 `auth/.env.example`（数据库 owner 与 app 两套连接、`AUTH_ISSUER`、签名密钥、client secret）（另含 `AUTH_ADMIN_REDIRECT_URIS`：`auth-admin` client 的回环回调地址，逗号分隔）与 `auth/docker-compose.yml`（PostgreSQL 18）
-- [ ] T004 [P] 创建 `auth/AGENTS.md` 与 `auth/CLAUDE.md`（内容 `@AGENTS.md`）：技术栈与目录、dev / lint / typecheck / test / build 命令、覆盖率口径（行覆盖率 ≥ 90%）与排除路径、环境变量、密钥轮换步骤（根 AGENTS.md「子项目文档约定」）
-- [ ] T005 创建 `auth/src/main/java/tech/toolkit/auth/AuthApplication.java` 与 `auth/src/main/resources/application.yml`（profiles：`dev`、`bootstrap`；默认 profile 不允许临时密钥；`spring.session.jdbc.cleanup-cron` 设为每 10 分钟，由 Spring Session 清理过期会话）
-- [ ] T006 [P] 创建 `auth/src/test/java/tech/toolkit/auth/support/PostgresTestBase.java`（Testcontainers PostgreSQL、执行 Flyway 迁移、每个测试前清库）
-- [ ] T007 [P] 创建 `auth/src/test/java/tech/toolkit/auth/architecture/ArchitectureTest.java`（ArchUnit：package 无环、禁用字段注入与标准流、含密钥字段的类必须自带非 final `toString()`）
+- [X] T001 核实 Spring Boot 4.1 BOM 下 Spring Authorization Server starter 的实际坐标与版本（官方文档对 `spring-boot-starter-oauth2-authorization-server` 与带 `security-` 前缀的名称说法不一），把结论写回 `specs/001-uam-oauth2-sas/research.md` 的 D1
+- [X] T002 创建 `auth/pom.xml`：Spring Boot 4.1.x 父工程、Java 21、依赖（T001 的 starter、Spring Session JDBC、Flyway、PostgreSQL 驱动、BouncyCastle、Thymeleaf、Testcontainers 2、ArchUnit）、JaCoCo（行覆盖率 BUNDLE ≥ 90%，仅排除 `**/AuthApplication.class`）、Spotless（google-java-format）
+- [X] T003 [P] 创建 `auth/.env.example`（数据库 owner 与 app 两套连接、`AUTH_ISSUER`、签名密钥、client secret）（另含 `AUTH_ADMIN_REDIRECT_URIS`：`auth-admin` client 的回环回调地址，逗号分隔）与 `auth/docker-compose.yml`（PostgreSQL 18）
+- [X] T004 [P] 创建 `auth/AGENTS.md` 与 `auth/CLAUDE.md`（内容 `@AGENTS.md`）：技术栈与目录、dev / lint / typecheck / test / build 命令、覆盖率口径（行覆盖率 ≥ 90%）与排除路径、环境变量、密钥轮换步骤（根 AGENTS.md「子项目文档约定」）
+- [X] T005 创建 `auth/src/main/java/tech/toolkit/auth/AuthApplication.java` 与 `auth/src/main/resources/application.yml`（profiles：`dev`、`bootstrap`；默认 profile 不允许临时密钥；`spring.session.jdbc.cleanup-cron` 设为每 10 分钟，由 Spring Session 清理过期会话）
+- [X] T006 [P] 创建 `auth/src/test/java/tech/toolkit/auth/support/PostgresTestBase.java`（Testcontainers PostgreSQL、执行 Flyway 迁移、每个测试前清库）
+- [X] T007 [P] 创建 `auth/src/test/java/tech/toolkit/auth/architecture/ArchitectureTest.java`（ArchUnit：package 无环、禁用字段注入与标准流、含密钥字段的类必须自带非 final `toString()`）
 
 ---
 
@@ -45,18 +45,18 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 
 **Purpose**: 所有 user story 共用的基础设施；**完成前不得开始任何 user story**
 
-- [ ] T008 创建 `auth/src/main/resources/db/migration/V1__auth_user.sql`：表 `auth_user`，`id bigint identity` 主键；`username varchar(64)` 唯一、小写存储、字符集 `[a-z0-9._-]`、长度 3–64；`password_hash varchar(255)`；`status varchar(16)` 为 `ENABLED` / `DISABLED`；`is_admin boolean` 默认 false；`must_change_password boolean` 默认 false；`failed_attempts int` 默认 0；`locked_until timestamptz` 可空；`password_changed_at timestamptz`；`created_at` / `updated_at timestamptz`
-- [ ] T009 创建 `auth/src/main/resources/db/migration/V2__oauth2_session_and_client_ext.sql`：SAS 标准表 `oauth2_registered_client`、`oauth2_authorization`；Spring Session JDBC 的 `spring_session` / `spring_session_attributes`；自有表 `auth_client_ext`（`client_id varchar(100)` 主键、`enabled boolean` 默认 true、`backchannel_logout_uri varchar(2000)` 可空、`post_logout_redirect_uris text`、`access_token_ttl_seconds int` 与 `refresh_token_ttl_seconds int` 可空）、`auth_sso_client`（主键 `(session_id varchar(36), client_id varchar(100))`、`first_seen_at timestamptz`）、`auth_logout_delivery`（`status varchar(16)` 为 `PENDING` / `DELIVERED` / `GAVE_UP`、`attempts int`、`next_attempt_at timestamptz`）
-- [ ] T010 创建 `auth/src/main/resources/db/migration/V3__audit_event.sql`：表 `auth_audit_event`（`type varchar(48)`、`actor varchar(100)` 可空、`subject_user_id bigint` 可空、`client_id varchar(100)` 可空、`source_ip varchar(64)`、`result varchar(16)` 为 `SUCCESS` / `FAILURE`、`detail jsonb`），应用数据库角色只授予 INSERT 与 SELECT
-- [ ] T011 配置 Flyway 用 owner 连接、应用运行用受限 app 连接：`auth/src/main/resources/application.yml` 与 `auth/src/main/java/tech/toolkit/auth/config/DataSourceConfig.java`
-- [ ] T012 [P] 先写失败测试 `auth/src/test/java/tech/toolkit/auth/audit/AuditServiceIT.java`：写入事件、字段完整、应用角色不能 UPDATE / DELETE、`detail` 中出现密码或令牌原文时被拒绝
-- [ ] T013 实现 `auth/src/main/java/tech/toolkit/auth/audit/AuditEvent.java`、`AuditType.java`（`LOGIN_SUCCESS`、`LOGIN_FAILURE`、`ACCOUNT_LOCKED`、`LOGOUT`、`TOKEN_ISSUED`、`TOKEN_REFRESHED`、`TOKEN_REVOKED`、`REFRESH_REUSE_DETECTED`、`USER_CREATED`、`USER_UPDATED`、`PASSWORD_CHANGED`、`CLIENT_CREATED`、`CLIENT_UPDATED`、`SESSION_REVOKED`）与 `AuditService.java`（同时输出结构化日志）
-- [ ] T014 [P] 先写失败测试 `auth/src/test/java/tech/toolkit/auth/oauth/SigningKeyProviderTest.java`：从环境变量或挂载文件加载多把 ES256 PEM（1 把当前签名 + N 把仅验证）；`dev` profile 才允许临时密钥；非 dev 缺少密钥时启动失败；私钥不出现在 `toString()` 与日志
-- [ ] T015 实现 `auth/src/main/java/tech/toolkit/auth/oauth/SigningKeyProvider.java`
-- [ ] T016 [P] 先写失败测试 `auth/src/test/java/tech/toolkit/auth/oauth/JwkSourceConfigTest.java`：JWKS 只含公钥，包含当前与仅验证的全部密钥，私钥不出现在任何输出中
-- [ ] T017 `auth/src/main/java/tech/toolkit/auth/oauth/JwkSourceConfig.java`：由 `SigningKeyProvider` 提供多把密钥，只发布公钥（US1 签发令牌与 US6 发布 JWKS 共用）
-- [ ] T018 [P] 先写失败测试 `auth/src/test/java/tech/toolkit/auth/oauth/AuthorizationRevocationServiceIT.java`：按用户、按 client、按会话删除授权，只删目标，不影响其他
-- [ ] T019 `auth/src/main/java/tech/toolkit/auth/oauth/AuthorizationRevocationService.java`：按 `principal_name`、`client_id` 或会话删除授权（US2 退出、US3 吊销、US4 管理操作、US5 停用共用）
+- [X] T008 创建 `auth/src/main/resources/db/migration/V1__auth_user.sql`：表 `auth_user`，`id bigint identity` 主键；`username varchar(64)` 唯一、小写存储、字符集 `[a-z0-9._-]`、长度 3–64；`password_hash varchar(255)`；`status varchar(16)` 为 `ENABLED` / `DISABLED`；`is_admin boolean` 默认 false；`must_change_password boolean` 默认 false；`failed_attempts int` 默认 0；`locked_until timestamptz` 可空；`password_changed_at timestamptz`；`created_at` / `updated_at timestamptz`
+- [X] T009 创建 `auth/src/main/resources/db/migration/V2__oauth2_session_and_client_ext.sql`：SAS 标准表 `oauth2_registered_client`、`oauth2_authorization`；Spring Session JDBC 的 `spring_session` / `spring_session_attributes`；自有表 `auth_client_ext`（`client_id varchar(100)` 主键、`enabled boolean` 默认 true、`backchannel_logout_uri varchar(2000)` 可空、`post_logout_redirect_uris text`、`access_token_ttl_seconds int` 与 `refresh_token_ttl_seconds int` 可空）、`auth_sso_client`（主键 `(session_id varchar(36), client_id varchar(100))`、`first_seen_at timestamptz`）、`auth_logout_delivery`（`status varchar(16)` 为 `PENDING` / `DELIVERED` / `GAVE_UP`、`attempts int`、`next_attempt_at timestamptz`）
+- [X] T010 创建 `auth/src/main/resources/db/migration/V3__audit_event.sql`：表 `auth_audit_event`（`type varchar(48)`、`actor varchar(100)` 可空、`subject_user_id bigint` 可空、`client_id varchar(100)` 可空、`source_ip varchar(64)`、`result varchar(16)` 为 `SUCCESS` / `FAILURE`、`detail jsonb`），应用数据库角色只授予 INSERT 与 SELECT
+- [X] T011 配置 Flyway 用 owner 连接、应用运行用受限 app 连接：在 `auth/src/main/resources/application.yml` 分开配置 `spring.flyway.*` 与 `spring.datasource.*` 即可，不需要自定义类
+- [X] T012 [P] 先写失败测试 `auth/src/test/java/tech/toolkit/auth/audit/AuditServiceIT.java`：写入事件、字段完整、应用角色不能 UPDATE / DELETE、`detail` 中出现密码或令牌原文时被拒绝
+- [X] T013 实现 `auth/src/main/java/tech/toolkit/auth/audit/AuditEvent.java`、`AuditType.java`（`LOGIN_SUCCESS`、`LOGIN_FAILURE`、`ACCOUNT_LOCKED`、`LOGOUT`、`TOKEN_ISSUED`、`TOKEN_REFRESHED`、`TOKEN_REVOKED`、`REFRESH_REUSE_DETECTED`、`USER_CREATED`、`USER_UPDATED`、`PASSWORD_CHANGED`、`CLIENT_CREATED`、`CLIENT_UPDATED`、`SESSION_REVOKED`）与 `AuditService.java`（同时输出结构化日志）
+- [X] T014 [P] 先写失败测试 `auth/src/test/java/tech/toolkit/auth/oauth/SigningKeyProviderTest.java`：从环境变量或挂载文件加载多把 ES256 PEM（1 把当前签名 + N 把仅验证）；`dev` profile 才允许临时密钥；非 dev 缺少密钥时启动失败；私钥不出现在 `toString()` 与日志
+- [X] T015 实现 `auth/src/main/java/tech/toolkit/auth/oauth/SigningKeyProvider.java`
+- [X] T016 [P] 先写失败测试 `auth/src/test/java/tech/toolkit/auth/oauth/JwkSourceConfigTest.java`：JWKS 只含公钥，包含当前与仅验证的全部密钥，私钥不出现在任何输出中
+- [X] T017 `auth/src/main/java/tech/toolkit/auth/oauth/JwkSourceConfig.java`：由 `SigningKeyProvider` 提供多把密钥，只发布公钥（US1 签发令牌与 US6 发布 JWKS 共用）
+- [X] T018 [P] 先写失败测试 `auth/src/test/java/tech/toolkit/auth/oauth/AuthorizationRevocationServiceIT.java`：按用户、按 client、按会话删除授权，只删目标，不影响其他
+- [X] T019 `auth/src/main/java/tech/toolkit/auth/oauth/AuthorizationRevocationService.java`：按 `principal_name`、`client_id` 或会话删除授权（US2 退出、US3 吊销、US4 管理操作、US5 停用共用）
 
 **Checkpoint**: 数据库、审计、签名密钥、JWK 源、吊销服务就绪，可以开始 user story。
 
@@ -70,26 +70,26 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 
 ### Tests for User Story 1（先写，并确认失败）
 
-- [ ] T020 [P] [US1] `auth/src/test/java/tech/toolkit/auth/oauth/AuthorizationCodeFlowIT.java`：完整授权码 + PKCE（S256）流程；重定向响应中不含令牌；授权码有效期 60 秒、一次性、绑定 client 与回调地址
-- [ ] T021 [P] [US1] `auth/src/test/java/tech/toolkit/auth/oauth/AuthorizationRequestValidationIT.java`：未登记 `client_id` 或与登记不符的 `redirect_uri` 显示错误页且不重定向；缺 `code_challenge` / `state`、`code_challenge_method` 非 `S256`、`response_type` 非 `code`、回调地址仅大小写或末尾斜杠不同、scope 超出登记范围，均按 contracts/oauth2-endpoints.md 处理；不出现同意页
-- [ ] T022 [P] [US1] `auth/src/test/java/tech/toolkit/auth/account/LoginFailureIT.java`：错误密码、不存在的用户名、禁用账号，返回逐字完全相同的提示（锁定账号的同类断言在 US4 的 LockoutIT）；登录页首次打开和每次失败后都含固定提示“多次失败后账号将被临时锁定”；登录页已展示后账号被禁用，提交时登录不得完成；用户不存在时也执行等耗时的哈希比对
-- [ ] T023 [P] [US1] `auth/src/test/java/tech/toolkit/auth/oauth/TokenClaimsIT.java`：访问令牌头部 `typ` 为 `at+jwt`，含 `iss`、`sub`、`aud`、`client_id`、`scope`、`sid`、`iat`、`exp`、`jti`，默认有效期 10 分钟；ID Token 含 `auth_time`、`nonce`、`sid`、`azp`；令牌不含密码、邮箱、手机号、角色清单；`/userinfo` 只返回 `sub` 与 `preferred_username`；`sid` 取当前登录会话 id，US2 切换为 Spring Session JDBC 后语义不变
-- [ ] T024 [P] [US1] `auth/src/test/java/tech/toolkit/auth/oauth/AuthorizationCodeReuseIT.java`：授权码被重复使用或被其他 client 使用时拒绝，并删除该授权码已换出的全部令牌
-- [ ] T025 [P] [US1] `auth/src/test/java/tech/toolkit/auth/oauth/LoginRequestExpiryIT.java`：登录请求自登录页展示起默认 10 分钟（`auth.login.request-ttl-seconds`）后提交，不处理凭据、显示“登录请求已过期”页；原授权请求仍保存时页面带重新发起的入口，会话已丢失时只提示回到应用重新登录；未超时正常登录（FR-002a）
+- [X] T020 [P] [US1] `auth/src/test/java/tech/toolkit/auth/oauth/AuthorizationCodeFlowIT.java`：完整授权码 + PKCE（S256）流程；重定向响应中不含令牌；授权码有效期 60 秒、一次性、绑定 client 与回调地址
+- [X] T021 [P] [US1] `auth/src/test/java/tech/toolkit/auth/oauth/AuthorizationRequestValidationIT.java`：未登记 `client_id` 或与登记不符的 `redirect_uri` 显示错误页且不重定向；缺 `code_challenge` / `state`、`code_challenge_method` 非 `S256`、`response_type` 非 `code`、回调地址仅大小写或末尾斜杠不同、scope 超出登记范围，均按 contracts/oauth2-endpoints.md 处理；不出现同意页
+- [X] T022 [P] [US1] `auth/src/test/java/tech/toolkit/auth/account/LoginFailureIT.java`：错误密码、不存在的用户名、禁用账号，返回逐字完全相同的提示（锁定账号的同类断言在 US4 的 LockoutIT）；登录页首次打开和每次失败后都含固定提示“多次失败后账号将被临时锁定”；登录页已展示后账号被禁用，提交时登录不得完成；用户不存在时也执行等耗时的哈希比对
+- [X] T023 [P] [US1] `auth/src/test/java/tech/toolkit/auth/oauth/TokenClaimsIT.java`：访问令牌头部 `typ` 为 `at+jwt`，含 `iss`、`sub`、`aud`、`client_id`、`scope`、`sid`、`iat`、`exp`、`jti`，默认有效期 10 分钟；ID Token 含 `auth_time`、`nonce`、`sid`、`azp`；令牌不含密码、邮箱、手机号、角色清单；`/userinfo` 只返回 `sub` 与 `preferred_username`；`sid` 取当前登录会话 id，US2 切换为 Spring Session JDBC 后语义不变
+- [X] T024 [P] [US1] `auth/src/test/java/tech/toolkit/auth/oauth/AuthorizationCodeReuseIT.java`：授权码被重复使用或被其他 client 使用时拒绝，并删除该授权码已换出的全部令牌
+- [X] T025 [P] [US1] `auth/src/test/java/tech/toolkit/auth/oauth/LoginRequestExpiryIT.java`：登录请求自登录页展示起默认 10 分钟（`auth.login.request-ttl-seconds`）后提交，不处理凭据、显示“登录请求已过期”页；原授权请求仍保存时页面带重新发起的入口，会话已丢失时只提示回到应用重新登录；未超时正常登录（FR-002a）
 
 ### Implementation for User Story 1
 
-- [ ] T026 [P] [US1] `auth/src/main/java/tech/toolkit/auth/account/User.java` 与 `UserRepository.java`（按 T008 的列，用户名小写后查询）
-- [ ] T027 [P] [US1] `auth/src/main/java/tech/toolkit/auth/account/PasswordConfig.java`：argon2id（`Argon2PasswordEncoder`，BouncyCastle）
-- [ ] T028 [US1] `auth/src/main/java/tech/toolkit/auth/account/AuthUserDetailsService.java`：用户不存在时对固定哈希做一次等耗时比对；禁用与不存在对外表现一致
-- [ ] T029 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/AuthorizationServerConfig.java`：仅 `authorization_code` 与 `refresh_token`、强制 PKCE S256、必须 `state`、回调精确匹配、不要求同意页、JDBC 的 client 与授权存储、issuer 取自配置、授权码有效期 60 秒
-- [ ] T030 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/LoginSecurityConfig.java`、`auth/src/main/resources/templates/login.html`、`error.html`：表单登录（`username`、`password`）、统一失败提示“用户名或密码错误”、登录页常驻提示“多次失败后账号将被临时锁定”、授权请求错误页（不重定向）
-- [ ] T031 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/LoginRequestExpiryFilter.java` 与 `auth/src/main/resources/templates/login-expired.html`：按上述规则判断登录请求是否过期，有效期取配置 `auth.login.request-ttl-seconds`，默认 600 秒
-- [ ] T032 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/TokenCustomizer.java`：`typ: at+jwt`、`client_id`、`sid`、`scope`，不放个人资料；默认访问令牌 10 分钟
-- [ ] T033 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/UserInfoMapper.java`：只返回 `sub` 与 `preferred_username`
-- [ ] T034 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/AuthorizationCodeReuseHandler.java`：授权码复用时删除其已签发的令牌并写审计
-- [ ] T035 [US1] `auth/src/main/java/tech/toolkit/auth/audit/AuthAuditListener.java`：写 `LOGIN_SUCCESS`、`LOGIN_FAILURE`、`TOKEN_ISSUED`
-- [ ] T036 [P] [US1] `auth/src/main/java/tech/toolkit/auth/client/DevClientSeeder.java`：仅 `dev` 与测试 profile 登记示例 client1、client2（均带 `backchannel_logout_uri`，指向同 profile 下的 `auth/src/main/java/tech/toolkit/auth/client/DevBackChannelReceiver.java`：只接收并在日志记录 `sid`，不记录令牌原文）（机密、授权码 + PKCE、回调地址）与一个测试用户
+- [X] T026 [P] [US1] `auth/src/main/java/tech/toolkit/auth/account/User.java` 与 `UserRepository.java`（按 T008 的列，用户名小写后查询）
+- [X] T027 [P] [US1] `auth/src/main/java/tech/toolkit/auth/account/PasswordConfig.java`：argon2id（`Argon2PasswordEncoder`，BouncyCastle）
+- [X] T028 [US1] `auth/src/main/java/tech/toolkit/auth/account/AuthUserDetailsService.java`：用户不存在时对固定哈希做一次等耗时比对；禁用与不存在对外表现一致
+- [X] T029 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/AuthorizationServerConfig.java`：仅 `authorization_code` 与 `refresh_token`、强制 PKCE S256、必须 `state`、回调精确匹配、不要求同意页、JDBC 的 client 与授权存储、issuer 取自配置、授权码有效期 60 秒
+- [X] T030 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/LoginSecurityConfig.java`、`auth/src/main/resources/templates/login.html`、`error.html`：表单登录（`username`、`password`）、统一失败提示“用户名或密码错误”、登录页常驻提示“多次失败后账号将被临时锁定”、授权请求错误页（不重定向）
+- [X] T031 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/LoginRequestExpiryFilter.java` 与 `auth/src/main/resources/templates/login-expired.html`：按上述规则判断登录请求是否过期，有效期取配置 `auth.login.request-ttl-seconds`，默认 600 秒
+- [X] T032 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/TokenCustomizer.java`：`typ: at+jwt`、`client_id`、`sid`、`scope`，不放个人资料；默认访问令牌 10 分钟
+- [X] T033 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/UserInfoMapper.java`：只返回 `sub` 与 `preferred_username`
+- [X] T034 [US1] `auth/src/main/java/tech/toolkit/auth/oauth/AuthorizationCodeReuseHandler.java`：授权码复用时删除其已签发的令牌并写审计
+- [X] T035 [US1] `auth/src/main/java/tech/toolkit/auth/audit/AuthAuditListener.java`：写 `LOGIN_SUCCESS`、`LOGIN_FAILURE`、`TOKEN_ISSUED`
+- [X] T036 [P] [US1] `auth/src/main/java/tech/toolkit/auth/client/DevClientSeeder.java`：仅 `dev` 与测试 profile 登记示例 client1、client2（机密、授权码 + PKCE、回调地址）与一个测试用户
 
 **Checkpoint**: US1 可独立运行与演示（MVP）。
 
@@ -115,7 +115,7 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 - [ ] T043 [P] [US2] `auth/src/main/java/tech/toolkit/auth/client/ClientExtRepository.java`：读写 `auth_client_ext`（`backchannel_logout_uri`、`post_logout_redirect_uris`）
 - [ ] T044 [US2] `auth/src/main/java/tech/toolkit/auth/oauth/ReauthenticationFilter.java`：处理 `prompt=login` 与 `max_age`
 - [ ] T045 [US2] `auth/src/main/java/tech/toolkit/auth/logout/LogoutController.java` 与 `LogoutService.java`：结束会话、删除授权、登记待通知的 client、重定向
-- [ ] T046 [US2] `auth/src/main/java/tech/toolkit/auth/logout/LogoutTokenFactory.java`、`LogoutDeliveryRepository.java`、`BackChannelDeliveryWorker.java`：指数退避，`FOR UPDATE SKIP LOCKED` 保证多实例不重复，每次投递重新签发 `logout_token`
+- [ ] T046 [US2] `auth/src/main/java/tech/toolkit/auth/logout/LogoutTokenFactory.java`、`LogoutDeliveryRepository.java`、`BackChannelDeliveryWorker.java`：指数退避，`FOR UPDATE SKIP LOCKED` 保证多实例不重复，每次投递重新签发 `logout_token`；并让 `DevClientSeeder` 登记的示例 client 带 `backchannel_logout_uri`，指向仅 dev 与测试 profile 的 `auth/src/main/java/tech/toolkit/auth/client/DevBackChannelReceiver.java`（只接收并在日志记录 `sid`，不记录令牌原文）
 - [ ] T047 [US2] 在 `auth/src/main/java/tech/toolkit/auth/logout/LogoutService.java` 中写 `LOGOUT`、`SESSION_REVOKED` 审计
 
 **Checkpoint**: US1 + US2 都可独立验证。

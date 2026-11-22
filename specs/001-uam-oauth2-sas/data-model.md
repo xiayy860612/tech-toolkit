@@ -81,7 +81,7 @@
 | 表 | 用途 | 关键约定 |
 |---|---|---|
 | `oauth2_registered_client` | client 登记 | SAS 的 `JdbcRegisteredClientRepository` |
-| `oauth2_authorization` | 授权码、令牌、刷新令牌链 | `principal_name` = 用户 id；`JdbcOAuth2AuthorizationService`，外加重用检测装饰器 |
+| `oauth2_authorization` | 授权码、令牌、刷新令牌链 | `principal_name` = 用户 id；额外列 `auth_session_id` = 该授权所属的 SSO 登录（`sid`，登录时生成的随机值，不是 HTTP 会话 id，因为后者在登录时会轮换），退出与吊销按它精确删除；`JdbcOAuth2AuthorizationService`，外加重用检测装饰器 |
 | `spring_session` / `spring_session_attributes` | SSO 会话 | 空闲 30 分钟、绝对 8 小时（FR-003）；绝对期由自有过滤器按 `creationTime` 校验 |
 
 ## 关系

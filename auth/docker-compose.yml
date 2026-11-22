@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: auth
+      POSTGRES_USER: auth_owner
+      POSTGRES_PASSWORD: ${AUTH_DB_OWNER_PASSWORD:-change-me-owner}
+      AUTH_DB_APP_PASSWORD: ${AUTH_DB_APP_PASSWORD:-change-me-app}
+    ports:
+      - "5432:5432"
+    volumes:
+      - auth-pgdata:/var/lib/postgresql
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  auth-pgdata:

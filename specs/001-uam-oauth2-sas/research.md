@@ -7,7 +7,7 @@ Phase 0 产出。每项给出 Decision / Rationale / Alternatives。无遗留 NE
 - **Decision**: Java 21、Spring Boot 4.1.x（与 `main` 上 backend 一致）、Maven。授权服务器用 Spring Authorization Server（SAS）；SAS 自 Spring Security 7.0 起并入 Spring Security，不再有独立的 2.x 发行线，坐标仍是 `spring-security-oauth2-authorization-server`，版本随 Spring Security。
 - **Rationale**: 用户指定 SAS；Boot 4.1 / Security 7 是 `main` 的既有栈，同仓库内保持一致，避免两套 Security 大版本。
 - **Alternatives**: SAS 1.5.x + Boot 3（1.5 是最后一个独立版本，且与 `main` 栈不一致）——拒绝。
-- **实现时核实**: Boot 4 的 starter 名（`spring-boot-starter-oauth2-authorization-server` 或带 `security-` 前缀的新名）在官方文档中说法不一，T001 以 Boot 4.1 的 BOM 为准。
+- **已核实（T001，2026-11-22）**: Maven Central 上 Boot 最新为 4.1.3、Spring Security 为 7.1.3。`spring-boot-starter-oauth2-authorization-server` 已标注弃用，改用 `spring-boot-starter-security-oauth2-authorization-server`（artifact 与旧名的依赖相同）。`OAuth2AuthorizationServerConfigurer` 在 spring-security-config 里，用 `http.oauth2AuthorizationServer(...)` 配置。
 
 ## D2 项目结构
 
