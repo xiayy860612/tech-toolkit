@@ -10,6 +10,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import tech.toolkit.auth.audit.AuditEvent;
 import tech.toolkit.auth.audit.AuditService;
 import tech.toolkit.auth.audit.AuditType;
+import tech.toolkit.auth.audit.CurrentRequest;
 
 /**
  * RFC 6749 section 4.1.2: when an authorization code is used more than once the server must deny
@@ -31,12 +32,15 @@ public class AuthorizationCodeReuseHandler implements OAuth2AuthorizationService
 
   @Override
   public void save(OAuth2Authorization authorization) {
-    if (isCodeReuse(authorization)) {
+    if (hasInvalidatedToken(authorization)) {
+      // either the code was presented twice, or a token was revoked: both end the authorization
+      boolean reuse =
+          "authorization_code".equals(CurrentRequest.grantType()) && isCodeReuse(authorization);
       delegate.remove(authorization);
       audit.record(
           AuditEvent.of(AuditType.TOKEN_REVOKED, true)
               .subjectUserId(parse(authorization.getPrincipalName()))
-              .detail(Map.of("reason", "authorization_code_reuse")));
+              .detail(Map.of("reason", reuse ? "authorization_code_reuse" : "revoked")));
       return;
     }
     delegate.save(authorization);
@@ -55,6 +59,13 @@ public class AuthorizationCodeReuseHandler implements OAuth2AuthorizationService
   @Override
   public OAuth2Authorization findByToken(String token, OAuth2TokenType tokenType) {
     return delegate.findByToken(token, tokenType);
+  }
+
+  private static boolean hasInvalidatedToken(OAuth2Authorization authorization) {
+    OAuth2Authorization.Token<OAuth2AccessToken> access = authorization.getAccessToken();
+    OAuth2Authorization.Token<OAuth2RefreshToken> refresh = authorization.getRefreshToken();
+    return (access != null && access.isInvalidated())
+        || (refresh != null && refresh.isInvalidated());
   }
 
   static boolean isCodeReuse(OAuth2Authorization authorization) {

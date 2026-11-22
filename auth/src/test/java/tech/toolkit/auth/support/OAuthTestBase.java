@@ -16,6 +16,7 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -66,12 +67,12 @@ public abstract class OAuthTestBase extends PostgresTestBase {
     public Browser() {}
 
     public MvcResult get(String uri) throws Exception {
-      return send(MockMvcRequestBuilders.get(uri));
+      return send(MockMvcRequestBuilders.get(uri).accept(MediaType.TEXT_HTML));
     }
 
     /** A form post with a valid CSRF token. */
     public MvcResult postForm(String uri, Map<String, String> fields) throws Exception {
-      MockHttpServletRequestBuilder request = post(uri).with(csrf());
+      MockHttpServletRequestBuilder request = post(uri).with(csrf()).accept(MediaType.TEXT_HTML);
       fields.forEach(request::param);
       return send(request);
     }
@@ -162,6 +163,25 @@ public abstract class OAuthTestBase extends PostgresTestBase {
                 .param("redirect_uri", redirectUri)
                 .param("code_verifier", verifier))
         .andReturn();
+  }
+
+  protected MvcResult refresh(String clientId, String secret, String refreshToken)
+      throws Exception {
+    return mvc.perform(
+            post("/oauth2/token")
+                .with(httpBasic(clientId, secret))
+                .param("grant_type", "refresh_token")
+                .param("refresh_token", refreshToken))
+        .andReturn();
+  }
+
+  protected MvcResult revoke(String clientId, String secret, String token, String hint)
+      throws Exception {
+    var request = post("/oauth2/revoke").param("token", token).param("token_type_hint", hint);
+    if (clientId != null) {
+      request = request.with(httpBasic(clientId, secret));
+    }
+    return mvc.perform(request).andReturn();
   }
 
   /** The complete flow for client1, returning the token response body. */

@@ -60,6 +60,18 @@
 
 只保存元数据，不保存 `logout_token` 原文；每次投递重新签发。`attempts` 是已尝试次数：首次投递加 5 次重试（间隔 1s、5s、30s、2min、10min），共最多 6 次，之后记 `GAVE_UP`。
 
+### auth_used_refresh_token
+
+已被换成新令牌的刷新令牌（授权记录里只留最新的一个，旧的会消失）。记住它的哈希，才能区分“用过的令牌”（重用：整条授权链结束）和“从没存在过的令牌”。
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| token_hash | char(64) | 主键，令牌的 SHA-256（十六进制），**不存令牌本身** |
+| authorization_id | varchar(100) | 它所属的授权 |
+| used_at | timestamptz | |
+
+主键也用来裁决并发：两个调用方同时用同一个令牌换新时，只有一个能写入这一行，另一个得到 `invalid_grant`，不会出现两个有效的后继令牌。
+
 ### auth_audit_event
 
 | 列 | 类型 | 说明 |
@@ -104,6 +116,7 @@ auth_audit_event → 只追加，不设外键
 | `oauth2_authorization` | 定时任务删除授权码、访问令牌、刷新令牌的过期时间都早于“现在减 1 天”的记录 |
 | `auth_sso_client` | 定时任务删除 `session_id` 已不在 `spring_session` 中的行 |
 | `auth_logout_delivery` | 定时任务删除 `DELIVERED` 或 `GAVE_UP` 且超过 7 天的行 |
+| `auth_used_refresh_token` | 定时任务删除超过刷新令牌最长有效期（8 小时）的行 |
 | `auth_audit_event` | 不清理（审计保留期另行决定，本期不做） |
 
 定时任务用 PostgreSQL advisory lock 保证同一时刻只有一个实例执行；保留天数在配置 `auth.cleanup.*` 中。

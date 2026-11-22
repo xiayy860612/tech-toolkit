@@ -130,16 +130,16 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 
 ### Tests for User Story 3（先写，并确认失败）
 
-- [ ] T048 [P] [US3] `auth/src/test/java/tech/toolkit/auth/oauth/RefreshRotationIT.java`：刷新得到新令牌；SSO 会话已结束或过期时返回 `invalid_grant`；按 client 配置的访问与刷新令牌有效期生效；访问令牌有效期 ≥ 刷新令牌有效期的配置被拒绝（FR-013）
-- [ ] T049 [P] [US3] `auth/src/test/java/tech/toolkit/auth/oauth/RefreshReuseDetectionIT.java`：已使用的刷新令牌再次出现返回 `invalid_grant`、整条授权链被删除、写 `REFRESH_REUSE_DETECTED`；并发刷新同一令牌只有一个成功
-- [ ] T050 [P] [US3] `auth/src/test/java/tech/toolkit/auth/oauth/RevocationIT.java`：用户被禁用、改密、client 被停用后刷新被拒绝，且不影响其他 client；`/oauth2/revoke` 需要 client 认证
+- [X] T048 [P] [US3] `auth/src/test/java/tech/toolkit/auth/oauth/RefreshRotationIT.java`：刷新得到新令牌；SSO 会话已结束或过期时返回 `invalid_grant`；按 client 配置的访问与刷新令牌有效期生效；访问令牌有效期 ≥ 刷新令牌有效期的配置被拒绝（FR-013）
+- [X] T049 [P] [US3] `auth/src/test/java/tech/toolkit/auth/oauth/RefreshReuseDetectionIT.java`：已使用的刷新令牌再次出现返回 `invalid_grant`、整条授权链被删除、写 `REFRESH_REUSE_DETECTED`；并发刷新同一令牌只有一个成功
+- [X] T050 [P] [US3] `auth/src/test/java/tech/toolkit/auth/oauth/RevocationIT.java`：用户被禁用、改密、client 被停用后刷新被拒绝，且不影响其他 client；`/oauth2/revoke` 需要 client 认证
 
 ### Implementation for User Story 3
 
-- [ ] T051 [US3] `auth/src/main/java/tech/toolkit/auth/oauth/ReuseDetectingAuthorizationService.java`：`OAuth2AuthorizationService` 装饰器，已使用标记 + 行级乐观锁
-- [ ] T052 [P] [US3] `auth/src/main/java/tech/toolkit/auth/oauth/SessionBoundRefreshValidator.java`：刷新时校验 `sid` 对应的 SSO 会话仍有效、用户启用且未因改密失效、client 启用
-- [ ] T053 [P] [US3] `auth/src/main/java/tech/toolkit/auth/oauth/ClientTokenSettingsCustomizer.java`：按 client 读取 `access_token_ttl_seconds` / `refresh_token_ttl_seconds`，空则用全局默认；校验访问令牌有效期必须短于刷新令牌（启动时校验全局默认，运行时对 client 配置兜底；比较另一项时取其实际生效值）
-- [ ] T054 [US3] 写 `TOKEN_REFRESHED`、`TOKEN_REVOKED`、`REFRESH_REUSE_DETECTED` 审计：`auth/src/main/java/tech/toolkit/auth/audit/AuthAuditListener.java`
+- [X] T051 [US3] `auth/src/main/java/tech/toolkit/auth/oauth/ReuseDetectingAuthorizationService.java`：`OAuth2AuthorizationService` 装饰器，已使用标记 + 行级乐观锁
+- [X] T052 [P] [US3] `auth/src/main/java/tech/toolkit/auth/oauth/SessionBoundRefreshValidator.java`：刷新时校验 `sid` 对应的 SSO 会话仍有效、用户启用且未因改密失效、client 启用
+- [X] T053 [P] [US3] `auth/src/main/java/tech/toolkit/auth/oauth/ClientTokenSettingsCustomizer.java`：按 client 读取 `access_token_ttl_seconds` / `refresh_token_ttl_seconds`，空则用全局默认；校验访问令牌有效期必须短于刷新令牌（启动时校验全局默认，运行时对 client 配置兜底；比较另一项时取其实际生效值）
+- [X] T054 [US3] 写 `TOKEN_REFRESHED`、`TOKEN_REVOKED`、`REFRESH_REUSE_DETECTED` 审计：`auth/src/main/java/tech/toolkit/auth/audit/AuthAuditListener.java`
 
 ---
 
@@ -215,7 +215,7 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 - [ ] T080 [P] `auth/src/main/resources/application.yml` 仅暴露 `/actuator/health`（不含敏感信息），测试：`auth/src/test/java/tech/toolkit/auth/config/HealthEndpointIT.java`（FR-029）
 - [ ] T081 [P] `auth/src/test/java/tech/toolkit/auth/perf/LoginLoadIT.java`：500 个并发登录，95% 在 2 秒内完成（SC-004），单独标记为性能测试
 - [ ] T082 [P] `auth/src/test/java/tech/toolkit/auth/audit/LogHygieneIT.java`：全流程后检查日志与审计中没有密码、令牌原文（SC-005、FR-028）
-- [ ] T083 [P] `auth/src/test/java/tech/toolkit/auth/cleanup/ExpiredDataCleanupIT.java`：`oauth2_authorization` 中授权码、访问令牌、刷新令牌过期时间都早于“现在减 1 天”的记录被删；`auth_sso_client` 中 `session_id` 已不在 `spring_session` 的行被删；`auth_logout_delivery` 中 `DELIVERED` 或 `GAVE_UP` 且超过 7 天的行被删；未过期或仍在使用的数据保留；多实例同时触发只有一个实例执行
+- [ ] T083 [P] `auth/src/test/java/tech/toolkit/auth/cleanup/ExpiredDataCleanupIT.java`：`oauth2_authorization` 中授权码、访问令牌、刷新令牌过期时间都早于“现在减 1 天”的记录被删；`auth_sso_client` 中 `session_id` 已不在 `spring_session` 的行被删；`auth_logout_delivery` 中 `DELIVERED` 或 `GAVE_UP` 且超过 7 天的行被删；`auth_used_refresh_token` 中超过刷新令牌最长有效期（8 小时）的行被删；未过期或仍在使用的数据保留；多实例同时触发只有一个实例执行
 - [ ] T084 `auth/src/main/java/tech/toolkit/auth/cleanup/ExpiredDataCleanupJob.java`：`@Scheduled`，用 PostgreSQL advisory lock 保证同一时刻只有一个实例清理，保留天数取配置 `auth.cleanup.*`；不清理 `auth_audit_event`
 - [ ] T085 运行 `mvn spotless:apply` 与 `mvn verify`（在 `auth/` 下），确认行覆盖率 ≥ 90%，排除路径只有 `**/AuthApplication.class`
 - [ ] T086 按 `specs/001-uam-oauth2-sas/quickstart.md` 逐条跑 11 个场景，命令与实际不符之处回改 quickstart 与 `auth/AGENTS.md`；同时完成 quickstart 的“人工验收”（SC-001、SC-006）并记录结果

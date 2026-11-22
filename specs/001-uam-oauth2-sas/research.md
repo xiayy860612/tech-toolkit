@@ -108,3 +108,12 @@ MVP 各 App BFF 直接向 auth 发起授权请求。以下是 auth-web 加入时
 - **令牌里的 `sid`**: 访问令牌与 ID token 都由 `TokenCustomizer` 按授权记录里存的 `sid` 写入。令牌发放发生在 token 端点，可能与授权请求不在同一个实例，那时框架的注册表里没有该会话，不会自己写入 `sid`。
 - **替代了**: 之前的自生成 UUID `sid`（`SsoSessionIds.assign`）与自写的 `LogoutRequestAuthenticator`；它们基于“会话 id 轮换使框架的 `sid` 不稳定”这一判断，实验证明该判断不成立。
 - **Alternatives**: 保留自定义校验——多维护一段与安全相关的代码，且重复了框架已有的检查。
+
+## D17 刷新令牌：重用检测、会话绑定与按 client 的有效期（US3 实现）
+
+- **重用检测（D8 的实际做法）**: 框架轮换刷新令牌，但授权记录里只保留最新一个，用过的旧令牌直接消失，无法与乱写的令牌区分。所以每次轮换把被替换的令牌记成哈希（`auth_used_refresh_token`）；旧令牌再出现时，在表里查到它，就删除整条授权（连替换它的新令牌一起失效）并写 `REFRESH_REUSE_DETECTED`。并发用同一个令牌时，写这张表的主键冲突让输家得到 `invalid_grant`。
+- **会话绑定**: 刷新时校验用户启用、改密时间不晚于令牌签发时间、client 未停用，并且 `sid` 对应的 SSO 登录仍在有效期内（空闲看最后访问时间，绝对看创建时间）。登录用 `sid` 在 `spring_session` 里查：按用户的 `principal_name`（有索引）缩小范围，再在 SQL 里用与 Java 同一算法算哈希比对。通过校验的刷新同时把登录的最后访问时间更新为现在（FR-003：刷新算活动）。
+- **按 client 的有效期**: `ClientTokenSettingsCustomizer` 包装 `RegisteredClientRepository`，加载 client 时读 `auth_client_ext` 的覆盖值；覆盖后访问令牌不短于刷新令牌时忽略覆盖并记警告。全局默认在 `AuthProperties.Tokens` 构造时校验，违反则启动失败（FR-013）。
+- **撤销审计**: 撤销端点与授权码重用都会删除整条授权，用请求的 `grant_type` 区分原因，写 `TOKEN_REVOKED`；刷新写 `TOKEN_REFRESHED`，不再混为 `TOKEN_ISSUED`。
+- **未登录的 API 请求**: 只有真正要 HTML 的请求才跳登录页，其余返回 401（`Accept: */*` 或缺省都按 API 请求处理）。
+- **已知取舍**: 会话查找是对该用户的会话做哈希比对，用户的会话数很多时代价线性增长；如果出现这种情况，可以给会话行加一列保存 `sid`。

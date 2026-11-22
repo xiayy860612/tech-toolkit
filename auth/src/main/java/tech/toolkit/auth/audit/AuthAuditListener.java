@@ -45,7 +45,11 @@ class AuthAuditListener {
               .sourceIp(remoteAddress(authentication)));
     } else if (authentication instanceof OAuth2AccessTokenAuthenticationToken token) {
       audit.record(
-          AuditEvent.of(AuditType.TOKEN_ISSUED, true)
+          AuditEvent.of(
+                  "refresh_token".equals(CurrentRequest.grantType())
+                      ? AuditType.TOKEN_REFRESHED
+                      : AuditType.TOKEN_ISSUED,
+                  true)
               .clientId(token.getRegisteredClient().getClientId()));
     }
   }

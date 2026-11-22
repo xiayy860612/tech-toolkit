@@ -5,6 +5,7 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.SecurityContext;
 import java.time.Clock;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,9 +41,12 @@ import org.springframework.security.web.authentication.LoginUrlAuthenticationEnt
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.util.StringUtils;
+import tech.toolkit.auth.account.UserRepository;
 import tech.toolkit.auth.audit.AuditService;
+import tech.toolkit.auth.client.ClientExtRepository;
 import tech.toolkit.auth.config.AuthProperties;
 import tech.toolkit.auth.session.SsoClientTracker;
+import tech.toolkit.auth.session.SsoSessionActivity;
 
 /**
  * The OAuth 2.0 / OIDC endpoints (Spring Authorization Server): authorization code with PKCE only,
@@ -88,12 +92,21 @@ public class AuthorizationServerConfig {
         .exceptionHandling(
             exceptions ->
                 exceptions.defaultAuthenticationEntryPointFor(
-                    new LoginUrlAuthenticationEntryPoint("/login"),
-                    new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
+                    new LoginUrlAuthenticationEntryPoint("/login"), browserRequests()))
         .oauth2ResourceServer(resource -> resource.jwt(jwt -> jwt.decoder(jwtDecoder)))
         // before the OAuth endpoints, right after the login has been read from the session
         .addFilterAfter(new ReauthenticationFilter(clock), SecurityContextHolderFilter.class);
     return http.build();
+  }
+
+  /**
+   * Only requests that really ask for HTML are sent to the login page. A request that accepts
+   * anything (or says nothing) is an API call, such as a token revocation, and gets a 401.
+   */
+  private static MediaTypeRequestMatcher browserRequests() {
+    MediaTypeRequestMatcher matcher = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
+    matcher.setIgnoredMediaTypes(Set.of(MediaType.ALL));
+    return matcher;
   }
 
   @Bean
@@ -101,9 +114,12 @@ public class AuthorizationServerConfig {
     return AuthorizationServerSettings.builder().issuer(properties.issuer()).build();
   }
 
+  /** Registered clients, each with its own token lifetimes from {@code auth_client_ext}. */
   @Bean
-  public RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbc) {
-    return new JdbcRegisteredClientRepository(jdbc);
+  public RegisteredClientRepository registeredClientRepository(
+      JdbcTemplate jdbc, ClientExtRepository clientExtensions) {
+    return new ClientTokenSettingsCustomizer(
+        new JdbcRegisteredClientRepository(jdbc), clientExtensions);
   }
 
   /**
@@ -115,10 +131,18 @@ public class AuthorizationServerConfig {
       JdbcTemplate jdbc,
       RegisteredClientRepository clients,
       AuditService audit,
-      SsoClientTracker tracker) {
+      SsoClientTracker tracker,
+      UserRepository users,
+      ClientExtRepository clientExtensions,
+      SsoSessionActivity sessions) {
     OAuth2AuthorizationService stored = new JdbcOAuth2AuthorizationService(jdbc, clients);
-    return new AuthorizationCodeReuseHandler(
-        new SessionLinkingAuthorizationService(stored, jdbc, tracker), audit);
+    OAuth2AuthorizationService linkedToLogin =
+        new SessionLinkingAuthorizationService(stored, jdbc, tracker);
+    OAuth2AuthorizationService refreshChecked =
+        new SessionBoundRefreshValidator(linkedToLogin, users, clients, clientExtensions, sessions);
+    OAuth2AuthorizationService reuseDetecting =
+        new ReuseDetectingAuthorizationService(refreshChecked, jdbc, audit);
+    return new AuthorizationCodeReuseHandler(reuseDetecting, audit);
   }
 
   /**

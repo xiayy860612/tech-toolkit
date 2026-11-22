@@ -21,7 +21,20 @@ public record AuthProperties(
       /** Authorization code lifetime. */
       @DefaultValue("60s") Duration authorizationCodeTtl,
       /** Upper bound of a refresh token; in practice bound to the SSO session. */
-      @DefaultValue("8h") Duration refreshTokenTtl) {}
+      @DefaultValue("8h") Duration refreshTokenTtl) {
+
+    public Tokens {
+      if (!lifetimesAreValid(accessTokenTtl, refreshTokenTtl)) {
+        throw new IllegalArgumentException(
+            "the access token lifetime must be shorter than the refresh token lifetime (FR-013)");
+      }
+    }
+
+    /** FR-013: an access token always lives shorter than the refresh token. */
+    public static boolean lifetimesAreValid(Duration access, Duration refresh) {
+      return access.compareTo(refresh) < 0;
+    }
+  }
 
   public record Session(
       /** Absolute SSO session limit, however active it is (FR-003: default 8 hours). */
