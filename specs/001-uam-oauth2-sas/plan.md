@@ -1,4 +1,4 @@
-# Implementation Plan: auth（auth service + auth-web）
+# Implementation Plan: auth
 
 **Branch**: `feat/001-uam-oauth2-sas` | **Date**: 2026-11-22 | **Spec**: [spec.md](spec.md)
 
@@ -6,12 +6,11 @@
 
 ## Summary
 
-在仓库根下新建 `auth/` 项目，交付两个可独立部署的 Spring Boot 服务：
+在仓库根下新建 `auth/` 项目，它就是 auth 这一个 Spring Boot 服务：基于 Spring Authorization Server 的 OAuth 2.0 / OIDC 授权服务器（授权码 + PKCE 全流程、SSO、刷新轮换与重用检测、退出与 back-channel 通知），加用户凭据与锁定策略、client 管理 API（管理员专用）、审计。
 
-- **auth service**：基于 Spring Authorization Server 的 OAuth 2.0 / OIDC 授权服务器（授权码 + PKCE 全流程、SSO、刷新轮换与重用检测、退出与 back-channel 通知），加用户凭据与锁定策略、client 管理 API（管理员专用）、审计。
-- **auth-web**：Portal BFF，统一入口；接收各 App BFF 的未登录重定向，作为 client 接入 auth service 完成登录与退出。
+**MVP 不含 auth-web（Portal BFF）**，留给后续特性；它加入时只是一个普通 client，auth 无需改动。
 
-关键设计取舍见 [research.md](research.md)：会话统一在 auth service（SSO 会话 + 刷新令牌绑定会话 + 自实现的 back-channel 退出通知）、Portal 介导的登录流程、管理 API 用 `auth.admin` scope 加实时管理员校验。
+关键设计取舍见 [research.md](research.md)：会话统一在 auth（SSO 会话 + 刷新令牌绑定会话 + 自实现的 back-channel 退出通知）、管理 API 用 `auth.admin` scope 加实时管理员校验。
 
 ## 设计与实现的参考基准
 
@@ -32,7 +31,7 @@
 
 **Language/Version**: Java 21
 
-**Primary Dependencies**: Spring Boot 4.1.x（Spring Security 7，SAS 已并入 Security 7）、Spring Session JDBC、Spring Security OAuth2 Client（auth-web）、BouncyCastle（argon2id）、Flyway、Thymeleaf（登录页与 auth-web 页面）
+**Primary Dependencies**: Spring Boot 4.1.x（Spring Security 7，SAS 已并入 Security 7）、Spring Session JDBC、BouncyCastle（argon2id）、Flyway、Thymeleaf（登录页、改密页、错误页）
 
 **Storage**: PostgreSQL 18（Flyway）；不引入 Redis
 
@@ -40,13 +39,13 @@
 
 **Target Platform**: Linux 容器（Kubernetes），服务无状态，可水平扩展
 
-**Project Type**: web-service ×2（auth service、auth-web），Maven 多模块
+**Project Type**: web-service（auth），单模块 Maven 项目
 
 **Performance Goals**: 500 并发登录时 95% 在 2 秒内完成（SC-004）；退出后 10 秒内各应用登录状态失效（SC-009）
 
 **Constraints**: 令牌不含个人资料；私钥不入库不入镜像不入日志；所有重定向地址精确匹配；单一用户池（不含租户）
 
-**Scale/Scope**: 4 个已知 client（App1/2/3、auth-web）加运维工具；用户规模为内部平台量级（万级以内）
+**Scale/Scope**: 3 个已知 client（App1/2/3）加运维工具；用户规模为内部平台量级（万级以内）
 
 ## Constitution Check
 
@@ -68,7 +67,7 @@
 
 ### 本阶段对 spec 的修订（需你确认）
 
-- `Assumptions` 中“刷新令牌默认数天”与 FR-014a（任何应用的登录状态不得长于 auth service 会话）冲突，已改为“刷新令牌绑定 SSO 会话，实际寿命不超过 SSO 绝对期”。
+- `Assumptions` 中“刷新令牌默认数天”与 FR-014a（任何应用的登录状态不得长于 auth 会话）冲突，已改为“刷新令牌绑定 SSO 会话，实际寿命不超过 SSO 绝对期”。
 
 ## Project Structure
 
@@ -83,7 +82,7 @@ specs/001-uam-oauth2-sas/
 ├── contracts/
 │   ├── oauth2-endpoints.md     # OAuth2 / OIDC 端点约束与自定义行为
 │   ├── admin-api.yaml          # 管理 API（OpenAPI 3.1）
-│   └── app-integration.md      # App BFF 与 auth-web 接入约定
+│   └── app-integration.md      # App BFF 接入约定
 ├── checklists/requirements.md
 └── tasks.md                    # 由 /speckit-tasks 生成
 ```
@@ -93,32 +92,29 @@ specs/001-uam-oauth2-sas/
 ```text
 auth/
 ├── AGENTS.md / CLAUDE.md
-├── pom.xml                      # 父工程：依赖版本、JaCoCo、Spotless
+├── pom.xml                      # 依赖版本、JaCoCo、Spotless
 ├── .env.example
 ├── docker-compose.yml           # 本地 PostgreSQL
-├── auth-service/                # 授权服务器 + 管理 API
-│   ├── src/main/java/…/
-│   │   ├── account/             # 用户、密码策略、锁定、改密
-│   │   ├── client/              # client 登记与扩展字段
-│   │   ├── oauth/               # SAS 配置、令牌定制、重用检测、会话绑定
-│   │   ├── session/             # SSO 会话、绝对期过滤器、auth_sso_client
-│   │   ├── logout/              # 退出、back-channel 投递与重试
-│   │   ├── admin/               # 管理 API（控制器与鉴权）
-│   │   ├── audit/               # 审计事件
-│   │   └── bootstrap/           # 首个管理员的一次性命令
-│   ├── src/main/resources/db/migration/   # Flyway
-│   └── src/test/…               # *Test 单元、*IT 集成与契约
-└── auth-web/                    # Portal BFF
-    ├── src/main/java/…/         # 登录跳转、return_to 白名单、退出、back-channel 接收
-    ├── src/main/resources/templates/
-    └── src/test/…
+├── src/main/java/…/
+│   ├── account/                 # 用户、密码策略、锁定、改密
+│   ├── client/                  # client 登记与扩展字段
+│   ├── oauth/                   # SAS 配置、令牌定制、重用检测、会话绑定
+│   ├── session/                 # SSO 会话、绝对期过滤器、auth_sso_client
+│   ├── logout/                  # 退出、back-channel 投递与重试
+│   ├── admin/                   # 管理 API（控制器与鉴权）
+│   ├── audit/                   # 审计事件
+│   └── bootstrap/               # 首个管理员的一次性命令
+├── src/main/resources/
+│   ├── db/migration/            # Flyway
+│   └── templates/               # 登录页、改密页、错误页
+└── src/test/…                   # *Test 单元、*IT 集成与契约
 ```
 
-**Structure Decision**: 两个 Maven 子模块各自一个 Spring Boot 应用，共享父 POM；不建共享库。package 之间不循环依赖，由 ArchUnit 约束（沿用 `backend` 的做法）。
+**Structure Decision**: `auth/` 是单个 Maven 项目、单个 Spring Boot 应用，不分子模块；将来加 auth-web 时再拆为多模块。package 之间不循环依赖，由 ArchUnit 约束（沿用 `backend` 的做法）。
 
 ## 命名约定
 
-沿用 `main` 上 backend 的统一语言：类、表、字段、API、测试名使用同一英文术语。本特性的术语：User、username、Credential、Client、SSO Session（`sid`）、Authorization、Refresh Token、Back-channel Logout、Signing Key、Audit Event、Portal（auth-web）。新增业务概念先登记于此。
+沿用 `main` 上 backend 的统一语言：类、表、字段、API、测试名使用同一英文术语。本特性的术语：User、username、Credential、Client、SSO Session（`sid`）、Authorization、Refresh Token、Back-channel Logout、Signing Key、Audit Event。新增业务概念先登记于此。
 
 ## 风险与待确认
 
@@ -127,5 +123,5 @@ auth/
 | back-channel 通知依赖送达，SC-009 的 10 秒在送达失败时退化为最多 10 分钟（访问令牌有效期） | 退出后短时间内某个应用仍可用 | 已有刷新令牌删除作为兜底；如要更严可缩短访问令牌有效期，请评审时决定 |
 | Boot 4 下 SAS starter 的实际坐标与版本 | 仅影响 POM | tasks 脚手架第一项核实 |
 | 进程内限流在多实例下按实例计算 | 总量放宽为实例数倍 | 已登记为已知限制，网关限流为后续 |
-| Portal 介导的登录比 App 直连多一次跳转 | 首次登录多约一次重定向 | 对应草图设计，评审时请确认保留 |
+| auth-web（Portal BFF）后移 | MVP 各 App BFF 直接向 auth 授权，没有统一入口 | 后续特性加入；它只是普通 client，auth 不需改动（research.md D10、D15 保留设计备查） |
 | 与 `main` 上多租户 UAM（tenant-core）并存 | 概念重叠 | 本期为单一用户池；两者的合并或迁移另立特性 |

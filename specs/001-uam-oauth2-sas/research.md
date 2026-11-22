@@ -1,4 +1,4 @@
-# Research: auth（auth service + auth-web）
+# Research: auth
 
 Phase 0 产出。每项给出 Decision / Rationale / Alternatives。无遗留 NEEDS CLARIFICATION；标注“实现时核实”的是版本或坐标级事实，不影响设计。
 
@@ -11,9 +11,9 @@ Phase 0 产出。每项给出 Decision / Rationale / Alternatives。无遗留 NE
 
 ## D2 项目结构
 
-- **Decision**: 仓库根下新建 `auth/`，Maven 多模块：`auth-service`（授权服务器 + 管理 API）与 `auth-web`（Portal BFF）。第一个管理员的创建做成 auth-service 的一次性运维命令（`bootstrap` profile 下的 `ApplicationRunner`），不单独建 CLI 模块。
-- **Rationale**: 用户要求两者同目录；两个可独立部署的进程各一个模块。CLI 只有一个功能，YAGNI。
-- **Alternatives**: 共享库模块（目前没有共享代码）、独立 CLI 模块——拒绝，出现第二处复用再抽。
+- **Decision**: 仓库根下新建 `auth/`，它就是 auth 这一个 Maven 项目（单模块）。第一个管理员的创建做成一次性运维命令（`bootstrap` profile 下的 `ApplicationRunner`），不单独建 CLI 模块。MVP 不含 auth-web。
+- **Rationale**: 用户确认 MVP 只做 auth，`auth/` 目录就是它。只有一个可部署单元，不需要多模块；CLI 只有一个功能，YAGNI。
+- **Alternatives**: 多模块（auth + auth-web）——auth-web 后移，等它出现再拆；共享库、独立 CLI——拒绝。
 
 ## D3 存储
 
@@ -24,9 +24,9 @@ Phase 0 产出。每项给出 Decision / Rationale / Alternatives。无遗留 NE
 ## D4 令牌格式与有效期
 
 - **Decision**: 访问令牌与 ID Token 为 JWT（ES256），刷新令牌为不透明串且每次轮换。默认：访问令牌 10 分钟；刷新令牌**绑定 SSO 会话**，刷新时校验对应 SSO 会话仍有效，因此刷新令牌的实际寿命不超过 SSO 绝对期（8 小时）。
-- **Rationale**: US6 要求下游离线验证，所以用 JWT；FR-014a 要求任何应用的登录状态都不长于 auth service 会话，刷新令牌必须受会话约束。
+- **Rationale**: US6 要求下游离线验证，所以用 JWT；FR-014a 要求任何应用的登录状态都不长于 auth 会话，刷新令牌必须受会话约束。
 - **影响 spec**: spec 的 Assumptions 原写“刷新令牌默认数天”，与 FR-014a 冲突，已改为“不长于 SSO 绝对期”。
-- **Alternatives**: 不透明访问令牌 + introspection——每次请求回调 auth service，违背 US6。
+- **Alternatives**: 不透明访问令牌 + introspection——每次请求回调 auth，违背 US6。
 
 ## D5 签名密钥与轮换
 
@@ -57,17 +57,19 @@ Phase 0 产出。每项给出 Decision / Rationale / Alternatives。无遗留 NE
 
 - **Decision**:
   1. 吊销：禁用、改密、管理员强制下线时，按 `principal_name` 删除该用户全部 `oauth2_authorization` 与 SSO 会话（FR-012）。
-  2. 退出传播：SAS 不提供服务端的 OIDC back-channel logout 发送，自行实现。client 登记 `backchannel_logout_uri`；会话期间记录“会话 ↔ client”关系；会话结束时向每个 client 异步 POST 带 `sid` 的 `logout_token`（ES256 JWT），失败按指数退避重试。auth-web 与各 App BFF 用 Spring Security 的 OIDC back-channel logout 接收。
+  2. 退出传播：SAS 不提供服务端的 OIDC back-channel logout 发送，自行实现。client 登记 `backchannel_logout_uri`；会话期间记录“会话 ↔ client”关系；会话结束时向每个 client 异步 POST 带 `sid` 的 `logout_token`（ES256 JWT），失败按指数退避重试。各 App BFF 用 Spring Security 的 OIDC back-channel logout 接收。
   3. 兜底：通知投递失败时，刷新令牌已被删除，BFF 最迟在访问令牌过期（10 分钟）后无法续期而退出。
 - **Rationale**: 实现 FR-014/FR-014a/SC-009。
 - **风险**: SC-009（10 秒内失效）依赖通知送达；送不到时退化为最多 10 分钟。已在 plan 的风险里登记，是否要把访问令牌压到更短由你决定。
-- **Alternatives**: 每个 BFF 每次请求向 auth service 校验会话——延迟与可用性耦合更紧，拒绝。
+- **Alternatives**: 每个 BFF 每次请求向 auth 校验会话——延迟与可用性耦合更紧，拒绝。
 
-## D10 Portal 介导的登录流程
+## D10 Portal 介导的登录流程（后续特性，MVP 不做）
 
-- **Decision**: App BFF 发现未登录 → 302 到 auth-web `/login?return_to=<App 地址>` → auth-web（它自己是 client）走授权码流程登录 auth service → 回到 auth-web 后 302 回 `return_to` → App BFF 随后用自己的 client 发起授权码流程，auth service 已有 SSO 会话，免输入凭据直接签码。`return_to` 只允许配置里的白名单来源，防开放重定向。
-- **Rationale**: 对应草图中各 BFF 到 Portal 的 redirect 连线，且与 FR-030（登录页由 auth service 提供）一致，凭据只经过 auth service。
-- **Alternatives**: App BFF 直接跳 auth service——更短，但草图里的 Portal 入口就没有作用，拒绝；该取舍请在评审 plan 时确认。
+MVP 各 App BFF 直接向 auth 发起授权请求。以下是 auth-web 加入时的设计，保留备查；auth 无需为此做任何改动（auth-web 只是普通 client）。
+
+- **Decision**: App BFF 发现未登录 → 302 到 auth-web `/login?return_to=<App 地址>` → auth-web（它自己是 client）走授权码流程登录 auth → 回到 auth-web 后 302 回 `return_to` → App BFF 随后用自己的 client 发起授权码流程，auth 已有 SSO 会话，免输入凭据直接签码。`return_to` 只允许配置里的白名单来源，防开放重定向。
+- **Rationale**: 对应草图中各 BFF 到 Portal 的 redirect 连线，且与 FR-030（登录页由 auth 提供）一致，凭据只经过 auth。
+- **Alternatives**: App BFF 直接跳 auth——更短，但草图里的 Portal 入口就没有作用，拒绝；该取舍请在评审 plan 时确认。
 
 ## D11 管理 API 的认证
 
@@ -92,7 +94,7 @@ Phase 0 产出。每项给出 Decision / Rationale / Alternatives。无遗留 NE
 - **Rationale**: 根 AGENTS.md 的“测试先行”与覆盖率门禁。
 - **Alternatives**: 浏览器 E2E（Playwright）——登录页只有一个表单，先不引入。
 
-## D15 auth-web 形态
+## D15 auth-web 形态（后续特性，MVP 不做）
 
 - **Decision**: Spring Boot（servlet）+ `oauth2Login`，Thymeleaf 极简页面（入口页、已登录页、错误页）；会话 cookie 为 HttpOnly + Secure + SameSite=Lax，令牌只在服务端；提供 `/login`、`/logout`、back-channel logout 接收端点。
 - **Rationale**: spec 范围只要求“入口与登录跳转”；不引入前端工程。

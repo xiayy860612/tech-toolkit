@@ -1,6 +1,6 @@
-# Data Model: auth service
+# Data Model: auth
 
-数据库 PostgreSQL 18，Flyway 迁移。表名前缀 `auth_`（自有表）；`oauth2_*` 与 `spring_session*` 沿用框架的标准表结构，不改列。auth-web 无业务表（会话在内存或 Spring Session，不持久化业务数据）。
+数据库 PostgreSQL 18，Flyway 迁移。表名前缀 `auth_`（自有表）；`oauth2_*` 与 `spring_session*` 沿用框架的标准表结构，不改列。
 
 ## 自有表
 

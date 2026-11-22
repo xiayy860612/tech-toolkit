@@ -1,4 +1,4 @@
-# Contract: auth service 的 OAuth 2.0 / OIDC 端点
+# Contract: auth 的 OAuth 2.0 / OIDC 端点
 
 标准端点的路径、参数与响应遵循 RFC 6749 / 7636（PKCE）/ 7009（撤销）/ 8414（元数据）与 OIDC Core / RP-Initiated Logout / Back-Channel Logout。此处只写**本服务的约束与自定义部分**；未写之处按标准。`{issuer}` 由部署配置固定，不从请求动态推导。
 
@@ -7,7 +7,7 @@
 | 用途 | 方法与路径 | 说明 |
 |---|---|---|
 | 授权请求 | `GET /oauth2/authorize` | 未登录时跳转登录页；登录后签发授权码 |
-| 登录页 | `GET /login`、`POST /login` | 由 auth service 提供（FR-030）；表单字段 `username`、`password` |
+| 登录页 | `GET /login`、`POST /login` | 由 auth 提供（FR-030）；表单字段 `username`、`password` |
 | 令牌 | `POST /oauth2/token` | `authorization_code`、`refresh_token` 两种授权类型 |
 | 撤销 | `POST /oauth2/revoke` | 需要 client 认证 |
 | 用户信息 | `GET /userinfo` | Bearer 访问令牌，需 `openid` scope |
@@ -41,7 +41,7 @@ JOSE 头部 `typ` 为 `at+jwt`，资源服务必须校验该值，避免 ID Toke
 |---|---|
 | `iss` | `{issuer}` |
 | `sub` | 用户 id（十进制字符串） |
-| `aud` | 目标资源服务的标识；本期只有 auth service 自身（管理 API、`/userinfo`），取其 `{issuer}`，后续业务服务各自登记 |
+| `aud` | 目标资源服务的标识；本期只有 auth 自身（管理 API、`/userinfo`），取其 `{issuer}`，后续业务服务各自登记 |
 | `client_id` | 签发给的 client（RFC 9068 要求） |
 | `scope` | 授予的 scope，空格分隔 |
 | `sid` | SSO 会话 id，用于退出通知与关联 |
@@ -70,7 +70,7 @@ OIDC 标准声明：`iss`、`sub`、`aud`、`exp`、`iat`、`auth_time`、`nonce
 3. 对该会话服务过且登记了 `backchannel_logout_uri` 的每个 client，异步发送 back-channel logout（见下）；
 4. 重定向到 `post_logout_redirect_uri`（未提供则显示“已退出”页）。
 
-### Back-channel logout 通知（auth service → client）
+### Back-channel logout 通知（auth → client）
 
 `POST {backchannel_logout_uri}`，`Content-Type: application/x-www-form-urlencoded`，字段 `logout_token`：
 

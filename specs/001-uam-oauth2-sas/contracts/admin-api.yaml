@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: auth service 管理 API
+  title: auth 管理 API
   version: 0.1.0
   description: |
     仅管理员可用（FR-019a）。认证：Bearer 访问令牌，需 scope `auth.admin`；
