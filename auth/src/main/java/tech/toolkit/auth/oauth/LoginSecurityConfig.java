@@ -14,7 +14,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import tech.toolkit.auth.account.StatusCheckingAuthenticationProvider;
 import tech.toolkit.auth.account.UserRepository;
 import tech.toolkit.auth.config.AuthProperties;
-import tech.toolkit.auth.session.SsoSessionIds;
 
 /**
  * The login page and everything outside the OAuth endpoints (FR-002, FR-007, FR-030): form login
@@ -55,7 +54,6 @@ public class LoginSecurityConfig {
                     .failureUrl("/login?error")
                     .successHandler(
                         (request, response, authentication) -> {
-                          SsoSessionIds.assign(request.getSession());
                           ReauthenticationFilter.onLogin(request.getSession(), clock.instant());
                           continueToSavedRequest.onAuthenticationSuccess(
                               request, response, authentication);

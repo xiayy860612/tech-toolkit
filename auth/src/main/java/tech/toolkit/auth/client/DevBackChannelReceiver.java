@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class DevBackChannelReceiver {
 
   private static final Logger log = LoggerFactory.getLogger(DevBackChannelReceiver.class);
-  private static final Pattern SID = Pattern.compile("[0-9a-f-]{36}");
+  private static final Pattern SID = Pattern.compile("[A-Za-z0-9_-]{43}");
 
   @PostMapping("/dev/backchannel-logout")
   ResponseEntity<Void> receive(@RequestParam("logout_token") String logoutToken) {

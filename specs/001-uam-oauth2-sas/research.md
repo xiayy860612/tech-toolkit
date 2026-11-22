@@ -99,3 +99,12 @@ MVP 各 App BFF 直接向 auth 发起授权请求。以下是 auth-web 加入时
 - **Decision**: Spring Boot（servlet）+ `oauth2Login`，Thymeleaf 极简页面（入口页、已登录页、错误页）；会话 cookie 为 HttpOnly + Secure + SameSite=Lax，令牌只在服务端；提供 `/login`、`/logout`、back-channel logout 接收端点。
 - **Rationale**: spec 范围只要求“入口与登录跳转”；不引入前端工程。
 - **Alternatives**: SPA 前端——门户业务功能不在本期范围，拒绝。
+
+## D16 退出校验与 `sid`：用框架原生的做法
+
+- **Decision**: `sid` = HTTP 会话 id 的 SHA-256 哈希（base64url，无填充），与 Spring Authorization Server 写进 ID token 的 `sid` 完全同一算法。退出端点用框架自带的 `OidcLogoutAuthenticationProvider` 与默认的 `OidcLogoutAuthenticationValidator`，只追加一条校验：当前会话 id 的哈希必须等于令牌里的 `sid`。我们不再自己生成 `sid`，也没有自定义的退出校验 provider。
+- **Rationale（对照实验，2026-11-22）**: 把框架 provider 挂回去，用我们自己的 UUID `sid` 时被拒（`invalid_token ... sid`）；改用框架的 `sid` 后，退出的拒绝用例（未登记的退出后地址、乱写的令牌、别的登录的令牌）都由框架直接处理。登录时会话 id 虽会轮换，但授权发生在轮换之后，哈希在整个登录期间不变，实测等于 `spring_session.session_id` 的哈希。
+- **追加的校验**: 框架的 `sid` 比对依赖进程内的 `SessionRegistry`，多实例下退出请求落到别的实例时，我推测比对会因查不到会话而被跳过（未实测）。所以用 `setAuthenticationValidator` 追加一条不依赖注册表的校验：令牌 `sid` 必须等于当前会话 id 的哈希。
+- **令牌里的 `sid`**: 访问令牌与 ID token 都由 `TokenCustomizer` 按授权记录里存的 `sid` 写入。令牌发放发生在 token 端点，可能与授权请求不在同一个实例，那时框架的注册表里没有该会话，不会自己写入 `sid`。
+- **替代了**: 之前的自生成 UUID `sid`（`SsoSessionIds.assign`）与自写的 `LogoutRequestAuthenticator`；它们基于“会话 id 轮换使框架的 `sid` 不稳定”这一判断，实验证明该判断不成立。
+- **Alternatives**: 保留自定义校验——多维护一段与安全相关的代码，且重复了框架已有的检查。

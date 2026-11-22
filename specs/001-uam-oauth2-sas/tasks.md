@@ -114,7 +114,7 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 - [X] T042 [P] [US2] `auth/src/main/java/tech/toolkit/auth/session/SsoClientRepository.java` 与 `SsoClientTracker.java`：授权时记录会话与 client 的对应（`auth_sso_client`）
 - [X] T043 [P] [US2] `auth/src/main/java/tech/toolkit/auth/client/ClientExtRepository.java`：读写 `auth_client_ext`（`backchannel_logout_uri`、`post_logout_redirect_uris`）
 - [X] T044 [US2] `auth/src/main/java/tech/toolkit/auth/oauth/ReauthenticationFilter.java`：处理 `prompt=login` 与 `max_age`
-- [X] T045 [US2] `auth/src/main/java/tech/toolkit/auth/logout/LogoutController.java` 与 `LogoutService.java`：结束会话、删除授权、登记待通知的 client、重定向
+- [X] T045 [US2] `auth/src/main/java/tech/toolkit/auth/logout/LogoutController.java` 与 `LogoutService.java`：结束会话、删除授权、登记待通知的 client、重定向；退出请求的校验用框架自带的 provider 与默认校验器，只在响应处理里追加“令牌 sid 必须属于当前登录”（`SessionBoundLogoutValidator`，见 research.md D16）
 - [X] T046 [US2] `auth/src/main/java/tech/toolkit/auth/logout/LogoutTokenFactory.java`、`LogoutDeliveryRepository.java`、`BackChannelDeliveryWorker.java`：指数退避，`FOR UPDATE SKIP LOCKED` 保证多实例不重复，每次投递重新签发 `logout_token`；并让 `DevClientSeeder` 登记的示例 client 带 `backchannel_logout_uri`，指向仅 dev 与测试 profile 的 `auth/src/main/java/tech/toolkit/auth/client/DevBackChannelReceiver.java`（只接收并在日志记录 `sid`，不记录令牌原文）
 - [X] T047 [US2] 在 `auth/src/main/java/tech/toolkit/auth/logout/LogoutService.java` 中写 `LOGOUT`、`SESSION_REVOKED` 审计
 

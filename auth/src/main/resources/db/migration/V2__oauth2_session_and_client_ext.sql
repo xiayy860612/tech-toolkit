@@ -51,9 +51,9 @@ create table oauth2_authorization (
     device_code_issued_at         timestamptz   default null,
     device_code_expires_at        timestamptz   default null,
     device_code_metadata          text          default null,
-    -- not part of the framework schema: the SSO session (sid) this authorization belongs to,
+    -- not part of the framework schema: the SSO login (sid: SHA-256 of the HTTP session id) this authorization belongs to,
     -- so that logout and revocation can delete exactly one session's authorizations
-    auth_session_id               varchar(36)   default null,
+    auth_session_id               varchar(64)   default null,
     primary key (id)
 );
 create index oauth2_authorization_principal_ix on oauth2_authorization (principal_name);
@@ -95,7 +95,7 @@ create table auth_client_ext (
 );
 
 create table auth_sso_client (
-    session_id    varchar(36)  not null,
+    session_id    varchar(64)  not null,
     client_id     varchar(100) not null,
     first_seen_at timestamptz  not null default now(),
     primary key (session_id, client_id)
@@ -104,7 +104,7 @@ create table auth_sso_client (
 create table auth_logout_delivery (
     id              bigint generated always as identity primary key,
     client_id       varchar(100) not null,
-    session_id      varchar(36)  not null,
+    session_id      varchar(64)  not null,
     attempts        int          not null default 0,
     next_attempt_at timestamptz  not null default now(),
     status          varchar(16)  not null default 'PENDING',

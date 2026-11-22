@@ -87,6 +87,28 @@ class TokenClaimsIT extends OAuthTestBase {
   }
 
   @Test
+  void theSidIsTheFrameworksHashOfTheSessionIdAndSharedByBothTokens() throws Exception {
+    JsonNode tokens = obtainTokens();
+
+    String accessSid =
+        SignedJWT.parse(tokens.get("access_token").asString())
+            .getJWTClaimsSet()
+            .getStringClaim("sid");
+    String idSid =
+        SignedJWT.parse(tokens.get("id_token").asString()).getJWTClaimsSet().getStringClaim("sid");
+    String sessionId =
+        ownerJdbc().queryForObject("select session_id from spring_session", String.class);
+    // SHA-256 of the HTTP session id, base64url without padding: what the framework itself writes
+    byte[] digest =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(sessionId.trim().getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+    String expected = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+
+    assertThat(accessSid).isEqualTo(expected);
+    assertThat(idSid).isEqualTo(expected);
+  }
+
+  @Test
   void theSubjectIsTheUserIdNotTheUsername() throws Exception {
     JsonNode tokens = obtainTokens();
 

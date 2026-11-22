@@ -41,7 +41,7 @@
 
 | 列 | 类型 | 说明 |
 |---|---|---|
-| session_id | varchar(36) | 这次登录的 `sid`（登录时生成，不是 Spring Session 的 id，后者在登录时会轮换） |
+| session_id | varchar(64) | 这次登录的 `sid`：HTTP 会话 id 的 SHA-256 哈希（base64url，43 个字符），与 Spring Authorization Server 写进 ID token 的 `sid` 同一算法 |
 | client_id | varchar(100) | |
 | first_seen_at | timestamptz | |
 
@@ -53,7 +53,7 @@
 |---|---|---|
 | id | bigint identity | |
 | client_id | varchar(100) | |
-| session_id | varchar(36) | |
+| session_id | varchar(64) | `sid`，同上 |
 | attempts | int | |
 | next_attempt_at | timestamptz | 指数退避 |
 | status | varchar(16) | `PENDING` / `DELIVERED` / `GAVE_UP` |
@@ -81,7 +81,7 @@
 | 表 | 用途 | 关键约定 |
 |---|---|---|
 | `oauth2_registered_client` | client 登记 | SAS 的 `JdbcRegisteredClientRepository` |
-| `oauth2_authorization` | 授权码、令牌、刷新令牌链 | `principal_name` = 用户 id；额外列 `auth_session_id` = 该授权所属的 SSO 登录（`sid`，登录时生成的随机值，不是 HTTP 会话 id，因为后者在登录时会轮换），退出与吊销按它精确删除；`JdbcOAuth2AuthorizationService`，外加重用检测装饰器 |
+| `oauth2_authorization` | 授权码、令牌、刷新令牌链 | `principal_name` = 用户 id；额外列 `auth_session_id`（varchar(64)）= 该授权所属的 SSO 登录的 `sid`（HTTP 会话 id 的 SHA-256 哈希，登录轮换会话 id 之后才产生授权，所以整个登录期间保持不变），退出与吊销按它精确删除；`JdbcOAuth2AuthorizationService`，外加重用检测装饰器 |
 | `spring_session` / `spring_session_attributes` | SSO 会话 | 空闲 30 分钟、绝对 8 小时（FR-003）；绝对期由自有过滤器按 `creationTime` 校验 |
 
 ## 关系

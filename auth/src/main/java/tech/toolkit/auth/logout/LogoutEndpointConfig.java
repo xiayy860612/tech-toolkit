@@ -1,14 +1,14 @@
 package tech.toolkit.auth.logout;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OidcLogoutEndpointConfigurer;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.oidc.authentication.OidcLogoutAuthenticationToken;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
@@ -22,27 +22,28 @@ import org.springframework.web.util.UriComponentsBuilder;
 @EnableScheduling
 public class LogoutEndpointConfig {
 
+  /**
+   * The framework's own provider and default validators check the hint and the post-logout address;
+   * only the response is ours: it makes sure the hint belongs to this login, ends it and queues the
+   * notices.
+   */
   @Bean
   public Customizer<OidcLogoutEndpointConfigurer> logoutEndpointCustomizer(
-      RegisteredClientRepository clients,
-      OAuth2AuthorizationService authorizations,
       LogoutService logoutService) {
-    LogoutRequestAuthenticator authenticator =
-        new LogoutRequestAuthenticator(clients, authorizations);
-    return logout ->
-        logout
-            .authenticationProviders(
-                providers -> {
-                  providers.clear();
-                  providers.add(authenticator);
-                })
-            .logoutResponseHandler(responseHandler(logoutService));
+    return logout -> logout.logoutResponseHandler(responseHandler(logoutService));
   }
 
   private static AuthenticationSuccessHandler responseHandler(LogoutService logoutService) {
     SecurityContextLogoutHandler endSession = new SecurityContextLogoutHandler();
+    SessionBoundLogoutValidator sameLogin = new SessionBoundLogoutValidator();
     return (request, response, authentication) -> {
       OidcLogoutAuthenticationToken logout = (OidcLogoutAuthenticationToken) authentication;
+      try {
+        sameLogin.verify(logout);
+      } catch (OAuth2AuthenticationException e) {
+        response.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getError().toString());
+        return;
+      }
       OidcIdToken idToken = logout.getIdToken();
       logoutService.logout(idToken.getClaimAsString("sid"), idToken.getSubject());
       endSession.logout(request, response, (Authentication) logout.getPrincipal());
