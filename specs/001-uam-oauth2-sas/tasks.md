@@ -103,20 +103,20 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 
 ### Tests for User Story 2（先写，并确认失败）
 
-- [ ] T037 [P] [US2] `auth/src/test/java/tech/toolkit/auth/session/SsoSessionIT.java`：登录 client1 后 client2 授权免输入，且 3 秒内返回授权码（SC-002，宽松的单次延迟断言）；`prompt=login` 与超过 `max_age` 时强制重新认证
-- [ ] T038 [P] [US2] `auth/src/test/java/tech/toolkit/auth/session/SessionLifetimeIT.java`：空闲 30 分钟、绝对 8 小时到期后要求重新登录，两个值可配置（用可控时钟）
-- [ ] T039 [P] [US2] `auth/src/test/java/tech/toolkit/auth/logout/LogoutIT.java`：`/connect/logout` 结束 SSO 会话、删除该会话下全部授权、`post_logout_redirect_uri` 精确匹配、无该参数时显示“已退出”页
-- [ ] T040 [P] [US2] `auth/src/test/java/tech/toolkit/auth/logout/BackChannelLogoutIT.java`：`logout_token` 含 `iss`、`aud`、`iat`、`jti`、`sid`、`events` 且无 `nonce`、ES256 签名；5 秒超时；按 1s、5s、30s、2min、10min 退避重试共 5 次，记 `DELIVERED` 或 `GAVE_UP`；未登记 `backchannel_logout_uri` 的 client 不被通知；10 秒内送达（SC-009）；多实例不重复投递
+- [X] T037 [P] [US2] `auth/src/test/java/tech/toolkit/auth/session/SsoSessionIT.java`：登录 client1 后 client2 授权免输入，且 3 秒内返回授权码（SC-002，宽松的单次延迟断言）；`prompt=login` 与超过 `max_age` 时强制重新认证
+- [X] T038 [P] [US2] `auth/src/test/java/tech/toolkit/auth/session/SessionLifetimeIT.java`：空闲 30 分钟、绝对 8 小时到期后要求重新登录，两个值可配置（用可控时钟）
+- [X] T039 [P] [US2] `auth/src/test/java/tech/toolkit/auth/logout/LogoutIT.java`：`/connect/logout` 结束 SSO 会话、删除该会话下全部授权、`post_logout_redirect_uri` 精确匹配、无该参数时显示“已退出”页
+- [X] T040 [P] [US2] `auth/src/test/java/tech/toolkit/auth/logout/BackChannelLogoutIT.java`：`logout_token` 含 `iss`、`aud`、`iat`、`jti`、`sid`、`events` 且无 `nonce`、ES256 签名；5 秒超时；按 1s、5s、30s、2min、10min 退避重试共 5 次，记 `DELIVERED` 或 `GAVE_UP`；未登记 `backchannel_logout_uri` 的 client 不被通知；10 秒内送达（SC-009）；多实例不重复投递
 
 ### Implementation for User Story 2
 
-- [ ] T041 [US2] `auth/src/main/java/tech/toolkit/auth/session/SessionConfig.java` 与 `AbsoluteTimeoutFilter.java`：Spring Session JDBC（`sid` 语义与 US1 一致），空闲 30 分钟，绝对 8 小时按 `creationTime` 校验
-- [ ] T042 [P] [US2] `auth/src/main/java/tech/toolkit/auth/session/SsoClientRepository.java` 与 `SsoClientTracker.java`：授权时记录会话与 client 的对应（`auth_sso_client`）
-- [ ] T043 [P] [US2] `auth/src/main/java/tech/toolkit/auth/client/ClientExtRepository.java`：读写 `auth_client_ext`（`backchannel_logout_uri`、`post_logout_redirect_uris`）
-- [ ] T044 [US2] `auth/src/main/java/tech/toolkit/auth/oauth/ReauthenticationFilter.java`：处理 `prompt=login` 与 `max_age`
-- [ ] T045 [US2] `auth/src/main/java/tech/toolkit/auth/logout/LogoutController.java` 与 `LogoutService.java`：结束会话、删除授权、登记待通知的 client、重定向
-- [ ] T046 [US2] `auth/src/main/java/tech/toolkit/auth/logout/LogoutTokenFactory.java`、`LogoutDeliveryRepository.java`、`BackChannelDeliveryWorker.java`：指数退避，`FOR UPDATE SKIP LOCKED` 保证多实例不重复，每次投递重新签发 `logout_token`；并让 `DevClientSeeder` 登记的示例 client 带 `backchannel_logout_uri`，指向仅 dev 与测试 profile 的 `auth/src/main/java/tech/toolkit/auth/client/DevBackChannelReceiver.java`（只接收并在日志记录 `sid`，不记录令牌原文）
-- [ ] T047 [US2] 在 `auth/src/main/java/tech/toolkit/auth/logout/LogoutService.java` 中写 `LOGOUT`、`SESSION_REVOKED` 审计
+- [X] T041 [US2] `auth/src/main/java/tech/toolkit/auth/session/SessionConfig.java` 与 `AbsoluteTimeoutFilter.java`：Spring Session JDBC（`sid` 语义与 US1 一致），空闲 30 分钟，绝对 8 小时按 `creationTime` 校验
+- [X] T042 [P] [US2] `auth/src/main/java/tech/toolkit/auth/session/SsoClientRepository.java` 与 `SsoClientTracker.java`：授权时记录会话与 client 的对应（`auth_sso_client`）
+- [X] T043 [P] [US2] `auth/src/main/java/tech/toolkit/auth/client/ClientExtRepository.java`：读写 `auth_client_ext`（`backchannel_logout_uri`、`post_logout_redirect_uris`）
+- [X] T044 [US2] `auth/src/main/java/tech/toolkit/auth/oauth/ReauthenticationFilter.java`：处理 `prompt=login` 与 `max_age`
+- [X] T045 [US2] `auth/src/main/java/tech/toolkit/auth/logout/LogoutController.java` 与 `LogoutService.java`：结束会话、删除授权、登记待通知的 client、重定向
+- [X] T046 [US2] `auth/src/main/java/tech/toolkit/auth/logout/LogoutTokenFactory.java`、`LogoutDeliveryRepository.java`、`BackChannelDeliveryWorker.java`：指数退避，`FOR UPDATE SKIP LOCKED` 保证多实例不重复，每次投递重新签发 `logout_token`；并让 `DevClientSeeder` 登记的示例 client 带 `backchannel_logout_uri`，指向仅 dev 与测试 profile 的 `auth/src/main/java/tech/toolkit/auth/client/DevBackChannelReceiver.java`（只接收并在日志记录 `sid`，不记录令牌原文）
+- [X] T047 [US2] 在 `auth/src/main/java/tech/toolkit/auth/logout/LogoutService.java` 中写 `LOGOUT`、`SESSION_REVOKED` 审计
 
 **Checkpoint**: US1 + US2 都可独立验证。
 

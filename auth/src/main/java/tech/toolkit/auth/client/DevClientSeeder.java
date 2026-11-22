@@ -30,24 +30,31 @@ public class DevClientSeeder implements ApplicationRunner {
   private final UserRepository users;
   private final RegisteredClientRepository clients;
   private final PasswordEncoder encoder;
+  private final ClientExtRepository clientExt;
 
   public DevClientSeeder(
       DevSeedProperties seed,
       AuthProperties properties,
       UserRepository users,
       RegisteredClientRepository clients,
-      PasswordEncoder encoder) {
+      PasswordEncoder encoder,
+      ClientExtRepository clientExt) {
     this.seed = seed;
     this.properties = properties;
     this.users = users;
     this.clients = clients;
     this.encoder = encoder;
+    this.clientExt = clientExt;
   }
 
   @Override
   public void run(ApplicationArguments args) {
     if (seed.enabled()) {
       seed();
+      // the dev receiver logs the notice instead of ending a real client session
+      String receiver = properties.issuer() + "/dev/backchannel-logout";
+      clientExt.upsert(new ClientExt("client1", true, receiver, null, null, null));
+      clientExt.upsert(new ClientExt("client2", true, receiver, null, null, null));
     }
   }
 

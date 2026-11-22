@@ -44,7 +44,8 @@ public class LoginSecurityConfig {
     http.authorizeHttpRequests(
             authorize ->
                 authorize
-                    .requestMatchers("/login", "/login/expired", "/error", "/actuator/health")
+                    .requestMatchers(
+                        "/login", "/login/expired", "/logged-out", "/error", "/actuator/health")
                     .permitAll()
                     .anyRequest()
                     .authenticated())
@@ -55,6 +56,7 @@ public class LoginSecurityConfig {
                     .successHandler(
                         (request, response, authentication) -> {
                           SsoSessionIds.assign(request.getSession());
+                          ReauthenticationFilter.onLogin(request.getSession(), clock.instant());
                           continueToSavedRequest.onAuthenticationSuccess(
                               request, response, authentication);
                         }))

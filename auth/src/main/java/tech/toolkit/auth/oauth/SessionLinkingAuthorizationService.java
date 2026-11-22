@@ -4,8 +4,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
+import tech.toolkit.auth.session.SsoClientTracker;
 import tech.toolkit.auth.session.SsoSessionIds;
 
 /**
@@ -21,17 +20,19 @@ public class SessionLinkingAuthorizationService implements OAuth2AuthorizationSe
 
   private final OAuth2AuthorizationService delegate;
   private final JdbcTemplate jdbc;
+  private final SsoClientTracker tracker;
 
   public SessionLinkingAuthorizationService(
-      OAuth2AuthorizationService delegate, JdbcTemplate jdbc) {
+      OAuth2AuthorizationService delegate, JdbcTemplate jdbc, SsoClientTracker tracker) {
     this.delegate = delegate;
     this.jdbc = jdbc;
+    this.tracker = tracker;
   }
 
   @Override
   public void save(OAuth2Authorization authorization) {
     OAuth2Authorization toSave = authorization;
-    String current = currentSid();
+    String current = SsoSessionIds.current();
     if (current != null && authorization.getAttribute(SID_ATTRIBUTE) == null) {
       toSave = OAuth2Authorization.from(authorization).attribute(SID_ATTRIBUTE, current).build();
     }
@@ -44,6 +45,7 @@ public class SessionLinkingAuthorizationService implements OAuth2AuthorizationSe
           sid,
           toSave.getId(),
           sid);
+      tracker.track(sid, toSave.getRegisteredClientId());
     }
   }
 
@@ -60,13 +62,5 @@ public class SessionLinkingAuthorizationService implements OAuth2AuthorizationSe
   @Override
   public OAuth2Authorization findByToken(String token, OAuth2TokenType tokenType) {
     return delegate.findByToken(token, tokenType);
-  }
-
-  private static String currentSid() {
-    if (RequestContextHolder.getRequestAttributes()
-        instanceof ServletRequestAttributes attributes) {
-      return SsoSessionIds.of(attributes.getRequest().getSession(false));
-    }
-    return null;
   }
 }

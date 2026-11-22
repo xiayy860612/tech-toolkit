@@ -12,6 +12,8 @@ spring:
     user: ${AUTH_DB_OWNER_USER:auth_owner}
     password: ${AUTH_DB_OWNER_PASSWORD:}
   session:
+    # idle limit of the SSO session (FR-003); the absolute limit is auth.session.absolute-timeout
+    timeout: ${AUTH_SESSION_IDLE_TIMEOUT:30m}
     jdbc:
       initialize-schema: never
       # Spring Session removes expired sessions; other tables are cleaned by auth.cleanup (data-model.md)

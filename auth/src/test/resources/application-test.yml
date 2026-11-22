@@ -1,4 +1,7 @@
 auth:
+  logout:
+    # tests call the worker themselves; BackChannelLogoutSlaIT turns the scheduler on
+    worker-enabled: false
   issuer: http://localhost:9000
   dev:
     seed:

@@ -2,6 +2,8 @@ package tech.toolkit.auth.session;
 
 import jakarta.servlet.http.HttpSession;
 import java.util.UUID;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * The {@code sid} of an SSO login: generated when the user signs in and kept as a session
@@ -19,6 +21,15 @@ public final class SsoSessionIds {
     String sid = UUID.randomUUID().toString();
     session.setAttribute(SID_ATTRIBUTE, sid);
     return sid;
+  }
+
+  /** The sid of the login behind the request being handled, or null outside a request. */
+  public static String current() {
+    if (RequestContextHolder.getRequestAttributes()
+        instanceof ServletRequestAttributes attributes) {
+      return of(attributes.getRequest().getSession(false));
+    }
+    return null;
   }
 
   /** The sid of this session, or null when there is no session or nobody signed in yet. */

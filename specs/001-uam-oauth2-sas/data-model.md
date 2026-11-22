@@ -41,7 +41,7 @@
 
 | 列 | 类型 | 说明 |
 |---|---|---|
-| session_id | varchar(36) | Spring Session 的 id；与 `sid` 一一对应 |
+| session_id | varchar(36) | 这次登录的 `sid`（登录时生成，不是 Spring Session 的 id，后者在登录时会轮换） |
 | client_id | varchar(100) | |
 | first_seen_at | timestamptz | |
 
@@ -58,7 +58,7 @@
 | next_attempt_at | timestamptz | 指数退避 |
 | status | varchar(16) | `PENDING` / `DELIVERED` / `GAVE_UP` |
 
-只保存元数据，不保存 `logout_token` 原文；每次投递重新签发。
+只保存元数据，不保存 `logout_token` 原文；每次投递重新签发。`attempts` 是已尝试次数：首次投递加 5 次重试（间隔 1s、5s、30s、2min、10min），共最多 6 次，之后记 `GAVE_UP`。
 
 ### auth_audit_event
 

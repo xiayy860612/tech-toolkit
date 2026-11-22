@@ -4,13 +4,16 @@ import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.SecurityContext;
+import java.time.Clock;
 import java.util.function.Consumer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OidcLogoutEndpointConfigurer;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
@@ -34,10 +37,12 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.util.StringUtils;
 import tech.toolkit.auth.audit.AuditService;
 import tech.toolkit.auth.config.AuthProperties;
+import tech.toolkit.auth.session.SsoClientTracker;
 
 /**
  * The OAuth 2.0 / OIDC endpoints (Spring Authorization Server): authorization code with PKCE only,
@@ -50,7 +55,12 @@ public class AuthorizationServerConfig {
   @Bean
   @Order(1)
   public SecurityFilterChain authorizationServerFilterChain(
-      HttpSecurity http, UserInfoMapper userInfoMapper, JwtDecoder jwtDecoder) throws Exception {
+      HttpSecurity http,
+      UserInfoMapper userInfoMapper,
+      JwtDecoder jwtDecoder,
+      Customizer<OidcLogoutEndpointConfigurer> logoutEndpoint,
+      Clock clock)
+      throws Exception {
     http.oauth2AuthorizationServer(
             server -> {
               http.securityMatcher(server.getEndpointsMatcher());
@@ -69,7 +79,10 @@ public class AuthorizationServerConfig {
                                               authorizationRequestValidator());
                                         }
                                       })))
-                  .oidc(oidc -> oidc.userInfoEndpoint(info -> info.userInfoMapper(userInfoMapper)));
+                  .oidc(
+                      oidc ->
+                          oidc.userInfoEndpoint(info -> info.userInfoMapper(userInfoMapper))
+                              .logoutEndpoint(logoutEndpoint));
             })
         .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
         .exceptionHandling(
@@ -77,7 +90,9 @@ public class AuthorizationServerConfig {
                 exceptions.defaultAuthenticationEntryPointFor(
                     new LoginUrlAuthenticationEntryPoint("/login"),
                     new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
-        .oauth2ResourceServer(resource -> resource.jwt(jwt -> jwt.decoder(jwtDecoder)));
+        .oauth2ResourceServer(resource -> resource.jwt(jwt -> jwt.decoder(jwtDecoder)))
+        // before the OAuth endpoints, right after the login has been read from the session
+        .addFilterAfter(new ReauthenticationFilter(clock), SecurityContextHolderFilter.class);
     return http.build();
   }
 
@@ -97,10 +112,13 @@ public class AuthorizationServerConfig {
    */
   @Bean
   public OAuth2AuthorizationService authorizationService(
-      JdbcTemplate jdbc, RegisteredClientRepository clients, AuditService audit) {
+      JdbcTemplate jdbc,
+      RegisteredClientRepository clients,
+      AuditService audit,
+      SsoClientTracker tracker) {
     OAuth2AuthorizationService stored = new JdbcOAuth2AuthorizationService(jdbc, clients);
     return new AuthorizationCodeReuseHandler(
-        new SessionLinkingAuthorizationService(stored, jdbc), audit);
+        new SessionLinkingAuthorizationService(stored, jdbc, tracker), audit);
   }
 
   /**
