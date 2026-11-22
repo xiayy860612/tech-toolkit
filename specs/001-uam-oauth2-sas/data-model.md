@@ -96,6 +96,18 @@ auth_audit_event → 只追加，不设外键
 
 同一类内的关联靠业务键而非外键，便于清理与迁移，与 `main` 上 backend 的约定一致。
 
+## 清理
+
+| 表 | 清理方式 |
+|---|---|
+| `spring_session`、`spring_session_attributes` | Spring Session JDBC 自带定时清理（`spring.session.jdbc.cleanup-cron`，每 10 分钟） |
+| `oauth2_authorization` | 定时任务删除授权码、访问令牌、刷新令牌的过期时间都早于“现在减 1 天”的记录 |
+| `auth_sso_client` | 定时任务删除 `session_id` 已不在 `spring_session` 中的行 |
+| `auth_logout_delivery` | 定时任务删除 `DELIVERED` 或 `GAVE_UP` 且超过 7 天的行 |
+| `auth_audit_event` | 不清理（审计保留期另行决定，本期不做） |
+
+定时任务用 PostgreSQL advisory lock 保证同一时刻只有一个实例执行；保留天数在配置 `auth.cleanup.*` 中。
+
 ## 校验规则（来自 spec）
 
 - username 小写后唯一（FR-015）；创建时的密码必须满足策略（FR-017）。

@@ -103,7 +103,9 @@ auth/
 │   ├── logout/                  # 退出、back-channel 投递与重试
 │   ├── admin/                   # 管理 API（控制器与鉴权）
 │   ├── audit/                   # 审计事件
-│   └── bootstrap/               # 首个管理员的一次性命令
+│   ├── bootstrap/               # 首个管理员的一次性命令
+│   ├── cleanup/                 # 过期数据的定时清理
+│   └── config/                  # 数据源等基础配置
 ├── src/main/resources/
 │   ├── db/migration/            # Flyway
 │   └── templates/               # 登录页、改密页、错误页

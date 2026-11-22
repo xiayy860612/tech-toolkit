@@ -196,8 +196,8 @@ components:
         postLogoutRedirectUris: { type: array, items: { type: string, format: uri } }
         backchannelLogoutUri: { type: string, format: uri }
         scopes: { type: array, items: { type: string } }
-        accessTokenTtlSeconds: { type: integer, minimum: 60 }
-        refreshTokenTtlSeconds: { type: integer, minimum: 60 }
+        accessTokenTtlSeconds: { type: integer, minimum: 60, description: 必须短于刷新令牌的有效期（与另一项的实际生效值比较，未设置时取全局默认）；否则 400 }
+        refreshTokenTtlSeconds: { type: integer, minimum: 60, description: 必须长于访问令牌的有效期；否则 400 }
     UpdateClient:
       type: object
       properties:
@@ -205,8 +205,8 @@ components:
         postLogoutRedirectUris: { type: array, items: { type: string, format: uri } }
         backchannelLogoutUri: { type: string, format: uri }
         scopes: { type: array, items: { type: string } }
-        accessTokenTtlSeconds: { type: integer, minimum: 60 }
-        refreshTokenTtlSeconds: { type: integer, minimum: 60 }
+        accessTokenTtlSeconds: { type: integer, minimum: 60, description: 必须短于刷新令牌的有效期（与另一项的实际生效值比较，未设置时取全局默认）；否则 400 }
+        refreshTokenTtlSeconds: { type: integer, minimum: 60, description: 必须长于访问令牌的有效期；否则 400 }
     Client:
       allOf:
         - $ref: '#/components/schemas/CreateClient'
