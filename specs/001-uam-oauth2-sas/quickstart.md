@@ -41,7 +41,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=bootstrap
 | 5 | US2 单点退出 | 在 client1 触发退出 | 10 秒内 client2 的 back-channel 端点收到通知，再访问需要重新登录 |
 | 6 | US3 刷新 | 令牌过期后用刷新令牌换新 | 成功；再用旧刷新令牌 → `invalid_grant`，且新令牌也失效 |
 | 7 | US3 吊销 | 管理 API 禁用用户后刷新 | 被拒绝 |
-| 8 | US4 锁定 | 同一账号连续输错 5 次，再输正确密码 | 15 分钟内被拒绝，提示稍后再试 |
+| 8 | US4 锁定 | 同一账号连续输错 5 次，再输正确密码 | 15 分钟内被拒绝，提示与密码错误逐字相同 |
 | 9 | US5 client | 管理 API 登记 client4 并走一遍登录；再停用 client2 | client4 可用，client2 被拒绝，client1、client3 不受影响 |
 | 10 | US6 验证 | 取 `/oauth2/jwks` 离线验证访问令牌；轮换密钥后再验证旧令牌 | 旧令牌在有效期内仍通过，新令牌用新密钥签发 |
 | 11 | FR-019a 权限 | 用普通用户令牌、无令牌分别调用 `/admin/v1/users` | 分别 403、401 |

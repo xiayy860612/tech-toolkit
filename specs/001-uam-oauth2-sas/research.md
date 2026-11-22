@@ -73,7 +73,7 @@ MVP 各 App BFF 直接向 auth 发起授权请求。以下是 auth-web 加入时
 
 ## D11 管理 API 的认证
 
-- **Decision**: 管理 API 与授权服务器同进程，作为资源服务器验证访问令牌，要求 scope `auth.admin`。该 scope 只在“用户是管理员 + client 被允许申请它”时签发；每次请求再查库确认用户仍是启用的管理员。管理 API 只供运维工具使用，通过一个预置的公开 client（`auth-admin`，授权码 + PKCE，回环回调）登录获取令牌。
+- **Decision**: 管理 API 与授权服务器同进程，作为资源服务器验证访问令牌，要求 scope `auth.admin`。该 scope 只在“用户是管理员 + client 被允许申请它”时签发；每次请求再查库确认用户仍是启用的管理员。管理 API 只供运维工具使用，通过一个公开 client（`auth-admin`，授权码 + PKCE，回环回调）登录获取令牌；该 client 由首个管理员的 bootstrap 命令一并登记（回调地址取自 `AUTH_ADMIN_REDIRECT_URIS`），不依赖 dev 种子，生产环境同样存在。
 - **Rationale**: 对应 Clarification 2（管理员登录后调用）。双重校验让“禁用管理员”立即生效，不必等令牌过期。
 - **Alternatives**: 独立服务密钥——已被否决。
 
