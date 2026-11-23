@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; display: grid; place-items: center; min-height: 100vh; background: #f5f6f8; }
+    main { background: #fff; padding: 2rem; border-radius: 8px; width: min(22rem, 90vw); box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+    label { display: block; margin: 1rem 0 .25rem; }
+    input { width: 100%; box-sizing: border-box; padding: .5rem; font-size: 1rem; }
+    button { margin-top: 1.25rem; width: 100%; padding: .6rem; font-size: 1rem; }
+    .error { color: #b00020; margin: 0 0 .5rem; }
+    .hint { color: #555; font-size: .85rem; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>登录</h1>
+  <p class="error" role="alert" th:if="${param.error}">用户名或密码错误</p>
+  <form th:action="@{/login}" method="post">
+    <label for="username">用户名</label>
+    <input id="username" name="username" type="text" autocomplete="username" autofocus required>
+    <label for="password">密码</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">登录</button>
+  </form>
+  <p class="hint">多次失败后账号将被临时锁定</p>
+</main>
+</body>
+</html>

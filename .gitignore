@@ -17,6 +17,9 @@ htmlcov/
 **/.turbo/
 **/.pnpm-store/
 
+# Java / Maven
+**/target/
+
 # Env
 .env
 .env*.local

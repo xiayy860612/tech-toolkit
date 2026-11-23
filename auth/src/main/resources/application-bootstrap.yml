@@ -1,0 +1,14 @@
+# One-off command: run the bootstrap and exit. The full application context is needed (the OAuth
+# client repository lives in the web security configuration), so the web server starts on a random
+# port for the few seconds this takes, and the background jobs stay off.
+server:
+  port: 0
+
+auth:
+  logout:
+    worker-enabled: false
+  cleanup:
+    enabled: false
+  bootstrap:
+    admin-username: ${AUTH_BOOTSTRAP_ADMIN_USERNAME:admin}
+    admin-redirect-uris: ${AUTH_ADMIN_REDIRECT_URIS:}

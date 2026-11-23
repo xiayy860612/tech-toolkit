@@ -1,0 +1,10 @@
+# Local runs only (profile "dev"). Nothing here is a default credential: the values come from the
+# environment (see .env.example) and the profile refuses to seed without them.
+auth:
+  dev:
+    seed:
+      enabled: true
+      username: ${AUTH_DEV_USERNAME:alice}
+      password: ${AUTH_DEV_PASSWORD}
+      client1-secret: ${AUTH_DEV_CLIENT1_SECRET}
+      client2-secret: ${AUTH_DEV_CLIENT2_SECRET}

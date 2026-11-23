@@ -1,0 +1,19 @@
+auth:
+  cleanup:
+    # tests run the job themselves (ExpiredDataCleanupIT)
+    enabled: false
+  rate-limit:
+    # high, so that tests logging in many times from one address do not trip it; LoginRateLimitIT lowers it
+    login-capacity: 100000
+  logout:
+    # tests call the worker themselves; BackChannelLogoutSlaIT turns the scheduler on
+    worker-enabled: false
+  issuer: http://localhost:9000
+  dev:
+    seed:
+      # tests create their fixtures themselves after the tables are emptied (OAuthTestBase)
+      enabled: false
+      username: alice
+      password: Correct-Horse-Battery-9
+      client1-secret: client1-test-secret
+      client2-secret: client2-test-secret

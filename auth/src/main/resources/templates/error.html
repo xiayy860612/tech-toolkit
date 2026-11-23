@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>无法完成请求</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; display: grid; place-items: center; min-height: 100vh; background: #f5f6f8; }
+    main { background: #fff; padding: 2rem; border-radius: 8px; width: min(24rem, 90vw); box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>无法完成请求</h1>
+  <!-- deliberately generic: never echoes the request, the client or the redirect address -->
+  <p>请求无效或已失效，请回到应用重新发起登录。</p>
+</main>
+</body>
+</html>
