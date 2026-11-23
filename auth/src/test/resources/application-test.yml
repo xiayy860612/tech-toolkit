@@ -1,4 +1,7 @@
 auth:
+  cleanup:
+    # tests run the job themselves (ExpiredDataCleanupIT)
+    enabled: false
   rate-limit:
     # high, so that tests logging in many times from one address do not trip it; LoginRateLimitIT lowers it
     login-capacity: 100000

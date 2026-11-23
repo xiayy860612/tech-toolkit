@@ -38,6 +38,7 @@ cd auth
 mvn spotless:apply          # 格式化（google-java-format）
 mvn test                    # 单元 + 集成 + 契约测试（*Test 与 *IT）
 mvn verify                  # 测试 + 覆盖率门禁（行覆盖率 ≥ 90%）+ 格式检查
+mvn test -Djacoco.skip=true -Dtest.excluded.groups=none -Dtest=LoginLoadIT   # 性能测试（SC-004），须关闭 JaCoCo
 docker compose up -d postgres
 mvn spring-boot:run -Dspring-boot.run.profiles=dev          # 启动（dev profile）
 mvn spring-boot:run -Dspring-boot.run.profiles=bootstrap    # 一次性：创建首个管理员与 auth-admin client
@@ -50,6 +51,9 @@ mvn spring-boot:run -Dspring-boot.run.profiles=bootstrap    # 一次性：创建
 - 经认可的排除路径：仅 `**/AuthApplication.class`（进程入口，行为都在被测类里）。其余排除须在 PR 说明理由。
 - 架构测试（ArchUnit）：`architecture/ArchitectureTest`（package 无环、禁用字段注入与标准流、含密钥字段的类必须自带 `toString()`）。
 - 集成测试基类 `support/PostgresTestBase` 启动 PostgreSQL 容器、用 owner 角色迁移、以受限 app 角色运行，并在每个测试前清库。
+
+- 性能测试标记为 `@Tag("performance")`，默认不跑；500 并发登录须在关闭 JaCoCo 下测（插桩会让 argon2 慢数倍）。
+- 过期数据清理 `cleanup/ExpiredDataCleanupJob` 由 `auth.cleanup.*` 配置，多实例靠 PostgreSQL advisory lock 只让一个实例执行，从不清理审计表。
 
 ## 环境变量
 

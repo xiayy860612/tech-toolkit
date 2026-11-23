@@ -212,11 +212,11 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T080 [P] `auth/src/main/resources/application.yml` 仅暴露 `/actuator/health`（不含敏感信息），测试：`auth/src/test/java/tech/toolkit/auth/config/HealthEndpointIT.java`（FR-029）
-- [ ] T081 [P] `auth/src/test/java/tech/toolkit/auth/perf/LoginLoadIT.java`：500 个并发登录，95% 在 2 秒内完成（SC-004），单独标记为性能测试
-- [ ] T082 [P] `auth/src/test/java/tech/toolkit/auth/audit/LogHygieneIT.java`：全流程后检查日志与审计中没有密码、令牌原文（SC-005、FR-028）
-- [ ] T083 [P] `auth/src/test/java/tech/toolkit/auth/cleanup/ExpiredDataCleanupIT.java`：`oauth2_authorization` 中授权码、访问令牌、刷新令牌过期时间都早于“现在减 1 天”的记录被删；`auth_sso_client` 中 `session_id` 已不在 `spring_session` 的行被删；`auth_logout_delivery` 中 `DELIVERED` 或 `GAVE_UP` 且超过 7 天的行被删；`auth_used_refresh_token` 中超过刷新令牌最长有效期（8 小时）的行被删；未过期或仍在使用的数据保留；多实例同时触发只有一个实例执行
-- [ ] T084 `auth/src/main/java/tech/toolkit/auth/cleanup/ExpiredDataCleanupJob.java`：`@Scheduled`，用 PostgreSQL advisory lock 保证同一时刻只有一个实例清理，保留天数取配置 `auth.cleanup.*`；不清理 `auth_audit_event`
+- [x] T080 [P] `auth/src/main/resources/application.yml` 仅暴露 `/actuator/health`（不含敏感信息），测试：`auth/src/test/java/tech/toolkit/auth/config/HealthEndpointIT.java`（FR-029）
+- [x] T081 [P] `auth/src/test/java/tech/toolkit/auth/perf/LoginLoadIT.java`：500 个并发登录，95% 在 2 秒内完成（SC-004），单独标记为性能测试
+- [x] T082 [P] `auth/src/test/java/tech/toolkit/auth/audit/LogHygieneIT.java`：全流程后检查日志与审计中没有密码、令牌原文（SC-005、FR-028）
+- [x] T083 [P] `auth/src/test/java/tech/toolkit/auth/cleanup/ExpiredDataCleanupIT.java`：`oauth2_authorization` 中授权码、访问令牌、刷新令牌过期时间都早于“现在减 1 天”的记录被删；`auth_sso_client` 中 `session_id` 已不在 `spring_session` 的行被删；`auth_logout_delivery` 中 `DELIVERED` 或 `GAVE_UP` 且超过 7 天的行被删；`auth_used_refresh_token` 中超过刷新令牌最长有效期（8 小时）的行被删；未过期或仍在使用的数据保留；多实例同时触发只有一个实例执行
+- [x] T084 `auth/src/main/java/tech/toolkit/auth/cleanup/ExpiredDataCleanupJob.java`：`@Scheduled`，用 PostgreSQL advisory lock 保证同一时刻只有一个实例清理，保留天数取配置 `auth.cleanup.*`；不清理 `auth_audit_event`
 - [ ] T085 运行 `mvn spotless:apply` 与 `mvn verify`（在 `auth/` 下），确认行覆盖率 ≥ 90%，排除路径只有 `**/AuthApplication.class`
 - [ ] T086 按 `specs/001-uam-oauth2-sas/quickstart.md` 逐条跑 11 个场景，命令与实际不符之处回改 quickstart 与 `auth/AGENTS.md`；同时完成 quickstart 的“人工验收”（SC-001、SC-006）并记录结果
 - [ ] T087 功能完成后归档：把已落地的需求与设计沉淀到 `docs/achieve-specs/auth.md` 与 `docs/system-design/`（根 AGENTS.md「Project Context」）

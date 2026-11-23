@@ -15,7 +15,8 @@ public record AuthProperties(
     @DefaultValue Session session,
     @DefaultValue Logout logout,
     @DefaultValue Lockout lockout,
-    @DefaultValue RateLimit rateLimit) {
+    @DefaultValue RateLimit rateLimit,
+    @DefaultValue Cleanup cleanup) {
 
   public record Tokens(
       /** Access token lifetime (spec: default 10 minutes, at most 15). */
@@ -61,6 +62,19 @@ public record AuthProperties(
       @DefaultValue("20") int loginCapacity,
       /** One more login submission is allowed per source address after this time. */
       @DefaultValue("3s") Duration loginRefill) {}
+
+  public record Cleanup(
+      /** Whether this instance takes part in the scheduled cleanup (only one runs at a time). */
+      @DefaultValue("true") boolean enabled,
+      /** An authorization goes once its code and tokens expired this long ago. */
+      @DefaultValue("1d") Duration authorizationRetention,
+      /** A finished back-channel logout notice goes after this long. */
+      @DefaultValue("7d") Duration deliveryRetention,
+      /**
+       * A used refresh token is remembered for reuse detection this long (the longest refresh
+       * lifetime).
+       */
+      @DefaultValue("8h") Duration usedRefreshTokenRetention) {}
 
   public record Login(
       /** How long a shown login page may be submitted (FR-002a), in seconds. */
