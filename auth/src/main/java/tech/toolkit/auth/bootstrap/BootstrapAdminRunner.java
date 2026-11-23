@@ -14,14 +14,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
  * Runs the bootstrap when auth is started with the {@code bootstrap} profile, then the process ends
- * (that profile starts no web server). The initial password is typed at the prompt or piped to
- * standard input; it is never accepted as an argument, where it would end up in shell history and
- * process listings.
+ * (the web server of that profile only listens on a random port meanwhile). The initial password is
+ * typed at the prompt or piped to standard input; it is never accepted as an argument, where it
+ * would end up in shell history and process listings.
  */
 @Component
 @Profile("bootstrap")
@@ -30,14 +32,17 @@ public class BootstrapAdminRunner implements ApplicationRunner {
   private static final Logger log = LoggerFactory.getLogger(BootstrapAdminRunner.class);
 
   private final BootstrapService bootstrap;
+  private final ConfigurableApplicationContext context;
   private final String username;
   private final List<String> redirectUris;
 
   public BootstrapAdminRunner(
       BootstrapService bootstrap,
+      ConfigurableApplicationContext context,
       @Value("${auth.bootstrap.admin-username:admin}") String username,
       @Value("${auth.bootstrap.admin-redirect-uris:}") List<String> redirectUris) {
     this.bootstrap = bootstrap;
+    this.context = context;
     this.username = username;
     this.redirectUris = redirectUris.stream().map(String::trim).filter(s -> !s.isEmpty()).toList();
   }
@@ -52,6 +57,8 @@ public class BootstrapAdminRunner implements ApplicationRunner {
                 (new String(console.readPassword("Initial password for %s: ", username)) + "\n")
                     .getBytes(StandardCharsets.UTF_8));
     runWith(args, source);
+    // nothing else to do: end the process instead of serving requests
+    System.exit(SpringApplication.exit(context));
   }
 
   /** The bootstrap with the password read from the given stream. */

@@ -23,6 +23,7 @@ class BootstrapAdminIT extends PostgresTestBase {
   private static final List<String> REDIRECTS = List.of("http://127.0.0.1:8765/callback");
 
   @Autowired BootstrapService bootstrap;
+  @Autowired org.springframework.context.ConfigurableApplicationContext context;
   @Autowired RegisteredClientRepository clients;
 
   private Map<String, Object> adminRow() {
@@ -98,7 +99,7 @@ class BootstrapAdminIT extends PostgresTestBase {
 
   @Test
   void theRunnerReadsThePasswordFromStandardInput() throws Exception {
-    BootstrapAdminRunner runner = new BootstrapAdminRunner(bootstrap, "root", REDIRECTS);
+    BootstrapAdminRunner runner = new BootstrapAdminRunner(bootstrap, context, "root", REDIRECTS);
 
     runner.runWith(
         new DefaultApplicationArguments(),
@@ -109,7 +110,7 @@ class BootstrapAdminIT extends PostgresTestBase {
 
   @Test
   void theRunnerRefusesAPasswordGivenAsAnArgument() {
-    BootstrapAdminRunner runner = new BootstrapAdminRunner(bootstrap, "root", REDIRECTS);
+    BootstrapAdminRunner runner = new BootstrapAdminRunner(bootstrap, context, "root", REDIRECTS);
 
     assertThatThrownBy(
             () ->
@@ -125,7 +126,7 @@ class BootstrapAdminIT extends PostgresTestBase {
 
   @Test
   void theRunnerNeedsAPasswordOnStandardInput() {
-    BootstrapAdminRunner runner = new BootstrapAdminRunner(bootstrap, "root", REDIRECTS);
+    BootstrapAdminRunner runner = new BootstrapAdminRunner(bootstrap, context, "root", REDIRECTS);
 
     assertThatThrownBy(
             () ->

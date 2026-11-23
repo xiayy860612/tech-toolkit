@@ -28,9 +28,9 @@
 | 列 | 类型 | 说明 |
 |---|---|---|
 | client_id | varchar(100) | 主键，对应 `oauth2_registered_client.client_id` |
-| enabled | boolean | 默认 true；停用后拒绝授权与刷新，并删除其授权（FR-012、US5） |
+| enabled | boolean | 默认 true；为 false 时授权、令牌、退出端点都把它当作未知 client，停用时同事务删除其全部授权（FR-012、US5，见 research D19） |
 | backchannel_logout_uri | varchar(2000) | 可空；https（开发环境允许 http 回环）；为空则不通知 |
-| post_logout_redirect_uris | text | 登记的退出后地址，换行分隔，精确匹配 |
+| post_logout_redirect_uris | text | **未使用**：退出后地址只存在 `oauth2_registered_client` 里（框架的退出校验读它），见 research D19 |
 | access_token_ttl_seconds / refresh_token_ttl_seconds | int | 可空；空则用全局默认（FR-013） |
 
 `oauth2_registered_client` 里存：client_id、哈希后的 secret、回调地址、scope、授权类型（仅 `authorization_code`、`refresh_token`）、PKCE 强制、**不要求同意页**。公开 client 无 secret。
@@ -115,11 +115,11 @@ auth_audit_event → 只追加，不设外键
 | `spring_session`、`spring_session_attributes` | Spring Session JDBC 自带定时清理（`spring.session.jdbc.cleanup-cron`，每 10 分钟） |
 | `oauth2_authorization` | 定时任务删除授权码、访问令牌、刷新令牌的过期时间都早于“现在减 1 天”的记录 |
 | `auth_sso_client` | 定时任务删除 `session_id` 已不在 `spring_session` 中的行 |
-| `auth_logout_delivery` | 定时任务删除 `DELIVERED` 或 `GAVE_UP` 且超过 7 天的行 |
+| `auth_logout_delivery` | 定时任务删除 `DELIVERED` 或 `GAVE_UP` 且 `next_attempt_at`（即最后一次尝试时间）超过 7 天的行 |
 | `auth_used_refresh_token` | 定时任务删除超过刷新令牌最长有效期（8 小时）的行 |
 | `auth_audit_event` | 不清理（审计保留期另行决定，本期不做） |
 
-定时任务用 PostgreSQL advisory lock 保证同一时刻只有一个实例执行；保留天数在配置 `auth.cleanup.*` 中。
+定时任务（`ExpiredDataCleanupJob`）用 PostgreSQL 事务级 advisory lock 保证同一时刻只有一个实例执行；保留时间在配置 `auth.cleanup.*` 中，时间按数据库时钟计。
 
 ## 校验规则（来自 spec）
 

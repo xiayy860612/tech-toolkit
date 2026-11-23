@@ -40,7 +40,7 @@
 
 ### 业务与领域模型 / 统一语言 / 核心业务流程 / 边界与模块
 
-参见 [`docs/achieve-specs/`](docs/achieve-specs/) 目录下的对应文档。*（待补充）*
+参见 [`docs/achieve-specs/`](docs/achieve-specs/) 目录下的对应文档：目前有 [`auth.md`](docs/achieve-specs/auth.md)（统一认证服务的需求与领域）与 [`docs/system-design/auth.md`](docs/system-design/auth.md)（架构与实现）。
 
 **维护**：与代码、OpenAPI、UI 文案保持一致；领域与系统层面的权威叙述以 **`docs/achieve-specs/`** 为准，进行中的功能以 **`specs/`** 为准。
 

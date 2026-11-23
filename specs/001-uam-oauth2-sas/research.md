@@ -117,3 +117,39 @@ MVP 各 App BFF 直接向 auth 发起授权请求。以下是 auth-web 加入时
 - **撤销审计**: 撤销端点与授权码重用都会删除整条授权，用请求的 `grant_type` 区分原因，写 `TOKEN_REVOKED`；刷新写 `TOKEN_REFRESHED`，不再混为 `TOKEN_ISSUED`。
 - **未登录的 API 请求**: 只有真正要 HTML 的请求才跳登录页，其余返回 401（`Accept: */*` 或缺省都按 API 请求处理）。
 - **已知取舍**: 会话查找是对该用户的会话做哈希比对，用户的会话数很多时代价线性增长；如果出现这种情况，可以给会话行加一列保存 `sid`。
+
+## D18 账号安全与管理员用户管理（US4 实现）
+
+- **密码策略**: `PasswordPolicy` 返回违反项（`TOO_SHORT`、`TOO_COMMON`、`SAME_AS_USERNAME`）；常见口令表是 classpath 里的 `common-passwords.txt`。创建、改密、管理员重置都走同一个 `AccountSecurityService`。
+- **锁定**: 失败计数与 `locked_until` 用一条原子 SQL 更新（带 `FOR UPDATE` 的 CTE），判断用数据库的 `now()`，不用应用时钟，多实例一致；锁定期内的失败不延长。被锁的账号**先校验密码再拒绝**，应答与密码错误逐字相同（FR-018）。改密时间用应用时钟写入，与签发时间比较时同一时钟。
+- **限流**: 按来源 IP 的进程内令牌桶，超限返回 429 加 `Retry-After`；测试 profile 把容量调到很大，`LoginRateLimitIT` 再调小。
+- **强制改密**: `must_change_password` 为真时，`PasswordChangeRequiredFilter` 在所有授权请求之前把用户送到 `/account/password`（会话属性 `auth.mustChangePassword`）。管理员重置和 bootstrap 创建的账号都带这个标志。
+- **端口避免包循环**: 改密、禁用、强制下线要结束用户的登录并删除授权，而这些实现在 `logout` 与 `oauth` 里。`account` 定义接口 `UserSessions`，`logout.UserSessionsService` 实现它；同理 `client.ClientAuthorizations` 由 `oauth.AuthorizationRevocationService` 实现。ArchUnit 守着 package 无环。
+- **管理员 scope**: `auth.admin` 只在签发访问令牌时保留给"此刻启用的管理员"（`AdminScopeCustomizer`），任何人都可以申请它，但拿不到。管理 API 是无状态的资源服务器链（`@Order(0)`，`/admin/**`），要求 scope 且每次请求再查库确认管理员仍启用，所以禁用管理员立即生效。未带令牌 401，不合格 403。
+- **bootstrap**: `bootstrap` profile 的 `ApplicationRunner`，密码只从控制台或标准输入读取，任何含 "password" 的命令行参数一律拒绝。它同时登记公共 client `auth-admin`（PKCE，回调取 `AUTH_ADMIN_REDIRECT_URIS`）。幂等：已存在的不改。完整应用上下文是必需的，所以该 profile 仍启动 web 服务器，但监听随机端口、关闭后台任务，执行完调用 `SpringApplication.exit` 结束进程（T086 实跑发现 `web-application-type: none` 会因缺少 `HttpSecurity` 而起不来）。它与服务一样需要 `AUTH_SIGNING_KEYS`。
+- **审计**: `USER_CREATED`、`USER_UPDATED`、`PASSWORD_CHANGED`，带执行管理员的 `actor`；审计细节的键名含 `password/secret/token/authorization` 会被拒绝。
+
+## D19 Client 在线管理（US5 实现）
+
+- **读写走原始仓库**: `ClientService` 自己用 `JdbcRegisteredClientRepository` 读写 client 表，不经过 OAuth 端点用的那个仓库，因为后者对停用的 client 返回 `null`，管理员必须还能看到并重新启用它。
+- **停用 = 对 OAuth 端点不可见**: `ClientTokenSettingsCustomizer` 在加载 client 时发现 `auth_client_ext.enabled = false` 就返回 `null`，于是授权、令牌、退出端点都把它当作未知 client（授权端点 400 错误页，令牌端点 401 `invalid_client`）。没有单独的 `ClientEnabledValidator`。停用时同事务调用 `ClientAuthorizations.revokeByClientId` 删除其全部授权；背向通道通知的查询本来就带 `enabled` 条件。
+- **校验**: `clientId` 为 1–100 位 `[A-Za-z0-9._-]` 且唯一；回调地址与退出后地址须为不带 fragment 的绝对 http(s) 地址，且只有回环地址可以用 http（RFC 9700）；至少一个 scope；有效期不得小于 60 秒；访问令牌有效期（含未设置时取全局默认或已登记值的**实际生效值**）必须短于刷新令牌。
+- **secret**: 32 字节随机数，base64url；只在创建与轮换时返回，库中是 `DelegatingPasswordEncoder`（argon2id）哈希；轮换立即替换，旧 secret 即刻失效；公共 client 轮换返回 400。
+- **PATCH**: 请求里没写的字段不变；`backchannelLogoutUri` 传空串表示清除。
+- **退出后地址只存一处**: 以 `oauth2_registered_client` 里的为准（框架退出校验读的就是它）；`auth_client_ext.post_logout_redirect_uris` 列保留但不再使用。
+- **已知取舍**: 若 `auth-admin` 被停用，再次运行 bootstrap 会因查不到它而重复登记并失败；不额外处理。
+
+## D20 发现元数据、JWKS 与密钥轮换（US6 实现，含两处缺陷修复）
+
+- **轮换时无法签名（缺陷，已修）**: 把"当前密钥 + 仅验证的旧密钥"都放进 `JWKSource` 后，`NimbusJwtEncoder` 找到多把 ES256 密钥会拒绝签名，按 D5 的步骤轮换会让登录整体失败。现在 `JwkSourceConfig.jwtEncoder` 只用当前密钥签名，JWKS 端点仍发布全部公钥。T086 用真实重启走过"发布 → 切换 → 移除"三步验证。
+- **发现文档通告不实（缺陷，已修）**: 框架默认通告 `RS256`、`client_credentials`、`token-exchange`。现在 OIDC 与 OAuth 两份元数据都只通告 `ES256` 以及 `authorization_code`、`refresh_token`。
+- **下游验证**: 缓存 JWKS，遇到未知 `kid` 重新拉取一次再判定；校验 `alg`（仅 ES256）、`typ`（`at+jwt`）、`iss`、`exp`。测试里的 `support/TokenVerifier` 是参考实现。
+- **旧令牌的下限**: 旧公钥移除后，用它签的令牌无法再验证，所以旧公钥至少保留一个访问令牌有效期。
+
+## D21 过期数据清理、健康检查与性能（Polish）
+
+- **清理任务**: `ExpiredDataCleanupJob`，`@Scheduled`（默认启动后 1 分钟、之后每小时），所有实例都跑调度，但 `pg_try_advisory_xact_lock` 让同一时刻只有一个实例执行；时间一律用数据库时钟。授权按 `greatest(code, access, refresh 的过期时间)` 早于保留期删除，没有任何过期时间的行保留；`auth_sso_client` 按 `sid` 的哈希对 `spring_session` 做 `not exists`；已完成的退出通知用 `next_attempt_at`（对已完成的通知就是最后一次尝试的时间）计龄。不清理审计表。
+- **健康检查**: 只暴露 `/actuator/health`，匿名可访问，只含状态。其余端点不暴露。
+- **性能（SC-004）**: 500 并发登录，实测 p95 约 1.7 秒（12 线程笔记本，上限 2 秒）。瓶颈是 argon2：单次校验约 15–18 毫秒，12 线程吞吐约 300–400 次/秒。**测量必须关闭 JaCoCo**：agent 默认也给 BouncyCastle 的循环插桩，同一个测试 p95 会涨到 10 秒以上。该测试标记 `performance`，默认不跑。若部署硬件更弱，应增加实例，而不是降低 argon2 参数（当前内存参数 16 MiB 已低于 OWASP 建议的 19 MiB 下限，不应再降）。
+- **日志卫生**: `LogHygieneIT` 跑完全流程后断言日志与审计里没有密码、哈希、令牌、授权码、client secret。
+- **直接登录后落在 `/`**: auth 没有主页，没有待处理授权请求的登录成功后会重定向到 `/`，得到 404。这是"auth 只有登录页、改密页、错误页、已退出页"的设计结果，登录必须由 client 的授权请求发起；不为此加主页。

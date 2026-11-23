@@ -40,8 +40,8 @@ mvn test                    # 单元 + 集成 + 契约测试（*Test 与 *IT）
 mvn verify                  # 测试 + 覆盖率门禁（行覆盖率 ≥ 90%）+ 格式检查
 mvn test -Djacoco.skip=true -Dtest.excluded.groups=none -Dtest=LoginLoadIT   # 性能测试（SC-004），须关闭 JaCoCo
 docker compose up -d postgres
-mvn spring-boot:run -Dspring-boot.run.profiles=dev          # 启动（dev profile）
-mvn spring-boot:run -Dspring-boot.run.profiles=bootstrap    # 一次性：创建首个管理员与 auth-admin client
+mvn spring-boot:run -Dspring-boot.run.profiles=dev          # 启动（dev profile，需 AUTH_DEV_* 环境变量，默认端口 9000）
+printf '%s\n' '<密码>' | mvn spring-boot:run -Dspring-boot.run.profiles=bootstrap   # 一次性：创建首个管理员与 auth-admin client（需与服务相同的环境变量，含 AUTH_SIGNING_KEYS）
 ```
 
 ## 测试与覆盖率

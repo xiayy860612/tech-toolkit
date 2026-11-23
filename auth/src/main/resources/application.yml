@@ -20,6 +20,8 @@ spring:
       cleanup-cron: "0 */10 * * * *"
 
 server:
+  # the issuer's port by default (AUTH_ISSUER)
+  port: ${AUTH_PORT:9000}
   servlet:
     session:
       cookie:
