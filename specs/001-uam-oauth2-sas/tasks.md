@@ -180,15 +180,15 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 
 ### Tests for User Story 5（先写，并确认失败）
 
-- [ ] T070 [P] [US5] `auth/src/test/java/tech/toolkit/auth/admin/AdminClientApiIT.java`：对照 `contracts/admin-api.yaml` 测创建（机密 client 的 secret 只返回一次且库中只存哈希）、列表与详情不含 secret、`PATCH` 即时生效无需重启、停用与启用、凭据轮换后旧凭据被拒、重复 `clientId` 返回 `409`、访问令牌有效期不短于刷新令牌的创建与更新返回 `400`
-- [ ] T071 [P] [US5] `auth/src/test/java/tech/toolkit/auth/client/ClientIsolationIT.java`：一个 client 的凭据、回调地址、授权码与令牌不能被另一个 client 使用；新登记的 client4 可完成登录；停用 client2 不影响 client1、client3
+- [x] T070 [P] [US5] `auth/src/test/java/tech/toolkit/auth/admin/AdminClientApiIT.java`：对照 `contracts/admin-api.yaml` 测创建（机密 client 的 secret 只返回一次且库中只存哈希）、列表与详情不含 secret、`PATCH` 即时生效无需重启、停用与启用、凭据轮换后旧凭据被拒、重复 `clientId` 返回 `409`、访问令牌有效期不短于刷新令牌的创建与更新返回 `400`
+- [x] T071 [P] [US5] `auth/src/test/java/tech/toolkit/auth/client/ClientIsolationIT.java`：一个 client 的凭据、回调地址、授权码与令牌不能被另一个 client 使用；新登记的 client4 可完成登录；停用 client2 不影响 client1、client3
 
 ### Implementation for User Story 5
 
-- [ ] T072 [US5] `auth/src/main/java/tech/toolkit/auth/client/ClientService.java`：`RegisteredClient` 与 `auth_client_ext` 的读写、secret 哈希
-- [ ] T073 [US5] `auth/src/main/java/tech/toolkit/auth/admin/AdminClientController.java`：按 `contracts/admin-api.yaml`
-- [ ] T074 [US5] `auth/src/main/java/tech/toolkit/auth/client/ClientEnabledValidator.java`：授权与令牌请求中校验 client 启用；停用时调用 `AuthorizationRevocationService` 删除其授权
-- [ ] T075 [US5] 写 `CLIENT_CREATED`、`CLIENT_UPDATED` 审计：`auth/src/main/java/tech/toolkit/auth/audit/AuthAuditListener.java`
+- [x] T072 [US5] `auth/src/main/java/tech/toolkit/auth/client/ClientService.java`：`RegisteredClient` 与 `auth_client_ext` 的读写、secret 哈希
+- [x] T073 [US5] `auth/src/main/java/tech/toolkit/auth/admin/AdminClientController.java`：按 `contracts/admin-api.yaml`
+- [x] T074 [US5] `auth/src/main/java/tech/toolkit/auth/oauth/ClientTokenSettingsCustomizer.java`：停用的 client 对授权、令牌与退出端点一律不可见（不另设 validator）；停用时由 `AdminClientService` 经 `client.ClientAuthorizations` 端口调用 `AuthorizationRevocationService` 删除其授权
+- [x] T075 [US5] 写 `CLIENT_CREATED`、`CLIENT_UPDATED` 审计：在 `auth/src/main/java/tech/toolkit/auth/admin/AdminClientService.java` 中随每次变更记录（与用户管理一致，带管理员 actor，不含 secret）
 
 ---
 
@@ -200,13 +200,13 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 
 ### Tests for User Story 6（先写，并确认失败）
 
-- [ ] T076 [P] [US6] `auth/src/test/java/tech/toolkit/auth/oauth/DiscoveryAndJwksIT.java`：`/.well-known/openid-configuration`、`/.well-known/oauth-authorization-server` 与 `/oauth2/jwks` 可访问并返回合法内容（公钥内容的断言见 T016）；离线验证令牌的签名、`typ`、`iss`、`exp`
-- [ ] T077 [P] [US6] `auth/src/test/java/tech/toolkit/auth/oauth/KeyRotationIT.java`：轮换过程中旧令牌在有效期内仍可验证、新令牌用新密钥签发、失败率为 0（SC-007）；未知 `kid` 时可取到最新公钥
-- [ ] T078 [P] [US6] `auth/src/test/java/tech/toolkit/auth/oauth/TokenVerificationTest.java`：被篡改、过期、`iss` 不符的令牌验证失败
+- [x] T076 [P] [US6] `auth/src/test/java/tech/toolkit/auth/oauth/DiscoveryAndJwksIT.java`：`/.well-known/openid-configuration`、`/.well-known/oauth-authorization-server` 与 `/oauth2/jwks` 可访问并返回合法内容（公钥内容的断言见 T016）；离线验证令牌的签名、`typ`、`iss`、`exp`
+- [x] T077 [P] [US6] `auth/src/test/java/tech/toolkit/auth/oauth/KeyRotationIT.java`：轮换过程中旧令牌在有效期内仍可验证、新令牌用新密钥签发、失败率为 0（SC-007）；未知 `kid` 时可取到最新公钥
+- [x] T078 [P] [US6] `auth/src/test/java/tech/toolkit/auth/oauth/TokenVerificationTest.java`：被篡改、过期、`iss` 不符的令牌验证失败
 
 ### Implementation for User Story 6
 
-- [ ] T079 [P] [US6] `auth/src/test/java/tech/toolkit/auth/support/TokenVerifier.java`：测试用的下游验证工具，同时更新 `auth/AGENTS.md` 的“密钥轮换”步骤（先发布新公钥 → 切换签名 → 旧公钥保留至少一个访问令牌有效期后移除）
+- [x] T079 [P] [US6] `auth/src/test/java/tech/toolkit/auth/support/TokenVerifier.java`：测试用的下游验证工具，同时更新 `auth/AGENTS.md` 的“密钥轮换”步骤（先发布新公钥 → 切换签名 → 旧公钥保留至少一个访问令牌有效期后移除）
 
 ---
 

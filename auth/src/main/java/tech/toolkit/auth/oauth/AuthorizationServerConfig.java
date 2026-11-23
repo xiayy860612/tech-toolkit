@@ -16,6 +16,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OidcLogoutEndpointConfigurer;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -84,10 +85,25 @@ public class AuthorizationServerConfig {
                                               authorizationRequestValidator());
                                         }
                                       })))
+                  .authorizationServerMetadataEndpoint(
+                      metadata ->
+                          metadata.authorizationServerMetadataCustomizer(
+                              doc -> doc.grantTypes(AuthorizationServerConfig::onlyOurGrantTypes)))
                   .oidc(
                       oidc ->
                           oidc.userInfoEndpoint(info -> info.userInfoMapper(userInfoMapper))
-                              .logoutEndpoint(logoutEndpoint));
+                              .logoutEndpoint(logoutEndpoint)
+                              .providerConfigurationEndpoint(
+                                  provider ->
+                                      provider.providerConfigurationCustomizer(
+                                          doc ->
+                                              doc.grantTypes(
+                                                      AuthorizationServerConfig::onlyOurGrantTypes)
+                                                  .idTokenSigningAlgorithms(
+                                                      algorithms -> {
+                                                        algorithms.clear();
+                                                        algorithms.add("ES256");
+                                                      }))));
             })
         .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
         .exceptionHandling(
@@ -100,6 +116,13 @@ public class AuthorizationServerConfig {
         // a forced password change comes before any authorization
         .addFilterAfter(new PasswordChangeRequiredFilter(), SecurityContextHolderFilter.class);
     return http.build();
+  }
+
+  /** The framework lists every grant it could do; we only offer code (with PKCE) and refresh. */
+  private static void onlyOurGrantTypes(java.util.List<String> grantTypes) {
+    grantTypes.clear();
+    grantTypes.add(AuthorizationGrantType.AUTHORIZATION_CODE.getValue());
+    grantTypes.add(AuthorizationGrantType.REFRESH_TOKEN.getValue());
   }
 
   /**

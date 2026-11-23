@@ -60,3 +60,5 @@ mvn spring-boot:run -Dspring-boot.run.profiles=bootstrap    # 一次性：创建
 1. 生成新的 ES256 PEM，把它加入 `AUTH_SIGNING_KEYS`，**放在当前密钥之后**（仅验证），滚动重启，JWKS 同时发布新旧公钥。
 2. 等下游缓存刷新后，把新密钥调到第一位（成为签名密钥），再次滚动重启。
 3. 旧公钥至少保留一个访问令牌有效期（默认 10 分钟）后再移除。
+
+下游服务应缓存 JWKS，遇到未知 `kid` 时重新拉取一次再判定（测试用的实现见 `support/TokenVerifier`，全过程见 `oauth/KeyRotationIT`）。签名只用第一把密钥（`JwkSourceConfig.jwtEncoder`），其余密钥只出现在 JWKS 里。
