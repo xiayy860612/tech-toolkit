@@ -7,80 +7,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import com.nimbusds.jwt.SignedJWT;
 import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import tech.toolkit.auth.bootstrap.BootstrapService;
-import tech.toolkit.auth.support.OAuthTestBase;
+import tech.toolkit.auth.support.AdminApiTestBase;
 import tools.jackson.databind.JsonNode;
 
 /** FR-019, FR-019a: the administrator's user API, protected by the {@code auth.admin} scope. */
-class AdminUserApiIT extends OAuthTestBase {
-
-  private static final String ADMIN = "root";
-  private static final String ADMIN_PASSWORD = "Admin-Passw0rd-12345!";
-  private static final String ADMIN_REDIRECT = "http://127.0.0.1:8765/callback";
-
-  @Autowired BootstrapService bootstrap;
-
-  private String adminToken;
-
-  @BeforeEach
-  void anAdministratorWithAToken() throws Exception {
-    bootstrap.run(ADMIN, ADMIN_PASSWORD, List.of(ADMIN_REDIRECT));
-    ownerJdbc()
-        .update("update auth_user set must_change_password = false where username = ?", ADMIN);
-    adminToken = tokenOf(ADMIN, ADMIN_PASSWORD, "openid auth.admin");
-  }
-
-  /** Logs in to the admin tools' client and returns the access token. */
-  private String tokenOf(String username, String password, String scope) throws Exception {
-    String verifier = newVerifier();
-    CodeResult granted =
-        obtainCode(
-            new Browser(),
-            "auth-admin",
-            ADMIN_REDIRECT,
-            challengeOf(verifier),
-            scope,
-            username,
-            password);
-    MvcResult response = exchangePublic("auth-admin", granted.code(), ADMIN_REDIRECT, verifier);
-    JsonNode body = JSON.readTree(response.getResponse().getContentAsString());
-    if (!body.has("access_token")) {
-      throw new IllegalStateException(
-          "no token for " + username + ": " + response.getResponse().getStatus());
-    }
-    return body.get("access_token").asString();
-  }
-
-  private MockHttpServletRequestBuilder withToken(
-      MockHttpServletRequestBuilder request, String token) {
-    return request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
-  }
-
-  private MvcResult call(MockHttpServletRequestBuilder request) throws Exception {
-    return mvc.perform(withToken(request, adminToken)).andReturn();
-  }
+class AdminUserApiIT extends AdminApiTestBase {
 
   private MvcResult createUser(String username, String password, boolean admin) throws Exception {
     String body =
         "{\"username\":\"%s\",\"initialPassword\":\"%s\",\"admin\":%s}"
             .formatted(username, password, admin);
     return call(post("/admin/v1/users").contentType(MediaType.APPLICATION_JSON).content(body));
-  }
-
-  private JsonNode json(MvcResult result) throws Exception {
-    return JSON.readTree(result.getResponse().getContentAsString());
-  }
-
-  private long idOf(String username) {
-    return ownerJdbc()
-        .queryForObject("select id from auth_user where username = ?", Long.class, username);
   }
 
   // ---- who may call it

@@ -11,10 +11,11 @@ import tech.toolkit.auth.client.ClientExtRepository;
 import tech.toolkit.auth.config.AuthProperties;
 
 /**
- * Gives each client its own token lifetimes (FR-013). The values live in {@code auth_client_ext}
- * and are read whenever a client is loaded, so a change takes effect without a restart. A pair that
- * would make the access token live as long as or longer than the refresh token is ignored and the
- * client keeps its registered lifetimes.
+ * Hides a disabled client from every OAuth endpoint (FR-022), and gives each client its own token
+ * lifetimes (FR-013). The values live in {@code auth_client_ext} and are read whenever a client is
+ * loaded, so a change takes effect without a restart. A pair that would make the access token live
+ * as long as or longer than the refresh token is ignored and the client keeps its registered
+ * lifetimes.
  */
 public class ClientTokenSettingsCustomizer implements RegisteredClientRepository {
 
@@ -49,6 +50,10 @@ public class ClientTokenSettingsCustomizer implements RegisteredClientRepository
       return null;
     }
     ClientExt ext = extensions.find(client.getClientId()).orElse(null);
+    if (ext != null && !ext.enabled()) {
+      // a disabled client is unknown to the authorization, token and logout endpoints (FR-022)
+      return null;
+    }
     if (ext == null
         || (ext.accessTokenTtlSeconds() == null && ext.refreshTokenTtlSeconds() == null)) {
       return client;

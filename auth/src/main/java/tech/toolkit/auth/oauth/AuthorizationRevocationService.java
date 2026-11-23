@@ -2,13 +2,14 @@ package tech.toolkit.auth.oauth;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import tech.toolkit.auth.client.ClientAuthorizations;
 
 /**
  * Deletes stored authorizations (codes, access and refresh tokens) so they can no longer be used:
  * on logout, disable, password change, forced sign-out and client deactivation (FR-012).
  */
 @Service
-public class AuthorizationRevocationService {
+public class AuthorizationRevocationService implements ClientAuthorizations {
 
   private final JdbcTemplate jdbc;
 
@@ -23,6 +24,7 @@ public class AuthorizationRevocationService {
   }
 
   /** Every authorization issued to one client, for all users. */
+  @Override
   public int revokeByClientId(String clientId) {
     require(clientId, "clientId");
     return jdbc.update(

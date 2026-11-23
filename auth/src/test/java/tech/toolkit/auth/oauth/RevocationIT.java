@@ -60,7 +60,11 @@ class RevocationIT extends OAuthTestBase {
                 .getContentAsString());
     clientExt.upsert(new ClientExt(CLIENT1, false, null, null, null, null));
 
-    assertInvalidGrant(refresh(CLIENT1, SECRET1, refreshTokenOf(first)));
+    // a disabled client is unknown to the token endpoint: it fails client authentication (FR-022)
+    MvcResult refused = refresh(CLIENT1, SECRET1, refreshTokenOf(first));
+    assertThat(refused.getResponse().getStatus()).isEqualTo(401);
+    assertThat(JSON.readTree(refused.getResponse().getContentAsString()).get("error").asString())
+        .isEqualTo("invalid_client");
     assertThat(refresh(CLIENT2, SECRET2, refreshTokenOf(second)).getResponse().getStatus())
         .isEqualTo(200);
   }
