@@ -12,7 +12,9 @@ public record User(
     boolean mustChangePassword,
     int failedAttempts,
     Instant lockedUntil,
-    Instant passwordChangedAt) {
+    Instant passwordChangedAt,
+    Instant createdAt,
+    Instant updatedAt) {
 
   public enum Status {
     ENABLED,

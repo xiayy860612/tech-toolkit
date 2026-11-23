@@ -1,0 +1,9 @@
+spring:
+  main:
+    # one-off command: run the bootstrap and exit, no web server
+    web-application-type: none
+
+auth:
+  bootstrap:
+    admin-username: ${AUTH_BOOTSTRAP_ADMIN_USERNAME:admin}
+    admin-redirect-uris: ${AUTH_ADMIN_REDIRECT_URIS:}

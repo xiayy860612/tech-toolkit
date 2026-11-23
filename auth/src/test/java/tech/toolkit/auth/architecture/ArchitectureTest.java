@@ -53,6 +53,8 @@ class ArchitectureTest {
         // instance fields only: static constants such as a SECRET_KEY pattern hold no secret
         return javaClass.getFields().stream()
             .filter(f -> !f.getModifiers().contains(JavaModifier.STATIC))
+            // a flag such as mustChangePassword is not a secret
+            .filter(f -> !f.getRawType().isEquivalentTo(boolean.class))
             .anyMatch(f -> f.getName().matches("(?i).*(password|secret|privatekey|hash).*"));
       }
     };

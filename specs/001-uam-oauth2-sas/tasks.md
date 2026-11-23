@@ -151,24 +151,24 @@ description: "auth（OAuth 2.0 / OIDC 授权服务器）实现任务清单"
 
 ### Tests for User Story 4（先写，并确认失败）
 
-- [ ] T055 [P] [US4] `auth/src/test/java/tech/toolkit/auth/account/PasswordPolicyTest.java`：长度 ≥ 12、不在常见弱密码表中、不等于用户名
-- [ ] T056 [P] [US4] `auth/src/test/java/tech/toolkit/auth/account/LockoutIT.java`：连续失败 5 次锁定 15 分钟、锁定期内的失败不延长、登录成功后计数清零、阈值与时长可配置、多实例下计数原子；锁定期间的响应与密码错误逐字相同（不泄漏账号是否存在或是否被锁）
-- [ ] T057 [P] [US4] `auth/src/test/java/tech/toolkit/auth/account/ChangePasswordIT.java`：改密需要当前密码、满足策略、成功后其他会话与授权失效；`must_change_password` 为 true 时登录后先跳转改密页
-- [ ] T058 [P] [US4] `auth/src/test/java/tech/toolkit/auth/account/LoginRateLimitIT.java`：按来源 IP 的令牌桶，超限返回 `429` 且带 `Retry-After`
-- [ ] T059 [P] [US4] `auth/src/test/java/tech/toolkit/auth/admin/AdminUserApiIT.java`：对照 `contracts/admin-api.yaml` 测创建（`201`、重复用户名 `409`）、列表、详情、禁用、启用、解锁、重置密码、强制下线；未带令牌 `401`，普通用户与其他 client 的令牌 `403`；`auth.admin` 只发给“管理员 + 被允许的 client”，且每次请求实时校验该用户仍是启用的管理员
-- [ ] T060 [P] [US4] `auth/src/test/java/tech/toolkit/auth/bootstrap/BootstrapAdminIT.java`：`bootstrap` profile 创建第一个管理员，密码来自交互或标准输入而非命令行参数，`must_change_password` 为 true；同时登记公开 client `auth-admin`（授权码 + PKCE、scope 含 `auth.admin`、回环回调取自 `AUTH_ADMIN_REDIRECT_URIS`）；重复执行幂等，不重复登记
+- [x] T055 [P] [US4] `auth/src/test/java/tech/toolkit/auth/account/PasswordPolicyTest.java`：长度 ≥ 12、不在常见弱密码表中、不等于用户名
+- [x] T056 [P] [US4] `auth/src/test/java/tech/toolkit/auth/account/LockoutIT.java`：连续失败 5 次锁定 15 分钟、锁定期内的失败不延长、登录成功后计数清零、阈值与时长可配置、多实例下计数原子；锁定期间的响应与密码错误逐字相同（不泄漏账号是否存在或是否被锁）
+- [x] T057 [P] [US4] `auth/src/test/java/tech/toolkit/auth/account/ChangePasswordIT.java`：改密需要当前密码、满足策略、成功后其他会话与授权失效；`must_change_password` 为 true 时登录后先跳转改密页
+- [x] T058 [P] [US4] `auth/src/test/java/tech/toolkit/auth/account/LoginRateLimitIT.java`：按来源 IP 的令牌桶，超限返回 `429` 且带 `Retry-After`
+- [x] T059 [P] [US4] `auth/src/test/java/tech/toolkit/auth/admin/AdminUserApiIT.java`：对照 `contracts/admin-api.yaml` 测创建（`201`、重复用户名 `409`）、列表、详情、禁用、启用、解锁、重置密码、强制下线；未带令牌 `401`，普通用户与其他 client 的令牌 `403`；`auth.admin` 只发给“管理员 + 被允许的 client”，且每次请求实时校验该用户仍是启用的管理员
+- [x] T060 [P] [US4] `auth/src/test/java/tech/toolkit/auth/bootstrap/BootstrapAdminIT.java`：`bootstrap` profile 创建第一个管理员，密码来自交互或标准输入而非命令行参数，`must_change_password` 为 true；同时登记公开 client `auth-admin`（授权码 + PKCE、scope 含 `auth.admin`、回环回调取自 `AUTH_ADMIN_REDIRECT_URIS`）；重复执行幂等，不重复登记
 
 ### Implementation for User Story 4
 
-- [ ] T061 [P] [US4] `auth/src/main/java/tech/toolkit/auth/account/PasswordPolicy.java` 与 `auth/src/main/resources/common-passwords.txt`
-- [ ] T062 [US4] `auth/src/main/java/tech/toolkit/auth/account/LockoutService.java`：单条 `UPDATE … RETURNING` 原子递增，`locked_until` 取当前时间加 15 分钟
-- [ ] T063 [US4] `auth/src/main/java/tech/toolkit/auth/account/LoginAttemptHandler.java`：登录成功与失败的处理，写 `ACCOUNT_LOCKED`
-- [ ] T064 [P] [US4] `auth/src/main/java/tech/toolkit/auth/account/ChangePasswordController.java` 与 `auth/src/main/resources/templates/change-password.html`
-- [ ] T065 [P] [US4] `auth/src/main/java/tech/toolkit/auth/account/LoginRateLimitFilter.java`：进程内令牌桶
-- [ ] T066 [US4] `auth/src/main/java/tech/toolkit/auth/admin/AdminSecurityConfig.java` 与 `AdminScopeCustomizer.java`：资源服务器、`auth.admin` scope 校验与实时管理员校验；只有 client 登记的 scope 含 `auth.admin` 且用户是启用的管理员时才签发该 scope（`auth-admin` client 由 bootstrap 登记，不依赖 dev 种子）
-- [ ] T067 [US4] `auth/src/main/java/tech/toolkit/auth/admin/AdminUserController.java` 与 `AdminUserService.java`：按 `contracts/admin-api.yaml`，禁用、重置密码、强制下线时调用 `AuthorizationRevocationService` 与 `LogoutService`
-- [ ] T068 [US4] `auth/src/main/java/tech/toolkit/auth/bootstrap/BootstrapAdminRunner.java`：创建第一个管理员，并幂等登记 `auth-admin` client
-- [ ] T069 [US4] 写 `USER_CREATED`、`USER_UPDATED`、`PASSWORD_CHANGED` 审计（含执行操作的管理员）：`auth/src/main/java/tech/toolkit/auth/audit/AuthAuditListener.java`
+- [x] T061 [P] [US4] `auth/src/main/java/tech/toolkit/auth/account/PasswordPolicy.java` 与 `auth/src/main/resources/common-passwords.txt`
+- [x] T062 [US4] `auth/src/main/java/tech/toolkit/auth/account/LockoutService.java`：单条 `UPDATE … RETURNING` 原子递增，`locked_until` 取当前时间加 15 分钟
+- [x] T063 [US4] `auth/src/main/java/tech/toolkit/auth/account/LoginAttemptHandler.java`：登录成功与失败的处理，写 `ACCOUNT_LOCKED`
+- [x] T064 [P] [US4] `auth/src/main/java/tech/toolkit/auth/account/ChangePasswordController.java` 与 `auth/src/main/resources/templates/change-password.html`
+- [x] T065 [P] [US4] `auth/src/main/java/tech/toolkit/auth/account/LoginRateLimitFilter.java`：进程内令牌桶
+- [x] T066 [US4] `auth/src/main/java/tech/toolkit/auth/admin/AdminSecurityConfig.java` 与 `AdminScopeCustomizer.java`：资源服务器、`auth.admin` scope 校验与实时管理员校验；只有 client 登记的 scope 含 `auth.admin` 且用户是启用的管理员时才签发该 scope（`auth-admin` client 由 bootstrap 登记，不依赖 dev 种子）
+- [x] T067 [US4] `auth/src/main/java/tech/toolkit/auth/admin/AdminUserController.java` 与 `AdminUserService.java`：按 `contracts/admin-api.yaml`，禁用、重置密码、强制下线时调用 `AuthorizationRevocationService` 与 `LogoutService`
+- [x] T068 [US4] `auth/src/main/java/tech/toolkit/auth/bootstrap/BootstrapAdminRunner.java`：创建第一个管理员，并幂等登记 `auth-admin` client
+- [x] T069 [US4] 写 `USER_CREATED`、`USER_UPDATED`、`PASSWORD_CHANGED` 审计（含执行操作的管理员）：`auth/src/main/java/tech/toolkit/auth/audit/AuthAuditListener.java`
 
 ---
 

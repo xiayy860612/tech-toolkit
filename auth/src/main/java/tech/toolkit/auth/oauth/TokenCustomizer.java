@@ -9,6 +9,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.stereotype.Component;
+import tech.toolkit.auth.admin.AdminScopeCustomizer;
 import tech.toolkit.auth.config.AuthProperties;
 
 /**
@@ -21,8 +22,11 @@ public class TokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingContext
 
   private final String issuer;
 
-  public TokenCustomizer(AuthProperties properties) {
+  private final AdminScopeCustomizer adminScope;
+
+  public TokenCustomizer(AuthProperties properties, AdminScopeCustomizer adminScope) {
     this.issuer = properties.issuer();
+    this.adminScope = adminScope;
   }
 
   @Override
@@ -35,6 +39,8 @@ public class TokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingContext
     String clientId = context.getRegisteredClient().getClientId();
 
     if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+      // the admin scope is only kept for an enabled administrator (FR-019a)
+      adminScope.restrict(context);
       context.getJwsHeader().type("at+jwt").algorithm(SignatureAlgorithm.ES256);
       // Collections.singletonList, not List.of: the authorization store only deserializes
       // allow-listed types

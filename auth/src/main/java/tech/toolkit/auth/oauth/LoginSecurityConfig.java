@@ -11,7 +11,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import tech.toolkit.auth.account.LoginAttemptHandler;
+import tech.toolkit.auth.account.LoginRateLimitFilter;
+import tech.toolkit.auth.account.PasswordChangeRequiredFilter;
 import tech.toolkit.auth.account.StatusCheckingAuthenticationProvider;
+import tech.toolkit.auth.account.TokenBucketLimiter;
+import tech.toolkit.auth.account.User;
 import tech.toolkit.auth.account.UserRepository;
 import tech.toolkit.auth.config.AuthProperties;
 
@@ -30,14 +35,25 @@ public class LoginSecurityConfig {
   /** Being a bean also switches off Spring Boot's generated default user. */
   @Bean
   public AuthenticationProvider authenticationProvider(
-      UserRepository users, PasswordEncoder encoder) {
-    return new StatusCheckingAuthenticationProvider(users, encoder);
+      UserRepository users, PasswordEncoder encoder, LoginAttemptHandler attempts) {
+    return new StatusCheckingAuthenticationProvider(users, encoder, attempts);
+  }
+
+  @Bean
+  public TokenBucketLimiter loginLimiter(Clock clock, AuthProperties properties) {
+    return new TokenBucketLimiter(
+        properties.rateLimit().loginCapacity(), properties.rateLimit().loginRefill(), clock);
   }
 
   @Bean
   @Order(2)
   public SecurityFilterChain loginFilterChain(
-      HttpSecurity http, AuthProperties properties, Clock clock) throws Exception {
+      HttpSecurity http,
+      AuthProperties properties,
+      Clock clock,
+      TokenBucketLimiter loginLimiter,
+      UserRepository users)
+      throws Exception {
     SavedRequestAwareAuthenticationSuccessHandler continueToSavedRequest =
         new SavedRequestAwareAuthenticationSuccessHandler();
     http.authorizeHttpRequests(
@@ -55,13 +71,27 @@ public class LoginSecurityConfig {
                     .successHandler(
                         (request, response, authentication) -> {
                           ReauthenticationFilter.onLogin(request.getSession(), clock.instant());
+                          boolean mustChange =
+                              users
+                                  .findById(Long.parseLong(authentication.getName()))
+                                  .map(User::mustChangePassword)
+                                  .orElse(false);
+                          if (mustChange) {
+                            // the saved request stays parked until the password has been changed
+                            request
+                                .getSession()
+                                .setAttribute(PasswordChangeRequiredFilter.REQUIRED, true);
+                            response.sendRedirect(request.getContextPath() + "/account/password");
+                            return;
+                          }
                           continueToSavedRequest.onAuthenticationSuccess(
                               request, response, authentication);
                         }))
         .addFilterBefore(
             new LoginRequestExpiryFilter(
                 clock, Duration.ofSeconds(properties.login().requestTtlSeconds())),
-            UsernamePasswordAuthenticationFilter.class);
+            UsernamePasswordAuthenticationFilter.class)
+        .addFilterBefore(new LoginRateLimitFilter(loginLimiter), LoginRequestExpiryFilter.class);
     return http.build();
   }
 }

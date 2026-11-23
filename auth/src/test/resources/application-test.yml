@@ -1,4 +1,7 @@
 auth:
+  rate-limit:
+    # high, so that tests logging in many times from one address do not trip it; LoginRateLimitIT lowers it
+    login-capacity: 100000
   logout:
     # tests call the worker themselves; BackChannelLogoutSlaIT turns the scheduler on
     worker-enabled: false

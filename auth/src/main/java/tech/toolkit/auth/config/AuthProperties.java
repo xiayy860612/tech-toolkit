@@ -13,7 +13,9 @@ public record AuthProperties(
     @DefaultValue Tokens tokens,
     @DefaultValue Login login,
     @DefaultValue Session session,
-    @DefaultValue Logout logout) {
+    @DefaultValue Logout logout,
+    @DefaultValue Lockout lockout,
+    @DefaultValue RateLimit rateLimit) {
 
   public record Tokens(
       /** Access token lifetime (spec: default 10 minutes, at most 15). */
@@ -47,6 +49,18 @@ public record AuthProperties(
       @DefaultValue("5s") Duration httpTimeout,
       /** Waits before each retry; after the last one a notice is given up. */
       @DefaultValue({"1s", "5s", "30s", "2m", "10m"}) List<Duration> retryDelays) {}
+
+  public record Lockout(
+      /** Failed logins in a row that lock the account (FR-018: 5). */
+      @DefaultValue("5") int maxAttempts,
+      /** How long a lock lasts (FR-018: 15 minutes). */
+      @DefaultValue("15m") Duration duration) {}
+
+  public record RateLimit(
+      /** Login submissions one source address may make in a burst. */
+      @DefaultValue("20") int loginCapacity,
+      /** One more login submission is allowed per source address after this time. */
+      @DefaultValue("3s") Duration loginRefill) {}
 
   public record Login(
       /** How long a shown login page may be submitted (FR-002a), in seconds. */

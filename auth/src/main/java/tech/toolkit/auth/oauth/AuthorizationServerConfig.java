@@ -41,6 +41,7 @@ import org.springframework.security.web.authentication.LoginUrlAuthenticationEnt
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.util.StringUtils;
+import tech.toolkit.auth.account.PasswordChangeRequiredFilter;
 import tech.toolkit.auth.account.UserRepository;
 import tech.toolkit.auth.audit.AuditService;
 import tech.toolkit.auth.client.ClientExtRepository;
@@ -95,7 +96,9 @@ public class AuthorizationServerConfig {
                     new LoginUrlAuthenticationEntryPoint("/login"), browserRequests()))
         .oauth2ResourceServer(resource -> resource.jwt(jwt -> jwt.decoder(jwtDecoder)))
         // before the OAuth endpoints, right after the login has been read from the session
-        .addFilterAfter(new ReauthenticationFilter(clock), SecurityContextHolderFilter.class);
+        .addFilterAfter(new ReauthenticationFilter(clock), SecurityContextHolderFilter.class)
+        // a forced password change comes before any authorization
+        .addFilterAfter(new PasswordChangeRequiredFilter(), SecurityContextHolderFilter.class);
     return http.build();
   }
 

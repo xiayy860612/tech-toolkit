@@ -67,7 +67,7 @@ public abstract class OAuthTestBase extends PostgresTestBase {
     public Browser() {}
 
     public MvcResult get(String uri) throws Exception {
-      return send(MockMvcRequestBuilders.get(uri).accept(MediaType.TEXT_HTML));
+      return send(MockMvcRequestBuilders.get(URI.create(uri)).accept(MediaType.TEXT_HTML));
     }
 
     /** A form post with a valid CSRF token. */
@@ -108,16 +108,23 @@ public abstract class OAuthTestBase extends PostgresTestBase {
 
   protected static String authorizeUri(
       String clientId, String redirectUri, String state, String challenge) {
+    return authorizeUri(clientId, redirectUri, state, challenge, "openid");
+  }
+
+  protected static String authorizeUri(
+      String clientId, String redirectUri, String state, String challenge, String scope) {
     return UriComponentsBuilder.fromPath("/oauth2/authorize")
         .queryParam("response_type", "code")
         .queryParam("client_id", clientId)
         .queryParam("redirect_uri", redirectUri)
-        .queryParam("scope", "openid")
+        .queryParam("scope", scope)
         .queryParam("state", state)
         .queryParam("nonce", "nonce-1")
         .queryParam("code_challenge", challenge)
         .queryParam("code_challenge_method", "S256")
         .build()
+        // encoded here, and sent as a ready URI so that MockMvc does not encode it a second time
+        // (a two-scope request would turn its %20 into %2520)
         .encode()
         .toUriString();
   }
@@ -139,17 +146,58 @@ public abstract class OAuthTestBase extends PostgresTestBase {
   /** authorize → login → authorize again, and returns the code from the final redirect. */
   protected CodeResult obtainCode(
       Browser browser, String clientId, String redirectUri, String challenge) throws Exception {
-    String uri = authorizeUri(clientId, redirectUri, "state-1", challenge);
-    authorize(browser, uri);
-    String afterLogin = signIn(browser, USERNAME, PASSWORD).getResponse().getRedirectedUrl();
+    return obtainCode(browser, clientId, redirectUri, challenge, "openid", USERNAME, PASSWORD);
+  }
+
+  protected CodeResult obtainCode(
+      Browser browser,
+      String clientId,
+      String redirectUri,
+      String challenge,
+      String scope,
+      String username,
+      String password)
+      throws Exception {
+    String uri = authorizeUri(clientId, redirectUri, "state-1", challenge, scope);
+    MvcResult first = authorize(browser, uri);
+    String afterLogin = signIn(browser, username, password).getResponse().getRedirectedUrl();
     URI target = URI.create(afterLogin);
     String path =
         target.getRawPath() + (target.getRawQuery() == null ? "" : "?" + target.getRawQuery());
     MvcResult granted = authorize(browser, path);
     String location = granted.getResponse().getRedirectedUrl();
+    if (location == null) {
+      throw new IllegalStateException(
+          "the first authorization request "
+              + uri
+              + " answered "
+              + first.getResponse().getStatus()
+              + " "
+              + first.getResponse().getRedirectedUrl()
+              + " "
+              + first.getResponse().getErrorMessage()
+              + "; the authorization did not redirect: status "
+              + granted.getResponse().getStatus()
+              + ", "
+              + granted.getResponse().getErrorMessage());
+    }
     String code =
         UriComponentsBuilder.fromUriString(location).build().getQueryParams().getFirst("code");
     return new CodeResult(browser, code, location);
+  }
+
+  /** The token request of a public client (no secret): it proves itself with the PKCE verifier. */
+  protected MvcResult exchangePublic(
+      String clientId, String code, String redirectUri, String verifier) throws Exception {
+    return mvc.perform(
+            post("/oauth2/token")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("client_id", clientId)
+                .param("grant_type", "authorization_code")
+                .param("code", code)
+                .param("redirect_uri", redirectUri)
+                .param("code_verifier", verifier))
+        .andReturn();
   }
 
   protected MvcResult exchange(
