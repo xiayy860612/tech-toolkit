@@ -1,13 +1,14 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: keycloak-postgres
     environment:
       POSTGRES_DB: ${KC_DB_NAME:-keycloak}
       POSTGRES_USER: ${KC_DB_USERNAME:-keycloak}
       POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?set KC_DB_PASSWORD in .env}
     volumes:
-      - keycloak-pgdata:/var/lib/postgresql/data
+      # PG 18 起镜像的 PGDATA 为 /var/lib/postgresql/18/docker，卷需挂到上级目录
+      - keycloak-pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
