@@ -1,35 +1,59 @@
-# 生产形态部署：nginx(TLS 终止) -> keycloak(start --optimized, 仅内网 HTTP) -> 已存在的外部 PostgreSQL
-# 本地验证与生产使用同一份文件，差异只在 .env.prod 的取值（域名、端口、证书路径、密码）。
+# 生产形态部署（单机 VM）：keycloak(start --optimized, 自带 TLS, 直接对公网) -> postgres
+# 本地验证与生产使用同一份文件，差异只在 .env.prod 的取值（域名、端口、证书路径、密码、镜像源）。
 name: keycloak-prod
 
 services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:18-alpine}
+    environment:
+      POSTGRES_DB: ${KC_DB_NAME:-keycloak}
+      POSTGRES_USER: ${KC_DB_USERNAME:-keycloak}
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?set KC_DB_PASSWORD in .env.prod}
+    volumes:
+      # PG 18 起镜像的 PGDATA 为 /var/lib/postgresql/18/docker，卷需挂到上级目录
+      - pgdata:/var/lib/postgresql
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   keycloak:
     build:
       context: .
       args:
-        KEYCLOAK_VERSION: ${KEYCLOAK_VERSION:-26.4}
+        # 基础镜像地址；国内网络访问 quay.io 不稳定时，可改为自己镜像仓库（如腾讯云 TCR）中的同版本镜像
+        KEYCLOAK_BASE_IMAGE: ${KEYCLOAK_BASE_IMAGE:-quay.io/keycloak/keycloak:26.4}
     image: keycloak-prod:${KEYCLOAK_VERSION:-26.4}
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?set KC_BOOTSTRAP_ADMIN_PASSWORD in .env.prod}
-      # 使用已存在的 PostgreSQL：库与账号需预先创建（见 AGENTS.md），本 compose 不管理数据库
-      KC_DB_URL: jdbc:postgresql://${KC_DB_HOST:?set KC_DB_HOST in .env.prod}:${KC_DB_PORT:-5432}/${KC_DB_NAME:-keycloak}${KC_DB_URL_PARAMS:-}
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${KC_DB_NAME:-keycloak}
       KC_DB_USERNAME: ${KC_DB_USERNAME:-keycloak}
       KC_DB_PASSWORD: ${KC_DB_PASSWORD:?set KC_DB_PASSWORD in .env.prod}
-      # 对外地址（含协议与端口），决定 issuer 与重定向 URL
+      # 对外地址（含协议；非默认端口要带端口），决定 issuer 与重定向 URL
       KC_HOSTNAME: ${KC_HOSTNAME:?set KC_HOSTNAME in .env.prod}
-      # 对外 TLS 在 nginx 终止；容器间走 HTTP，且不对宿主机暴露端口
-      KC_HTTP_ENABLED: "true"
-      KC_PROXY_HEADERS: xforwarded
-      # 健康/指标走独立管理端口 9000，不经 nginx 暴露
+      # Keycloak 自己终止 TLS，不再监听明文 HTTP；不经反向代理，故不设 KC_PROXY_HEADERS
+      KC_HTTP_ENABLED: "false"
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/certs/tls.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/certs/tls.key
+      # 健康/指标走独立管理端口 9000（不映射到宿主机）；用明文 HTTP 便于容器内健康检查
       KC_HTTP_MANAGEMENT_PORT: 9000
+      KC_HTTP_MANAGEMENT_SCHEME: http
+    ports:
+      # 宿主机端口 -> 容器 HTTPS 8443；生产用 443
+      - "${KEYCLOAK_HTTPS_PORT:-443}:8443"
     expose:
-      - "8080"
       - "9000"
-    # 让容器内可用 host.docker.internal 访问宿主机上的数据库（Linux 需要此映射；本地验证用）
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    volumes:
+      # 证书目录需对容器内用户（uid 1000）可读，详见 DEPLOYMENT.md
+      - ${TLS_CERT_DIR:-./certs}:/opt/keycloak/conf/certs:ro
     networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
       interval: 15s
@@ -38,22 +62,8 @@ services:
       start_period: 40s
     restart: unless-stopped
 
-  proxy:
-    image: nginx:1.27-alpine
-    environment:
-      SERVER_NAME: ${SERVER_NAME:-localhost}
-      KC_HOSTNAME: ${KC_HOSTNAME}
-    ports:
-      - "${PROXY_HTTPS_PORT:-443}:443"
-      - "${PROXY_HTTP_PORT:-80}:80"
-    volumes:
-      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - ${TLS_CERT_DIR:-./certs}:/etc/nginx/certs:ro
-    networks: [backend]
-    depends_on:
-      keycloak:
-        condition: service_healthy
-    restart: unless-stopped
-
 networks:
   backend:
+
+volumes:
+  pgdata:
