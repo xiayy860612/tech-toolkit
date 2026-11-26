@@ -1,25 +1,8 @@
-# 生产形态部署：nginx(TLS 终止) -> keycloak(start --optimized, 仅内网 HTTP) -> postgres
+# 生产形态部署：nginx(TLS 终止) -> keycloak(start --optimized, 仅内网 HTTP) -> 已存在的外部 PostgreSQL
 # 本地验证与生产使用同一份文件，差异只在 .env.prod 的取值（域名、端口、证书路径、密码）。
 name: keycloak-prod
 
 services:
-  postgres:
-    image: postgres:18-alpine
-    environment:
-      POSTGRES_DB: ${KC_DB_NAME:-keycloak}
-      POSTGRES_USER: ${KC_DB_USERNAME:-keycloak}
-      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?set KC_DB_PASSWORD in .env.prod}
-    volumes:
-      # PG 18 起镜像的 PGDATA 为 /var/lib/postgresql/18/docker，卷需挂到上级目录
-      - pgdata:/var/lib/postgresql
-    networks: [backend]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
-    restart: unless-stopped
-
   keycloak:
     build:
       context: .
@@ -29,9 +12,10 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?set KC_BOOTSTRAP_ADMIN_PASSWORD in .env.prod}
-      KC_DB_URL: jdbc:postgresql://postgres:5432/${KC_DB_NAME:-keycloak}
+      # 使用已存在的 PostgreSQL：库与账号需预先创建（见 AGENTS.md），本 compose 不管理数据库
+      KC_DB_URL: jdbc:postgresql://${KC_DB_HOST:?set KC_DB_HOST in .env.prod}:${KC_DB_PORT:-5432}/${KC_DB_NAME:-keycloak}${KC_DB_URL_PARAMS:-}
       KC_DB_USERNAME: ${KC_DB_USERNAME:-keycloak}
-      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?set KC_DB_PASSWORD in .env.prod}
       # 对外地址（含协议与端口），决定 issuer 与重定向 URL
       KC_HOSTNAME: ${KC_HOSTNAME:?set KC_HOSTNAME in .env.prod}
       # 对外 TLS 在 nginx 终止；容器间走 HTTP，且不对宿主机暴露端口
@@ -42,10 +26,10 @@ services:
     expose:
       - "8080"
       - "9000"
+    # 让容器内可用 host.docker.internal 访问宿主机上的数据库（Linux 需要此映射；本地验证用）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks: [backend]
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
       interval: 15s
@@ -73,6 +57,3 @@ services:
 
 networks:
   backend:
-
-volumes:
-  pgdata:
